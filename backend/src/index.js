@@ -3,6 +3,8 @@ const config = require('./config');
 const { connectDatabase } = require('./db');
 const seed = require('./seed');
 
+
+
 async function start() {
   try {
     await connectDatabase();
