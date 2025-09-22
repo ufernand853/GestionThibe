@@ -1,0 +1,28 @@
+const { Schema, model, Types } = require('mongoose');
+
+const movementRequestSchema = new Schema(
+  {
+    item: { type: Types.ObjectId, ref: 'Item', required: true },
+    type: { type: String, enum: ['in', 'out', 'transfer'], required: true },
+    fromList: { type: String, default: null },
+    toList: { type: String, default: null },
+    quantity: { type: Number, required: true, min: 1 },
+    reason: { type: String, default: '' },
+    requestedBy: { type: Types.ObjectId, ref: 'User', required: true },
+    requestedAt: { type: Date, default: Date.now },
+    status: { type: String, enum: ['pending', 'approved', 'rejected', 'executed'], default: 'pending' },
+    approvedBy: { type: Types.ObjectId, ref: 'User', default: null },
+    approvedAt: { type: Date, default: null },
+    executedAt: { type: Date, default: null },
+    rejectedReason: { type: String, default: null },
+    customer: { type: Types.ObjectId, ref: 'Customer', default: null }
+  },
+  {
+    timestamps: true,
+    versionKey: false
+  }
+);
+
+movementRequestSchema.index({ status: 1, requestedAt: -1 });
+
+module.exports = model('MovementRequest', movementRequestSchema);
