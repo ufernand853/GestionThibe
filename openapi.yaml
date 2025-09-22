@@ -1,0 +1,67 @@
+
+openapi: 3.0.3
+info:
+  title: Stock & Customers API
+  version: 0.1.0
+servers:
+  - url: http://localhost:3000
+paths:
+  /api/auth/login:
+    post:
+      summary: Login
+      responses:
+        '200':
+          description: OK
+  /api/users:
+    get:
+      summary: List users
+      responses: { '200': { description: OK } }
+    post:
+      summary: Create user
+      responses: { '201': { description: Created } }
+  /api/users/{id}:
+    put:
+      summary: Update user
+      responses: { '200': { description: OK } }
+    delete:
+      summary: Disable user
+      responses: { '204': { description: No Content } }
+  /api/items:
+    get:
+      summary: List items (filters by facets)
+      responses: { '200': { description: OK } }
+    post:
+      summary: Create item
+      responses: { '201': { description: Created } }
+  /api/groups:
+    get:
+      summary: List groups
+      responses: { '200': { description: OK } }
+    post:
+      summary: Create group
+      responses: { '201': { description: Created } }
+  /api/customers/{id}/stock:
+    get:
+      summary: View customer stock
+      responses: { '200': { description: OK } }
+  /api/stock/request:
+    post:
+      summary: Request a stock movement (requires auth)
+      responses: { '201': { description: Created } }
+  /api/stock/approve/{requestId}:
+    post:
+      summary: Approve and execute movement (Admin)
+      responses: { '200': { description: Executed } }
+  /api/stock/reject/{requestId}:
+    post:
+      summary: Reject movement (Admin)
+      responses: { '200': { description: Rejected } }
+  /api/stock/requests:
+    get:
+      summary: List movement requests
+      responses: { '200': { description: OK } }
+  /api/logs/movements:
+    get:
+      summary: Read audit logs
+      responses: { '200': { description: OK } }
+components: {}
