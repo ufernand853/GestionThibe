@@ -6,6 +6,7 @@ const customerStockSchema = new Schema(
     item: { type: Types.ObjectId, ref: 'Item', required: true },
     quantity: { type: Number, required: true, min: 0 },
     status: { type: String, enum: ['reserved', 'delivered'], default: 'reserved' },
+    boxLabel: { type: String, default: null, trim: true },
     dateCreated: { type: Date, default: Date.now },
     dateDelivered: { type: Date, default: null }
   },
@@ -15,6 +16,6 @@ const customerStockSchema = new Schema(
   }
 );
 
-customerStockSchema.index({ customer: 1, item: 1, status: 1 });
+customerStockSchema.index({ customer: 1, item: 1, status: 1, boxLabel: 1 });
 
 module.exports = model('CustomerStock', customerStockSchema);

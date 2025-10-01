@@ -37,7 +37,8 @@ export default function MovementRequestsPage() {
     toList: 'customer',
     quantity: 1,
     reason: '',
-    customerId: ''
+    customerId: '',
+    boxLabel: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -123,9 +124,11 @@ export default function MovementRequestsPage() {
       if (formValues.fromList) payload.fromList = formValues.fromList;
       if (formValues.toList) payload.toList = formValues.toList;
       if (formValues.customerId) payload.customerId = formValues.customerId;
+      const trimmedBox = formValues.boxLabel.trim();
+      if (trimmedBox) payload.boxLabel = trimmedBox;
       await api.post('/stock/request', payload);
       setSuccessMessage('Solicitud registrada correctamente.');
-      setFormValues(prev => ({ ...prev, reason: '', quantity: 1 }));
+      setFormValues(prev => ({ ...prev, reason: '', quantity: 1, boxLabel: '' }));
       const refreshed = await api.get('/stock/requests', {
         query: statusFilter ? { status: statusFilter } : undefined
       });
@@ -138,6 +141,12 @@ export default function MovementRequestsPage() {
   };
 
   const requiresCustomer = formValues.fromList === 'customer' || formValues.toList === 'customer';
+
+  useEffect(() => {
+    if (!requiresCustomer && (formValues.customerId || formValues.boxLabel)) {
+      setFormValues(prev => ({ ...prev, customerId: '', boxLabel: '' }));
+    }
+  }, [requiresCustomer, formValues.customerId, formValues.boxLabel]);
 
   if (!canRequest) {
     return <ErrorMessage error="No cuenta con permisos para solicitar movimientos." />;
@@ -226,6 +235,19 @@ export default function MovementRequestsPage() {
               </select>
             </div>
           )}
+          {requiresCustomer && (
+            <div className="input-group">
+              <label htmlFor="boxLabel">Caja</label>
+              <input
+                id="boxLabel"
+                name="boxLabel"
+                value={formValues.boxLabel}
+                onChange={handleFormChange}
+                placeholder="Identificador de caja"
+                maxLength={100}
+              />
+            </div>
+          )}
           <div className="input-group" style={{ gridColumn: '1 / -1' }}>
             <label htmlFor="reason">Motivo</label>
             <textarea
@@ -273,6 +295,7 @@ export default function MovementRequestsPage() {
                   <th>Destino</th>
                   <th>Cantidad</th>
                   <th>Cliente</th>
+                  <th>Caja</th>
                   <th>Estado</th>
                   <th>Solicitado por</th>
                   <th>Fecha</th>
@@ -287,6 +310,7 @@ export default function MovementRequestsPage() {
                     <td>{request.toList || '-'}</td>
                     <td>{request.quantity}</td>
                     <td>{request.customer?.name || '-'}</td>
+                    <td>{request.boxLabel || '-'}</td>
                     <td>
                       <span className={`badge ${request.status}`}>{request.status}</span>
                     </td>
@@ -296,7 +320,7 @@ export default function MovementRequestsPage() {
                 ))}
                 {requests.length === 0 && (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={10} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se registran solicitudes con los filtros aplicados.
                     </td>
                   </tr>

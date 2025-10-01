@@ -20,6 +20,7 @@ export default function ItemsPage() {
   const [pageSize] = useState(20);
   const [groups, setGroups] = useState([]);
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
+  const [groupForm, setGroupForm] = useState({ name: '', parentId: '' });
   const [formValues, setFormValues] = useState({
     code: '',
     description: '',
@@ -38,6 +39,8 @@ export default function ItemsPage() {
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [editingItem, setEditingItem] = useState(null);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [groupError, setGroupError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -118,6 +121,11 @@ export default function ItemsPage() {
     setFormValues(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleGroupFormChange = event => {
+    const { name, value } = event.target;
+    setGroupForm(prev => ({ ...prev, [name]: value }));
+  };
+
   const buildPayload = () => {
     const stock = {
       general: formValues.stockGeneral === '' ? undefined : Number(formValues.stockGeneral),
@@ -170,6 +178,30 @@ export default function ItemsPage() {
     }
   };
 
+  const handleCreateGroup = async event => {
+    event.preventDefault();
+    if (!canWrite || !groupForm.name.trim()) return;
+    setCreatingGroup(true);
+    setGroupError('');
+    try {
+      const payload = {
+        name: groupForm.name.trim(),
+        parentId: groupForm.parentId || undefined
+      };
+      const newGroup = await api.post('/groups', payload);
+      setGroups(prev => {
+        const updated = [...prev, newGroup];
+        return updated.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+      });
+      setGroupForm({ name: '', parentId: '' });
+      setSuccessMessage(`Grupo ${newGroup.name} creado correctamente.`);
+    } catch (err) {
+      setGroupError(err);
+    } finally {
+      setCreatingGroup(false);
+    }
+  };
+
   const handleEdit = item => {
     setEditingItem(item);
     setFormValues({
@@ -205,6 +237,47 @@ export default function ItemsPage() {
 
       {error && <ErrorMessage error={error} />}
       {successMessage && <div className="success-message">{successMessage}</div>}
+
+      {canWrite && (
+        <div className="section-card">
+          <h2>Crear grupo</h2>
+          <form className="form-grid" onSubmit={handleCreateGroup} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div className="input-group">
+              <label htmlFor="groupName">Nombre *</label>
+              <input
+                id="groupName"
+                name="name"
+                value={groupForm.name}
+                onChange={handleGroupFormChange}
+                placeholder="Ej. Calzado"
+                required
+              />
+            </div>
+            <div className="input-group">
+              <label htmlFor="parentGroup">Grupo padre</label>
+              <select
+                id="parentGroup"
+                name="parentId"
+                value={groupForm.parentId}
+                onChange={handleGroupFormChange}
+              >
+                <option value="">Sin padre</option>
+                {groups.map(group => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button type="submit" disabled={creatingGroup}>
+                {creatingGroup ? 'Creando...' : 'Crear grupo'}
+              </button>
+            </div>
+          </form>
+          <ErrorMessage error={groupError} />
+        </div>
+      )}
 
       <div className="section-card">
         <form className="form-grid" onSubmit={handleSubmit} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>

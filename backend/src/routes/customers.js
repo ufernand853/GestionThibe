@@ -8,12 +8,19 @@ const { ensureCustomerExists } = require('../services/stockService');
 
 const router = express.Router();
 
+const serializeCustomer = customer => ({
+  id: customer.id || (customer._id ? customer._id.toString() : undefined),
+  name: customer.name,
+  contactInfo: customer.contactInfo || '',
+  status: customer.status || 'active'
+});
+
 router.get(
   '/',
   requirePermission('items.read'),
   asyncHandler(async (req, res) => {
     const customers = await Customer.find().sort({ name: 1 });
-    res.json(customers);
+    res.json(customers.map(serializeCustomer));
   })
 );
 
@@ -30,7 +37,7 @@ router.post(
       contactInfo: contactInfo || '',
       status: status || 'active'
     });
-    res.status(201).json(customer);
+    res.status(201).json(serializeCustomer(customer));
   })
 );
 
@@ -53,7 +60,28 @@ router.put(
       customer.status = status;
     }
     await customer.save();
-    res.json(customer);
+    res.json(serializeCustomer(customer));
+  })
+);
+
+router.delete(
+  '/:id',
+  requirePermission('items.write'),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const customer = await Customer.findById(id);
+    if (!customer) {
+      throw new HttpError(404, 'Cliente no encontrado');
+    }
+
+    const hasReservedStock = await CustomerStock.exists({ customer: id, status: 'reserved' });
+    if (hasReservedStock) {
+      throw new HttpError(400, 'No se puede eliminar un cliente con stock reservado.');
+    }
+
+    await CustomerStock.deleteMany({ customer: id });
+    await customer.deleteOne();
+    res.json({ success: true });
   })
 );
 
@@ -78,6 +106,7 @@ router.get(
           : null,
         quantity: record.quantity,
         status: record.status,
+        boxLabel: record.boxLabel,
         dateCreated: record.dateCreated,
         dateDelivered: record.dateDelivered
       }))

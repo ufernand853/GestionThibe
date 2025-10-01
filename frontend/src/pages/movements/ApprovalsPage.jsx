@@ -102,6 +102,7 @@ export default function ApprovalsPage() {
                   <th>Destino</th>
                   <th>Cantidad</th>
                   <th>Cliente</th>
+                  <th>Caja</th>
                   <th>Solicitado por</th>
                   <th>Fecha</th>
                   <th>Acciones</th>
@@ -116,6 +117,7 @@ export default function ApprovalsPage() {
                     <td>{request.toList || '-'}</td>
                     <td>{request.quantity}</td>
                     <td>{request.customer?.name || '-'}</td>
+                    <td>{request.boxLabel || '-'}</td>
                     <td>{request.requestedBy?.username || 'N/D'}</td>
                     <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
                     <td>
