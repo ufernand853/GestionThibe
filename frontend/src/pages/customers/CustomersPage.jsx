@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 
+const INITIAL_FORM_STATE = { name: '', contactInfo: '', status: 'active' };
+
 export default function CustomersPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -14,12 +16,32 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [customers, setCustomers] = useState([]);
-  const [formValues, setFormValues] = useState({ name: '', contactInfo: '', status: 'active' });
+  const [formValues, setFormValues] = useState({ ...INITIAL_FORM_STATE });
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [editingCustomerId, setEditingCustomerId] = useState(null);
   const [customerStock, setCustomerStock] = useState([]);
   const [loadingStock, setLoadingStock] = useState(false);
+  const [deletingCustomerId, setDeletingCustomerId] = useState(null);
+
+  const normalizeCustomer = customer => {
+    const rawId = customer.id || customer._id;
+    return {
+      id:
+        rawId && typeof rawId === 'object' && typeof rawId.toString === 'function'
+          ? rawId.toString()
+          : rawId || '',
+      name: customer.name || '',
+      contactInfo: customer.contactInfo || '',
+      status: customer.status || 'active'
+    };
+  };
+
+  const editingCustomer = useMemo(
+    () => (editingCustomerId ? customers.find(customer => customer.id === editingCustomerId) || null : null),
+    [customers, editingCustomerId]
+  );
 
   useEffect(() => {
     let active = true;
@@ -29,9 +51,14 @@ export default function CustomersPage() {
       try {
         const response = await api.get('/customers');
         if (!active) return;
-        setCustomers(Array.isArray(response) ? response : []);
-        if (response?.[0]) {
-          setSelectedCustomer(response[0]);
+        const normalized = Array.isArray(response)
+          ? response.map(normalizeCustomer).sort((a, b) => a.name.localeCompare(b.name))
+          : [];
+        setCustomers(normalized);
+        if (normalized[0]) {
+          setSelectedCustomerId(prev => prev || normalized[0].id);
+        } else {
+          setSelectedCustomerId(null);
         }
       } catch (err) {
         if (!active) return;
@@ -47,6 +74,16 @@ export default function CustomersPage() {
       active = false;
     };
   }, [api]);
+
+  useEffect(() => {
+    if (customers.length === 0) {
+      setSelectedCustomerId(null);
+      return;
+    }
+    if (!customers.some(customer => customer.id === selectedCustomerId)) {
+      setSelectedCustomerId(customers[0].id);
+    }
+  }, [customers, selectedCustomerId]);
 
   useEffect(() => {
     let active = true;
@@ -70,19 +107,23 @@ export default function CustomersPage() {
         }
       }
     };
-    loadReserved(selectedCustomer?.id);
+    loadReserved(selectedCustomerId);
     return () => {
       active = false;
     };
-  }, [api, canViewReserved, selectedCustomer?.id]);
+  }, [api, canViewReserved, selectedCustomerId]);
 
   const handleFormChange = event => {
     const { name, value } = event.target;
+    setSuccessMessage('');
     setFormValues(prev => ({ ...prev, [name]: value }));
   };
 
   const handleEdit = customer => {
-    setSelectedCustomer(customer);
+    setEditingCustomerId(customer.id);
+    setSelectedCustomerId(customer.id);
+    setSuccessMessage('');
+    setError(null);
     setFormValues({
       name: customer.name,
       contactInfo: customer.contactInfo || '',
@@ -90,27 +131,99 @@ export default function CustomersPage() {
     });
   };
 
+  const handleCreateNew = () => {
+    setEditingCustomerId(null);
+    setSuccessMessage('');
+    setError(null);
+    setFormValues({ ...INITIAL_FORM_STATE });
+  };
+
   const handleSubmit = async event => {
     event.preventDefault();
     if (!canWrite) return;
+    const trimmedName = formValues.name.trim();
+    if (!trimmedName) {
+      setError(new Error('El nombre es obligatorio.'));
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      if (selectedCustomer && customers.some(customer => customer.id === selectedCustomer.id)) {
-        const updated = await api.put(`/customers/${selectedCustomer.id}`, formValues);
-        setCustomers(prev => prev.map(customer => (customer.id === updated.id ? updated : customer)));
-        setSuccessMessage(`Cliente ${updated.name} actualizado.`);
+      const payload = { ...formValues, name: trimmedName };
+      if (editingCustomerId && customers.some(customer => customer.id === editingCustomerId)) {
+        const updated = await api.put(`/customers/${editingCustomerId}`, payload);
+        const normalized = normalizeCustomer(updated);
+        setCustomers(prev =>
+          prev
+            .map(customer => (customer.id === normalized.id ? normalized : customer))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+        setEditingCustomerId(normalized.id);
+        setSelectedCustomerId(normalized.id);
+        setFormValues({
+          name: normalized.name,
+          contactInfo: normalized.contactInfo,
+          status: normalized.status
+        });
+        setSuccessMessage(`Cliente ${normalized.name} actualizado.`);
       } else {
-        const created = await api.post('/customers', formValues);
-        setCustomers(prev => [created, ...prev]);
-        setSelectedCustomer(created);
-        setSuccessMessage(`Cliente ${created.name} creado.`);
+        const created = await api.post('/customers', payload);
+        const normalized = normalizeCustomer(created);
+        setCustomers(prev =>
+          [...prev, normalized].sort((a, b) => a.name.localeCompare(b.name))
+        );
+        setEditingCustomerId(normalized.id);
+        setSelectedCustomerId(normalized.id);
+        setFormValues({
+          name: normalized.name,
+          contactInfo: normalized.contactInfo,
+          status: normalized.status
+        });
+        setSuccessMessage(`Cliente ${normalized.name} creado.`);
       }
     } catch (err) {
       setError(err);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDelete = async (event, customer) => {
+    event.stopPropagation();
+    if (!canWrite || !customer?.id) return;
+    const confirmed = window.confirm(`¿Eliminar al cliente "${customer.name}"? Esta acción no se puede deshacer.`);
+    if (!confirmed) {
+      return;
+    }
+    setDeletingCustomerId(customer.id);
+    setError(null);
+    setSuccessMessage('');
+    try {
+      await api.delete(`/customers/${customer.id}`);
+      setCustomers(prev => {
+        const filtered = prev
+          .filter(current => current.id !== customer.id)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        const fallbackId = filtered[0]?.id || null;
+        setSelectedCustomerId(previousSelected =>
+          previousSelected === customer.id ? fallbackId : previousSelected
+        );
+        return filtered;
+      });
+      if (editingCustomerId === customer.id) {
+        setEditingCustomerId(null);
+        setFormValues({ ...INITIAL_FORM_STATE });
+      }
+      setSuccessMessage(`Cliente ${customer.name} eliminado.`);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setDeletingCustomerId(null);
+    }
+  };
+
+  const handleRowClick = customer => {
+    setSelectedCustomerId(customer.id);
   };
 
   if (loading) {
@@ -130,7 +243,14 @@ export default function CustomersPage() {
       <div className="section-card">
         <div className="flex-between">
           <h3>Clientes registrados</h3>
-          <span className="badge">{customers.length} clientes</span>
+          <div className="inline-actions" style={{ alignItems: 'center' }}>
+            {canWrite && (
+              <button type="button" className="secondary-button" onClick={handleCreateNew}>
+                Nuevo
+              </button>
+            )}
+            <span className="badge">{customers.length} clientes</span>
+          </div>
         </div>
         <div className="table-wrapper" style={{ marginTop: '1rem' }}>
           <table>
@@ -146,8 +266,11 @@ export default function CustomersPage() {
               {customers.map(customer => (
                 <tr
                   key={customer.id}
-                  onClick={() => setSelectedCustomer(customer)}
-                  style={{ backgroundColor: selectedCustomer?.id === customer.id ? '#e2e8f0' : undefined, cursor: 'pointer' }}
+                  onClick={() => handleRowClick(customer)}
+                  style={{
+                    backgroundColor: selectedCustomerId === customer.id ? '#e2e8f0' : undefined,
+                    cursor: 'pointer'
+                  }}
                 >
                   <td>{customer.name}</td>
                   <td>{customer.contactInfo || '-'}</td>
@@ -158,9 +281,26 @@ export default function CustomersPage() {
                   </td>
                   {canWrite && (
                     <td>
-                      <button type="button" className="secondary-button" onClick={() => handleEdit(customer)}>
-                        Editar
-                      </button>
+                      <div className="inline-actions">
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={event => {
+                            event.stopPropagation();
+                            handleEdit(customer);
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-button"
+                          onClick={event => handleDelete(event, customer)}
+                          disabled={deletingCustomerId === customer.id}
+                        >
+                          {deletingCustomerId === customer.id ? 'Eliminando...' : 'Eliminar'}
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -179,8 +319,24 @@ export default function CustomersPage() {
 
       {canWrite && (
         <div className="section-card">
-          <h3>{selectedCustomer ? 'Editar cliente' : 'Nuevo cliente'}</h3>
-          <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }} onSubmit={handleSubmit}>
+          <div className="flex-between" style={{ alignItems: 'center', gap: '1rem' }}>
+            <h3>{editingCustomer ? `Editar: ${editingCustomer.name}` : 'Nuevo cliente'}</h3>
+            {editingCustomer && (
+              <button
+                type="button"
+                className="danger-button"
+                onClick={event => handleDelete(event, editingCustomer)}
+                disabled={deletingCustomerId === editingCustomer.id}
+              >
+                {deletingCustomerId === editingCustomer.id ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            )}
+          </div>
+          <form
+            className="form-grid"
+            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
+            onSubmit={handleSubmit}
+          >
             <div className="input-group">
               <label htmlFor="customerName">Nombre *</label>
               <input
@@ -209,7 +365,7 @@ export default function CustomersPage() {
             </div>
             <div>
               <button type="submit" disabled={saving}>
-                {saving ? 'Guardando...' : selectedCustomer ? 'Actualizar cliente' : 'Crear cliente'}
+                {saving ? 'Guardando...' : editingCustomer ? 'Actualizar cliente' : 'Crear cliente'}
               </button>
             </div>
           </form>
