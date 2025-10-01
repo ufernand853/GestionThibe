@@ -24,6 +24,7 @@ export default function CustomersPage() {
   const [customerStock, setCustomerStock] = useState([]);
   const [loadingStock, setLoadingStock] = useState(false);
   const [deletingCustomerId, setDeletingCustomerId] = useState(null);
+
   const reservedSummary = useMemo(() => {
     const buckets = new Map();
     customerStock.forEach(record => {
@@ -61,6 +62,7 @@ export default function CustomersPage() {
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'es'));
   }, [customerStock]);
+
 
   const normalizeCustomer = customer => {
     const rawId = customer.id || customer._id;
