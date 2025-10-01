@@ -25,6 +25,45 @@ export default function CustomersPage() {
   const [loadingStock, setLoadingStock] = useState(false);
   const [deletingCustomerId, setDeletingCustomerId] = useState(null);
 
+  const reservedSummary = useMemo(() => {
+    const buckets = new Map();
+    customerStock.forEach(record => {
+      if (record.status !== 'reserved') {
+        return;
+      }
+      const key = record.boxLabel || '__NO_BOX__';
+      if (!buckets.has(key)) {
+        buckets.set(key, {
+          label: record.boxLabel ? record.boxLabel : 'Sin caja',
+          boxLabel: record.boxLabel,
+          totalQuantity: 0,
+          items: new Map()
+        });
+      }
+      const bucket = buckets.get(key);
+      bucket.totalQuantity += record.quantity;
+      const code = record.item?.code || record.itemId;
+      if (!bucket.items.has(code)) {
+        bucket.items.set(code, {
+          code,
+          description: record.item?.description || '',
+          quantity: 0
+        });
+      }
+      const itemEntry = bucket.items.get(code);
+      itemEntry.quantity += record.quantity;
+    });
+    return Array.from(buckets.values())
+      .map(bucket => ({
+        boxLabel: bucket.boxLabel,
+        label: bucket.label,
+        totalQuantity: bucket.totalQuantity,
+        items: Array.from(bucket.items.values())
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'es'));
+  }, [customerStock]);
+
+
   const normalizeCustomer = customer => {
     const rawId = customer.id || customer._id;
     return {
@@ -381,32 +420,70 @@ export default function CustomersPage() {
         ) : customerStock.length === 0 ? (
           <p style={{ color: '#64748b' }}>No hay stock reservado para el cliente seleccionado.</p>
         ) : (
-          <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Artículo</th>
-                  <th>Código</th>
-                  <th>Cantidad</th>
-                  <th>Estado</th>
-                  <th>Reservado</th>
-                  <th>Entregado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customerStock.map(record => (
-                  <tr key={record.id}>
-                    <td>{record.item?.description || '-'}</td>
-                    <td>{record.item?.code || record.itemId}</td>
-                    <td>{record.quantity}</td>
-                    <td>{record.status}</td>
-                    <td>{new Date(record.dateCreated).toLocaleDateString('es-AR')}</td>
-                    <td>{record.dateDelivered ? new Date(record.dateDelivered).toLocaleDateString('es-AR') : '-'}</td>
+          <>
+            <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Artículo</th>
+                    <th>Código</th>
+                    <th>Caja</th>
+                    <th>Cantidad</th>
+                    <th>Estado</th>
+                    <th>Reservado</th>
+                    <th>Entregado</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {customerStock.map(record => (
+                    <tr key={record.id}>
+                      <td>{record.item?.description || '-'}</td>
+                      <td>{record.item?.code || record.itemId}</td>
+                      <td>{record.boxLabel || '-'}</td>
+                      <td>{record.quantity}</td>
+                      <td>{record.status}</td>
+                      <td>{new Date(record.dateCreated).toLocaleDateString('es-AR')}</td>
+                      <td>{record.dateDelivered ? new Date(record.dateDelivered).toLocaleDateString('es-AR') : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {reservedSummary.length > 0 && (
+              <div style={{ marginTop: '1.5rem' }}>
+                <h4 style={{ marginBottom: '0.75rem' }}>Resumen por caja</h4>
+                <div className="table-wrapper">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Caja</th>
+                        <th>Artículos</th>
+                        <th>Total reservado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reservedSummary.map(group => (
+                        <tr key={group.boxLabel || 'sin-caja'}>
+                          <td>{group.label}</td>
+                          <td>
+                            <div className="chip-list">
+                              {group.items.map(item => (
+                                <span key={item.code} className="badge">
+                                  {item.code}
+                                  {item.description ? ` · ${item.description}` : ''} ({item.quantity})
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td>{group.totalQuantity}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -56,11 +56,21 @@ function adjustItemStock(item, list, delta) {
   item.stock[list] = updated;
 }
 
-async function getOrCreateReservation(customerId, itemId) {
+function normalizeBoxLabel(boxLabel) {
+  if (boxLabel === undefined || boxLabel === null) {
+    return null;
+  }
+  const normalized = String(boxLabel).trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+async function getOrCreateReservation(customerId, itemId, boxLabel) {
+  const normalizedBox = normalizeBoxLabel(boxLabel);
   let reservation = await CustomerStock.findOne({
     customer: customerId,
     item: itemId,
-    status: 'reserved'
+    status: 'reserved',
+    boxLabel: normalizedBox
   });
   if (!reservation) {
     reservation = new CustomerStock({
@@ -69,8 +79,28 @@ async function getOrCreateReservation(customerId, itemId) {
       quantity: 0,
       status: 'reserved',
       dateCreated: new Date(),
-      dateDelivered: null
+      dateDelivered: null,
+      boxLabel: normalizedBox
     });
+  } else if (reservation.boxLabel !== normalizedBox) {
+    reservation.boxLabel = normalizedBox;
+  }
+  return reservation;
+}
+
+async function findReservationOrThrow(customerId, itemId, boxLabel) {
+  const normalizedBox = normalizeBoxLabel(boxLabel);
+  const reservation = await CustomerStock.findOne({
+    customer: customerId,
+    item: itemId,
+    status: 'reserved',
+    boxLabel: normalizedBox
+  });
+  if (!reservation) {
+    if (normalizedBox) {
+      throw new HttpError(400, `No hay stock reservado para la caja ${normalizedBox}.`);
+    }
+    throw new HttpError(400, 'Stock reservado insuficiente para el cliente');
   }
   return reservation;
 }
@@ -105,10 +135,11 @@ async function executeMovement(request, actorUserId, metadata = {}) {
         throw new HttpError(400, 'Debe indicarse el cliente');
       }
       await ensureCustomerExists(request.customer);
-      const reservation = await getOrCreateReservation(request.customer, item.id);
+      const reservation = await getOrCreateReservation(request.customer, item.id, request.boxLabel);
       reservation.quantity += quantity;
       reservation.status = 'reserved';
       reservation.dateCreated = new Date();
+      reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
       await reservation.save();
     } else {
       if (!request.toList) {
@@ -126,11 +157,7 @@ async function executeMovement(request, actorUserId, metadata = {}) {
         throw new HttpError(400, 'Debe indicarse el cliente');
       }
       await ensureCustomerExists(request.customer);
-      const reservation = await CustomerStock.findOne({
-        customer: request.customer,
-        item: item.id,
-        status: 'reserved'
-      });
+      const reservation = await findReservationOrThrow(request.customer, item.id, request.boxLabel);
       if (!reservation || reservation.quantity < quantity) {
         throw new HttpError(400, 'Stock reservado insuficiente para el cliente');
       }
@@ -139,6 +166,7 @@ async function executeMovement(request, actorUserId, metadata = {}) {
         reservation.status = 'delivered';
         reservation.dateDelivered = new Date();
       }
+      reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
       await reservation.save();
     } else {
       adjustItemStock(item, request.fromList, -quantity);
@@ -153,23 +181,21 @@ async function executeMovement(request, actorUserId, metadata = {}) {
         throw new HttpError(400, 'Debe indicarse el cliente');
       }
       await ensureCustomerExists(request.customer);
-      const reservation = await CustomerStock.findOne({
-        customer: request.customer,
-        item: item.id,
-        status: 'reserved'
-      });
-      if (!reservation || reservation.quantity < quantity) {
+      const reservation = await findReservationOrThrow(request.customer, item.id, request.boxLabel);
+      if (reservation.quantity < quantity) {
         throw new HttpError(400, 'Stock reservado insuficiente');
       }
       reservation.quantity -= quantity;
       if (request.toList === 'customer') {
         reservation.status = 'delivered';
         reservation.dateDelivered = new Date();
+        reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
         await reservation.save();
       } else {
         if (reservation.quantity === 0) {
           await reservation.deleteOne();
         } else {
+          reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
           await reservation.save();
         }
         adjustItemStock(item, request.toList, quantity);
@@ -183,10 +209,11 @@ async function executeMovement(request, actorUserId, metadata = {}) {
           throw new HttpError(400, 'Debe indicarse el cliente');
         }
         await ensureCustomerExists(request.customer);
-        const reservation = await getOrCreateReservation(request.customer, item.id);
+        const reservation = await getOrCreateReservation(request.customer, item.id, request.boxLabel);
         reservation.quantity += quantity;
         reservation.status = 'reserved';
         reservation.dateCreated = new Date();
+        reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
         await reservation.save();
       } else {
         adjustItemStock(item, request.toList, quantity);
@@ -237,6 +264,14 @@ function validateMovementPayload(payload) {
   const customerInteraction = payload.fromList === 'customer' || payload.toList === 'customer';
   if (customerInteraction && !payload.customerId) {
     throw new HttpError(400, 'Debe indicarse customerId para operar con reservas');
+  }
+  if (payload.boxLabel !== undefined && payload.boxLabel !== null) {
+    if (typeof payload.boxLabel !== 'string') {
+      throw new HttpError(400, 'La etiqueta de caja debe ser texto');
+    }
+    if (payload.boxLabel.trim().length > 100) {
+      throw new HttpError(400, 'La etiqueta de caja no puede superar los 100 caracteres');
+    }
   }
 }
 

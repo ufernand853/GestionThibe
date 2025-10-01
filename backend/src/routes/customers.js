@@ -106,6 +106,7 @@ router.get(
           : null,
         quantity: record.quantity,
         status: record.status,
+        boxLabel: record.boxLabel,
         dateCreated: record.dateCreated,
         dateDelivered: record.dateDelivered
       }))

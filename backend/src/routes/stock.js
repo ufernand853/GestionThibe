@@ -41,6 +41,7 @@ function serializeMovementRequest(doc) {
     toList: doc.toList,
     quantity: doc.quantity,
     reason: doc.reason,
+    boxLabel: doc.boxLabel || null,
     requestedBy: doc.populated('requestedBy') ? serializeUserSummary(doc.requestedBy) : doc.requestedBy,
     requestedAt: doc.requestedAt,
     status: doc.status,
@@ -74,6 +75,10 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     validateMovementPayload(body);
+    const normalizedBoxLabel =
+      typeof body.boxLabel === 'string' && body.boxLabel.trim().length > 0
+        ? body.boxLabel.trim()
+        : null;
     await findItemOrThrow(body.itemId);
     if (body.customerId) {
       await ensureCustomerExists(body.customerId);
@@ -88,7 +93,8 @@ router.post(
       requestedBy: req.user.id,
       requestedAt: new Date(),
       status: 'pending',
-      customer: body.customerId || null
+      customer: body.customerId || null,
+      boxLabel: normalizedBoxLabel
     });
     await movementRequest.save();
     await addMovementLog(movementRequest.id, 'requested', req.user.id, requestMetadata(req));

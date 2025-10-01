@@ -15,7 +15,8 @@ const movementRequestSchema = new Schema(
     approvedAt: { type: Date, default: null },
     executedAt: { type: Date, default: null },
     rejectedReason: { type: String, default: null },
-    customer: { type: Types.ObjectId, ref: 'Customer', default: null }
+    customer: { type: Types.ObjectId, ref: 'Customer', default: null },
+    boxLabel: { type: String, default: null, trim: true }
   },
   {
     timestamps: true,
