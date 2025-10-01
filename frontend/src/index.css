@@ -227,6 +227,17 @@ th {
   background-color: rgba(37, 99, 235, 0.12);
 }
 
+.danger-button {
+  background-color: #ef4444;
+  color: #fff;
+  border: 1px solid #ef4444;
+}
+
+.danger-button:hover:not(:disabled) {
+  background-color: #dc2626;
+  border-color: #dc2626;
+}
+
 .input-group {
   display: flex;
   flex-direction: column;
