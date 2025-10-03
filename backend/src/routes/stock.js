@@ -193,4 +193,37 @@ router.get(
   })
 );
 
+router.post(
+  '/request/:id/resubmit',
+  requirePermission('stock.request'),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const request = await MovementRequest.findById(id);
+    if (!request) {
+      throw new HttpError(404, 'Solicitud no encontrada');
+    }
+    if (request.status !== 'rejected') {
+      throw new HttpError(400, 'Solo pueden reenviarse solicitudes rechazadas');
+    }
+
+    request.status = 'pending';
+    request.rejectedReason = null;
+    request.approvedBy = null;
+    request.approvedAt = null;
+    request.executedAt = null;
+    request.requestedBy = req.user.id;
+    request.requestedAt = new Date();
+    await request.save();
+
+    await addMovementLog(request.id, 'resubmitted', req.user.id, requestMetadata(req));
+
+    if (request.type === 'in') {
+      await executeMovement(request, req.user.id, requestMetadata(req));
+    }
+
+    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'customer']);
+    res.json(serializeMovementRequest(populated));
+  })
+);
+
 module.exports = router;
