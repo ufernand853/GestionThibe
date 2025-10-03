@@ -3,6 +3,8 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { formatQuantity } from '../../utils/quantity.js';
+import { formatStockListLabel } from '../../utils/stockLists.js';
 
 const TYPE_LABELS = {
   in: 'Entrada',
@@ -113,9 +115,9 @@ export default function ApprovalsPage() {
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
                     <td>{TYPE_LABELS[request.type] || request.type}</td>
-                    <td>{request.fromList || '-'}</td>
-                    <td>{request.toList || '-'}</td>
-                    <td>{request.quantity}</td>
+                    <td>{request.fromListLabel || formatStockListLabel(request.fromList) || '-'}</td>
+                    <td>{request.toListLabel || formatStockListLabel(request.toList) || '-'}</td>
+                    <td>{formatQuantity(request.quantity)}</td>
                     <td>{request.customer?.name || '-'}</td>
                     <td>{request.boxLabel || '-'}</td>
                     <td>{request.requestedBy?.username || 'N/D'}</td>

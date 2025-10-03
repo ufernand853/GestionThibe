@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { exportToCsv } from '../../utils/export.js';
+import { ensureQuantity, formatQuantity, sumQuantities } from '../../utils/quantity.js';
 
 export default function ReportsPage() {
   const api = useApi();
@@ -65,26 +66,41 @@ export default function ReportsPage() {
     return filteredData.reduce(
       (accumulator, item) => {
         const stock = item.stock || {};
-        accumulator.general += Number(stock.general || 0);
-        accumulator.overstockGeneral += Number(stock.overstockGeneral || 0);
-        accumulator.overstockThibe += Number(stock.overstockThibe || 0);
-        accumulator.overstockArenal += Number(stock.overstockArenal || 0);
+        accumulator.general = sumQuantities(accumulator.general, stock.general);
+        accumulator.overstockGeneral = sumQuantities(accumulator.overstockGeneral, stock.overstockGeneral);
+        accumulator.overstockThibe = sumQuantities(accumulator.overstockThibe, stock.overstockThibe);
+        accumulator.overstockArenal = sumQuantities(accumulator.overstockArenal, stock.overstockArenal);
         return accumulator;
       },
-      { general: 0, overstockGeneral: 0, overstockThibe: 0, overstockArenal: 0 }
+      {
+        general: { boxes: 0, units: 0 },
+        overstockGeneral: { boxes: 0, units: 0 },
+        overstockThibe: { boxes: 0, units: 0 },
+        overstockArenal: { boxes: 0, units: 0 }
+      }
     );
   }, [filteredData]);
 
   const handleExport = () => {
-    const rows = filteredData.map(item => ({
-      codigo: item.code,
-      descripcion: item.description,
-      grupo: item.group?.name || 'Sin grupo',
-      stock_general: item.stock?.general || 0,
-      sobrestock_general: item.stock?.overstockGeneral || 0,
-      sobrestock_thibe: item.stock?.overstockThibe || 0,
-      sobrestock_arenal: item.stock?.overstockArenal || 0
-    }));
+    const rows = filteredData.map(item => {
+      const general = ensureQuantity(item.stock?.general);
+      const overstockGeneral = ensureQuantity(item.stock?.overstockGeneral);
+      const overstockThibe = ensureQuantity(item.stock?.overstockThibe);
+      const overstockArenal = ensureQuantity(item.stock?.overstockArenal);
+      return {
+        codigo: item.code,
+        descripcion: item.description,
+        grupo: item.group?.name || 'Sin grupo',
+        stock_general_cajas: general.boxes,
+        stock_general_unidades: general.units,
+        sobrestock_general_cajas: overstockGeneral.boxes,
+        sobrestock_general_unidades: overstockGeneral.units,
+        sobrestock_thibe_cajas: overstockThibe.boxes,
+        sobrestock_thibe_unidades: overstockThibe.units,
+        sobrestock_arenal_cajas: overstockArenal.boxes,
+        sobrestock_arenal_unidades: overstockArenal.units
+      };
+    });
     exportToCsv('reporte_stock.csv', rows);
   };
 
@@ -144,19 +160,19 @@ export default function ReportsPage() {
         <div className="metrics-grid">
           <div className="metric-card">
             <h3>Stock general</h3>
-            <p>{totals.general.toLocaleString('es-AR')}</p>
+            <p>{formatQuantity(totals.general)}</p>
           </div>
           <div className="metric-card">
             <h3>Sobrestock general</h3>
-            <p>{totals.overstockGeneral.toLocaleString('es-AR')}</p>
+            <p>{formatQuantity(totals.overstockGeneral)}</p>
           </div>
           <div className="metric-card">
             <h3>Sobrestock Thibe</h3>
-            <p>{totals.overstockThibe.toLocaleString('es-AR')}</p>
+            <p>{formatQuantity(totals.overstockThibe)}</p>
           </div>
           <div className="metric-card">
             <h3>Sobrestock Arenal</h3>
-            <p>{totals.overstockArenal.toLocaleString('es-AR')}</p>
+            <p>{formatQuantity(totals.overstockArenal)}</p>
           </div>
         </div>
       </div>
@@ -182,10 +198,10 @@ export default function ReportsPage() {
                   <td>{item.code}</td>
                   <td>{item.description}</td>
                   <td>{item.group?.name || 'Sin grupo'}</td>
-                  <td>{item.stock?.general || 0}</td>
-                  <td>{item.stock?.overstockGeneral || 0}</td>
-                  <td>{item.stock?.overstockThibe || 0}</td>
-                  <td>{item.stock?.overstockArenal || 0}</td>
+                  <td>{formatQuantity(item.stock?.general)}</td>
+                  <td>{formatQuantity(item.stock?.overstockGeneral)}</td>
+                  <td>{formatQuantity(item.stock?.overstockThibe)}</td>
+                  <td>{formatQuantity(item.stock?.overstockArenal)}</td>
                 </tr>
               ))}
               {filteredData.length === 0 && (

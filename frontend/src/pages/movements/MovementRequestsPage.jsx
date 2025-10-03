@@ -3,14 +3,8 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-
-const LIST_OPTIONS = [
-  { value: 'general', label: 'Stock General' },
-  { value: 'overstockGeneral', label: 'Sobrestock General' },
-  { value: 'overstockThibe', label: 'Sobrestock Thibe' },
-  { value: 'overstockArenal', label: 'Sobrestock Arenal' },
-  { value: 'customer', label: 'Cliente reservado' }
-];
+import { formatQuantity } from '../../utils/quantity.js';
+import { STOCK_LIST_OPTIONS, formatStockListLabel } from '../../utils/stockLists.js';
 
 const TYPE_LABELS = {
   in: 'Entrada',
@@ -35,7 +29,8 @@ export default function MovementRequestsPage() {
     type: 'out',
     fromList: 'general',
     toList: 'customer',
-    quantity: 1,
+    quantityBoxes: '',
+    quantityUnits: '1',
     reason: '',
     customerId: '',
     boxLabel: ''
@@ -118,7 +113,10 @@ export default function MovementRequestsPage() {
       const payload = {
         itemId: formValues.itemId,
         type: formValues.type,
-        quantity: Number(formValues.quantity),
+        quantity: {
+          boxes: formValues.quantityBoxes === '' ? 0 : Number(formValues.quantityBoxes),
+          units: formValues.quantityUnits === '' ? 0 : Number(formValues.quantityUnits)
+        },
         reason: formValues.reason
       };
       if (formValues.fromList) payload.fromList = formValues.fromList;
@@ -128,7 +126,13 @@ export default function MovementRequestsPage() {
       if (trimmedBox) payload.boxLabel = trimmedBox;
       await api.post('/stock/request', payload);
       setSuccessMessage('Solicitud registrada correctamente.');
-      setFormValues(prev => ({ ...prev, reason: '', quantity: 1, boxLabel: '' }));
+      setFormValues(prev => ({
+        ...prev,
+        reason: '',
+        quantityBoxes: '',
+        quantityUnits: '1',
+        boxLabel: ''
+      }));
       const refreshed = await api.get('/stock/requests', {
         query: statusFilter ? { status: statusFilter } : undefined
       });
@@ -189,7 +193,7 @@ export default function MovementRequestsPage() {
               <label htmlFor="fromList">Desde</label>
               <select id="fromList" name="fromList" value={formValues.fromList} onChange={handleFormChange} required={formValues.type !== 'in'}>
                 <option value="">Seleccione lista origen</option>
-                {LIST_OPTIONS.map(option => (
+                {STOCK_LIST_OPTIONS.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -202,7 +206,7 @@ export default function MovementRequestsPage() {
               <label htmlFor="toList">Hacia</label>
               <select id="toList" name="toList" value={formValues.toList} onChange={handleFormChange} required={formValues.type !== 'out'}>
                 <option value="">Seleccione lista destino</option>
-                {LIST_OPTIONS.map(option => (
+                {STOCK_LIST_OPTIONS.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -211,13 +215,24 @@ export default function MovementRequestsPage() {
             </div>
           )}
           <div className="input-group">
-            <label htmlFor="quantity">Cantidad *</label>
+            <label htmlFor="quantityBoxes">Cajas</label>
             <input
-              id="quantity"
-              name="quantity"
+              id="quantityBoxes"
+              name="quantityBoxes"
               type="number"
-              min="1"
-              value={formValues.quantity}
+              min="0"
+              value={formValues.quantityBoxes}
+              onChange={handleFormChange}
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="quantityUnits">Unidades *</label>
+            <input
+              id="quantityUnits"
+              name="quantityUnits"
+              type="number"
+              min="0"
+              value={formValues.quantityUnits}
               onChange={handleFormChange}
               required
             />
@@ -306,9 +321,9 @@ export default function MovementRequestsPage() {
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
                     <td>{TYPE_LABELS[request.type] || request.type}</td>
-                    <td>{request.fromList || '-'}</td>
-                    <td>{request.toList || '-'}</td>
-                    <td>{request.quantity}</td>
+                    <td>{request.fromListLabel || formatStockListLabel(request.fromList) || '-'}</td>
+                    <td>{request.toListLabel || formatStockListLabel(request.toList) || '-'}</td>
+                    <td>{formatQuantity(request.quantity)}</td>
                     <td>{request.customer?.name || '-'}</td>
                     <td>{request.boxLabel || '-'}</td>
                     <td>

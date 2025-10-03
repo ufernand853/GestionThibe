@@ -1,14 +1,21 @@
 const { Schema, model, Types } = require('mongoose');
 
+const { coerceQuantity } = require('../utils/quantity');
+const quantitySubSchema = require('./schemas/quantity');
+
 const stockSchema = new Schema(
   {
-    general: { type: Number, default: 0, min: 0 },
-    overstockGeneral: { type: Number, default: 0, min: 0 },
-    overstockThibe: { type: Number, default: 0, min: 0 },
-    overstockArenal: { type: Number, default: 0, min: 0 }
+    general: { type: quantitySubSchema, default: () => coerceQuantity() },
+    overstockGeneral: { type: quantitySubSchema, default: () => coerceQuantity() },
+    overstockThibe: { type: quantitySubSchema, default: () => coerceQuantity() },
+    overstockArenal: { type: quantitySubSchema, default: () => coerceQuantity() }
   },
   { _id: false }
 );
+
+['general', 'overstockGeneral', 'overstockThibe', 'overstockArenal'].forEach(path => {
+  stockSchema.path(path).set(coerceQuantity);
+});
 
 const itemSchema = new Schema(
   {
@@ -23,5 +30,15 @@ const itemSchema = new Schema(
     versionKey: false
   }
 );
+
+itemSchema.pre('validate', function ensureStockQuantities(next) {
+  if (!this.stock || typeof this.stock !== 'object') {
+    this.stock = {};
+  }
+  ['general', 'overstockGeneral', 'overstockThibe', 'overstockArenal'].forEach(key => {
+    this.stock[key] = coerceQuantity(this.stock[key]);
+  });
+  next();
+});
 
 module.exports = model('Item', itemSchema);

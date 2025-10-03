@@ -3,6 +3,8 @@ import useApi from '../hooks/useApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import LoadingIndicator from '../components/LoadingIndicator.jsx';
 import ErrorMessage from '../components/ErrorMessage.jsx';
+import { formatQuantity, sumQuantities, ensureQuantity } from '../utils/quantity.js';
+import { formatStockListLabel } from '../utils/stockLists.js';
 
 export default function DashboardPage() {
   const api = useApi();
@@ -60,15 +62,20 @@ export default function DashboardPage() {
   const metrics = useMemo(() => {
     const totals = {
       items: stockData.length,
-      general: 0,
-      overstock: 0,
+      general: { boxes: 0, units: 0 },
+      overstock: { boxes: 0, units: 0 },
       customers: customers.length,
       pending: pendingRequests.filter(request => request.status === 'pending').length
     };
     stockData.forEach(item => {
       const stock = item.stock || {};
-      totals.general += Number(stock.general || 0);
-      totals.overstock += Number(stock.overstockGeneral || 0) + Number(stock.overstockThibe || 0) + Number(stock.overstockArenal || 0);
+      totals.general = sumQuantities(totals.general, stock.general);
+      totals.overstock = sumQuantities(
+        totals.overstock,
+        stock.overstockGeneral,
+        stock.overstockThibe,
+        stock.overstockArenal
+      );
     });
     return totals;
   }, [customers.length, pendingRequests, stockData]);
@@ -77,11 +84,18 @@ export default function DashboardPage() {
     const accumulator = new Map();
     stockData.forEach(item => {
       const groupName = item.group?.name || 'Sin grupo asignado';
-      const previous = accumulator.get(groupName) || 0;
-      accumulator.set(groupName, previous + Number(item.stock?.general || 0));
+      const previous = accumulator.get(groupName) || { boxes: 0, units: 0 };
+      accumulator.set(groupName, sumQuantities(previous, item.stock?.general));
     });
     return Array.from(accumulator.entries())
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => {
+        const qa = ensureQuantity(a[1]);
+        const qb = ensureQuantity(b[1]);
+        if (qa.boxes !== qb.boxes) {
+          return qb.boxes - qa.boxes;
+        }
+        return qb.units - qa.units;
+      })
       .slice(0, 5);
   }, [stockData]);
 
@@ -106,12 +120,12 @@ export default function DashboardPage() {
         </div>
         <div className="metric-card">
           <h3>Stock general</h3>
-          <p>{metrics.general.toLocaleString('es-AR')}</p>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Unidades en depósito principal</span>
+          <p>{formatQuantity(metrics.general)}</p>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cajas y unidades en depósito principal</span>
         </div>
         <div className="metric-card">
           <h3>Sobrestock</h3>
-          <p>{metrics.overstock.toLocaleString('es-AR')}</p>
+          <p>{formatQuantity(metrics.overstock)}</p>
           <span style={{ fontSize: '0.8rem', color: '#64748b' }}>General + Thibe + Arenal Import</span>
         </div>
         <div className="metric-card">
@@ -130,7 +144,7 @@ export default function DashboardPage() {
         <div className="section-card">
           <div className="flex-between">
             <h2>Top 5 grupos por stock general</h2>
-            <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Basado en unidades disponibles</span>
+            <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Basado en cajas y unidades disponibles</span>
           </div>
           <div className="table-wrapper">
             <table>
@@ -144,7 +158,7 @@ export default function DashboardPage() {
                 {topGroups.map(([group, quantity]) => (
                   <tr key={group}>
                     <td>{group}</td>
-                    <td>{quantity.toLocaleString('es-AR')}</td>
+                    <td>{formatQuantity(quantity)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -180,9 +194,9 @@ export default function DashboardPage() {
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
                     <td className="badge pending">{request.type}</td>
-                    <td>{request.fromList || '-'}</td>
-                    <td>{request.toList || '-'}</td>
-                    <td>{request.quantity}</td>
+                    <td>{request.fromListLabel || formatStockListLabel(request.fromList) || '-'}</td>
+                    <td>{request.toListLabel || formatStockListLabel(request.toList) || '-'}</td>
+                    <td>{formatQuantity(request.quantity)}</td>
                     <td>
                       <span className={`badge ${request.status}`}>{request.status}</span>
                     </td>
