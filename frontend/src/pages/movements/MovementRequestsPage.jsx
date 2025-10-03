@@ -30,7 +30,7 @@ export default function MovementRequestsPage() {
     fromList: 'general',
     toList: 'customer',
     quantityBoxes: '',
-    quantityUnits: '1',
+    quantityUnits: '',
     reason: '',
     customerId: '',
     boxLabel: ''
@@ -109,13 +109,29 @@ export default function MovementRequestsPage() {
     if (!canRequest) return;
     setSubmitting(true);
     setError(null);
+    setSuccessMessage('');
     try {
+      const boxes = formValues.quantityBoxes === '' ? 0 : Number(formValues.quantityBoxes);
+      const units = formValues.quantityUnits === '' ? 0 : Number(formValues.quantityUnits);
+
+      if ((!Number.isFinite(boxes) || boxes < 0) || (!Number.isFinite(units) || units < 0)) {
+        setError('Las cantidades de cajas y unidades deben ser números válidos mayores o iguales a 0.');
+        setSubmitting(false);
+        return;
+      }
+
+      if (boxes === 0 && units === 0) {
+        setError('Debe indicar al menos una cantidad en cajas o unidades.');
+        setSubmitting(false);
+        return;
+      }
+
       const payload = {
         itemId: formValues.itemId,
         type: formValues.type,
         quantity: {
-          boxes: formValues.quantityBoxes === '' ? 0 : Number(formValues.quantityBoxes),
-          units: formValues.quantityUnits === '' ? 0 : Number(formValues.quantityUnits)
+          boxes,
+          units
         },
         reason: formValues.reason
       };
@@ -130,7 +146,7 @@ export default function MovementRequestsPage() {
         ...prev,
         reason: '',
         quantityBoxes: '',
-        quantityUnits: '1',
+        quantityUnits: '',
         boxLabel: ''
       }));
       const refreshed = await api.get('/stock/requests', {
@@ -226,7 +242,7 @@ export default function MovementRequestsPage() {
             />
           </div>
           <div className="input-group">
-            <label htmlFor="quantityUnits">Unidades *</label>
+            <label htmlFor="quantityUnits">Unidades</label>
             <input
               id="quantityUnits"
               name="quantityUnits"
@@ -234,7 +250,6 @@ export default function MovementRequestsPage() {
               min="0"
               value={formValues.quantityUnits}
               onChange={handleFormChange}
-              required
             />
           </div>
           {requiresCustomer && (
