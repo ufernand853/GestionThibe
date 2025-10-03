@@ -1,27 +1,12 @@
 const { Schema, model, Types } = require('mongoose');
 const { coerceQuantity } = require('../utils/quantity');
-
-const quantitySchema = new Schema(
-  {
-    boxes: { type: Number, default: 0, min: 0 },
-    units: { type: Number, default: 0, min: 0 }
-  },
-  { _id: false }
-);
-
-const quantitySchema = new Schema(
-  {
-    boxes: { type: Number, default: 0, min: 0 },
-    units: { type: Number, default: 0, min: 0 }
-  },
-  { _id: false }
-);
+const quantitySubSchema = require('./schemas/quantity');
 
 const customerStockSchema = new Schema(
   {
     customer: { type: Types.ObjectId, ref: 'Customer', required: true },
     item: { type: Types.ObjectId, ref: 'Item', required: true },
-    quantity: { type: quantitySchema, required: true, default: () => coerceQuantity() },
+    quantity: { type: quantitySubSchema, required: true, default: () => coerceQuantity() },
     status: { type: String, enum: ['reserved', 'delivered'], default: 'reserved' },
     boxLabel: { type: String, default: null, trim: true },
     dateCreated: { type: Date, default: Date.now },

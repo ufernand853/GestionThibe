@@ -1,21 +1,14 @@
 const { Schema, model, Types } = require('mongoose');
 
 const { coerceQuantity } = require('../utils/quantity');
-
-const quantitySchema = new Schema(
-  {
-    boxes: { type: Number, default: 0, min: 0 },
-    units: { type: Number, default: 0, min: 0 }
-  },
-  { _id: false }
-);
+const quantitySubSchema = require('./schemas/quantity');
 
 const stockSchema = new Schema(
   {
-    general: { type: quantitySchema, default: () => coerceQuantity() },
-    overstockGeneral: { type: quantitySchema, default: () => coerceQuantity() },
-    overstockThibe: { type: quantitySchema, default: () => coerceQuantity() },
-    overstockArenal: { type: quantitySchema, default: () => coerceQuantity() }
+    general: { type: quantitySubSchema, default: () => coerceQuantity() },
+    overstockGeneral: { type: quantitySubSchema, default: () => coerceQuantity() },
+    overstockThibe: { type: quantitySubSchema, default: () => coerceQuantity() },
+    overstockArenal: { type: quantitySubSchema, default: () => coerceQuantity() }
   },
   { _id: false }
 );
