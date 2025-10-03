@@ -4,7 +4,7 @@ const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const Customer = require('../models/Customer');
 const CustomerStock = require('../models/CustomerStock');
-const { ensureCustomerExists } = require('../services/stockService');
+const { ensureCustomerExists, normalizeStoredQuantity } = require('../services/stockService');
 
 const router = express.Router();
 
@@ -104,7 +104,7 @@ router.get(
               description: record.item.description
             }
           : null,
-        quantity: record.quantity,
+        quantity: normalizeStoredQuantity(record.quantity),
         status: record.status,
         boxLabel: record.boxLabel,
         dateCreated: record.dateCreated,

@@ -3,6 +3,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 
 const ATTRIBUTES = ['gender', 'size', 'color', 'material', 'season', 'fit'];
 
@@ -31,10 +32,14 @@ export default function ItemsPage() {
     material: '',
     season: '',
     fit: '',
-    stockGeneral: '',
-    overstockGeneral: '',
-    overstockThibe: '',
-    overstockArenal: ''
+    stockGeneralBoxes: '',
+    stockGeneralUnits: '',
+    overstockGeneralBoxes: '',
+    overstockGeneralUnits: '',
+    overstockThibeBoxes: '',
+    overstockThibeUnits: '',
+    overstockArenalBoxes: '',
+    overstockArenalUnits: ''
   });
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -108,10 +113,14 @@ export default function ItemsPage() {
       material: '',
       season: '',
       fit: '',
-      stockGeneral: '',
-      overstockGeneral: '',
-      overstockThibe: '',
-      overstockArenal: ''
+      stockGeneralBoxes: '',
+      stockGeneralUnits: '',
+      overstockGeneralBoxes: '',
+      overstockGeneralUnits: '',
+      overstockThibeBoxes: '',
+      overstockThibeUnits: '',
+      overstockArenalBoxes: '',
+      overstockArenalUnits: ''
     });
     setEditingItem(null);
   };
@@ -127,14 +136,40 @@ export default function ItemsPage() {
   };
 
   const buildPayload = () => {
-    const stock = {
-      general: formValues.stockGeneral === '' ? undefined : Number(formValues.stockGeneral),
-      overstockGeneral:
-        formValues.overstockGeneral === '' ? undefined : Number(formValues.overstockGeneral),
-      overstockThibe: formValues.overstockThibe === '' ? undefined : Number(formValues.overstockThibe),
-      overstockArenal:
-        formValues.overstockArenal === '' ? undefined : Number(formValues.overstockArenal)
-    };
+    const stock = {};
+    const STOCK_FIELDS = [
+      {
+        key: 'general',
+        boxesField: 'stockGeneralBoxes',
+        unitsField: 'stockGeneralUnits'
+      },
+      {
+        key: 'overstockGeneral',
+        boxesField: 'overstockGeneralBoxes',
+        unitsField: 'overstockGeneralUnits'
+      },
+      {
+        key: 'overstockThibe',
+        boxesField: 'overstockThibeBoxes',
+        unitsField: 'overstockThibeUnits'
+      },
+      {
+        key: 'overstockArenal',
+        boxesField: 'overstockArenalBoxes',
+        unitsField: 'overstockArenalUnits'
+      }
+    ];
+
+    STOCK_FIELDS.forEach(({ key, boxesField, unitsField }) => {
+      const boxesValue = formValues[boxesField];
+      const unitsValue = formValues[unitsField];
+      if (boxesValue === '' && unitsValue === '') {
+        return;
+      }
+      const boxes = boxesValue === '' ? 0 : Number(boxesValue);
+      const units = unitsValue === '' ? 0 : Number(unitsValue);
+      stock[key] = { boxes, units };
+    });
     const attributes = {};
     ATTRIBUTES.forEach(attribute => {
       if (formValues[attribute]) {
@@ -204,6 +239,12 @@ export default function ItemsPage() {
 
   const handleEdit = item => {
     setEditingItem(item);
+    const general = ensureQuantity(item.stock?.general);
+    const overstockGeneral = ensureQuantity(item.stock?.overstockGeneral);
+    const overstockThibe = ensureQuantity(item.stock?.overstockThibe);
+    const overstockArenal = ensureQuantity(item.stock?.overstockArenal);
+    const normalizeField = value => (value === 0 ? '' : String(value));
+
     setFormValues({
       code: item.code,
       description: item.description,
@@ -214,10 +255,14 @@ export default function ItemsPage() {
       material: item.attributes?.material || '',
       season: item.attributes?.season || '',
       fit: item.attributes?.fit || '',
-      stockGeneral: item.stock?.general ?? '',
-      overstockGeneral: item.stock?.overstockGeneral ?? '',
-      overstockThibe: item.stock?.overstockThibe ?? '',
-      overstockArenal: item.stock?.overstockArenal ?? ''
+      stockGeneralBoxes: normalizeField(general.boxes),
+      stockGeneralUnits: normalizeField(general.units),
+      overstockGeneralBoxes: normalizeField(overstockGeneral.boxes),
+      overstockGeneralUnits: normalizeField(overstockGeneral.units),
+      overstockThibeBoxes: normalizeField(overstockThibe.boxes),
+      overstockThibeUnits: normalizeField(overstockThibe.units),
+      overstockArenalBoxes: normalizeField(overstockArenal.boxes),
+      overstockArenalUnits: normalizeField(overstockArenal.units)
     });
   };
 
@@ -330,46 +375,90 @@ export default function ItemsPage() {
             </div>
           ))}
           <div className="input-group">
-            <label htmlFor="stockGeneral">Stock General</label>
+            <label htmlFor="stockGeneralBoxes">Stock General (Cajas)</label>
             <input
-              id="stockGeneral"
-              name="stockGeneral"
+              id="stockGeneralBoxes"
+              name="stockGeneralBoxes"
               type="number"
               min="0"
-              value={formValues.stockGeneral}
+              value={formValues.stockGeneralBoxes}
               onChange={handleFormChange}
             />
           </div>
           <div className="input-group">
-            <label htmlFor="overstockGeneral">Sobrestock General</label>
+            <label htmlFor="stockGeneralUnits">Stock General (Unidades)</label>
             <input
-              id="overstockGeneral"
-              name="overstockGeneral"
+              id="stockGeneralUnits"
+              name="stockGeneralUnits"
               type="number"
               min="0"
-              value={formValues.overstockGeneral}
+              value={formValues.stockGeneralUnits}
               onChange={handleFormChange}
             />
           </div>
           <div className="input-group">
-            <label htmlFor="overstockThibe">Sobrestock Thibe</label>
+            <label htmlFor="overstockGeneralBoxes">Sobrestock General (Cajas)</label>
             <input
-              id="overstockThibe"
-              name="overstockThibe"
+              id="overstockGeneralBoxes"
+              name="overstockGeneralBoxes"
               type="number"
               min="0"
-              value={formValues.overstockThibe}
+              value={formValues.overstockGeneralBoxes}
               onChange={handleFormChange}
             />
           </div>
           <div className="input-group">
-            <label htmlFor="overstockArenal">Sobrestock Arenal</label>
+            <label htmlFor="overstockGeneralUnits">Sobrestock General (Unidades)</label>
             <input
-              id="overstockArenal"
-              name="overstockArenal"
+              id="overstockGeneralUnits"
+              name="overstockGeneralUnits"
               type="number"
               min="0"
-              value={formValues.overstockArenal}
+              value={formValues.overstockGeneralUnits}
+              onChange={handleFormChange}
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="overstockThibeBoxes">Sobrestock Thibe (Cajas)</label>
+            <input
+              id="overstockThibeBoxes"
+              name="overstockThibeBoxes"
+              type="number"
+              min="0"
+              value={formValues.overstockThibeBoxes}
+              onChange={handleFormChange}
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="overstockThibeUnits">Sobrestock Thibe (Unidades)</label>
+            <input
+              id="overstockThibeUnits"
+              name="overstockThibeUnits"
+              type="number"
+              min="0"
+              value={formValues.overstockThibeUnits}
+              onChange={handleFormChange}
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="overstockArenalBoxes">Sobrestock Arenal (Cajas)</label>
+            <input
+              id="overstockArenalBoxes"
+              name="overstockArenalBoxes"
+              type="number"
+              min="0"
+              value={formValues.overstockArenalBoxes}
+              onChange={handleFormChange}
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="overstockArenalUnits">Sobrestock Arenal (Unidades)</label>
+            <input
+              id="overstockArenalUnits"
+              name="overstockArenalUnits"
+              type="number"
+              min="0"
+              value={formValues.overstockArenalUnits}
               onChange={handleFormChange}
             />
           </div>
@@ -491,10 +580,10 @@ export default function ItemsPage() {
                         {Object.keys(item.attributes || {}).length === 0 && <span>-</span>}
                       </div>
                     </td>
-                    <td>{item.stock?.general ?? 0}</td>
-                    <td>{item.stock?.overstockGeneral ?? 0}</td>
-                    <td>{item.stock?.overstockThibe ?? 0}</td>
-                    <td>{item.stock?.overstockArenal ?? 0}</td>
+                    <td>{formatQuantity(item.stock?.general)}</td>
+                    <td>{formatQuantity(item.stock?.overstockGeneral)}</td>
+                    <td>{formatQuantity(item.stock?.overstockThibe)}</td>
+                    <td>{formatQuantity(item.stock?.overstockArenal)}</td>
                     {canWrite && (
                       <td>
                         <div className="inline-actions">
