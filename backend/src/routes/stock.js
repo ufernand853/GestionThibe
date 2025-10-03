@@ -12,6 +12,14 @@ const {
   normalizeStoredQuantity
 } = require('../services/stockService');
 
+const LIST_LABELS = {
+  general: 'Depósito General',
+  overstockGeneral: 'Sobrestock General',
+  overstockThibe: 'Sobrestock Thibe',
+  overstockArenal: 'Sobrestock Arenal',
+  customer: 'Cliente reservado'
+};
+
 function serializeUserSummary(user) {
   if (!user) return null;
   return {
@@ -24,6 +32,13 @@ function serializeUserSummary(user) {
 function getId(value) {
   if (!value) return value;
   return value.id || value;
+}
+
+function formatListLabel(value) {
+  if (!value) {
+    return null;
+  }
+  return LIST_LABELS[value] || null;
 }
 
 function serializeMovementRequest(doc) {
@@ -40,6 +55,8 @@ function serializeMovementRequest(doc) {
     type: doc.type,
     fromList: doc.fromList,
     toList: doc.toList,
+    fromListLabel: formatListLabel(doc.fromList),
+    toListLabel: formatListLabel(doc.toList),
     quantity: normalizeStoredQuantity(doc.quantity),
     reason: doc.reason,
     boxLabel: doc.boxLabel || null,

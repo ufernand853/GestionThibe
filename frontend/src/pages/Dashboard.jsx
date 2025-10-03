@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import LoadingIndicator from '../components/LoadingIndicator.jsx';
 import ErrorMessage from '../components/ErrorMessage.jsx';
 import { formatQuantity, sumQuantities, ensureQuantity } from '../utils/quantity.js';
+import { formatStockListLabel } from '../utils/stockLists.js';
 
 export default function DashboardPage() {
   const api = useApi();
@@ -193,8 +194,8 @@ export default function DashboardPage() {
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
                     <td className="badge pending">{request.type}</td>
-                    <td>{request.fromList || '-'}</td>
-                    <td>{request.toList || '-'}</td>
+                    <td>{request.fromListLabel || formatStockListLabel(request.fromList) || '-'}</td>
+                    <td>{request.toListLabel || formatStockListLabel(request.toList) || '-'}</td>
                     <td>{formatQuantity(request.quantity)}</td>
                     <td>
                       <span className={`badge ${request.status}`}>{request.status}</span>

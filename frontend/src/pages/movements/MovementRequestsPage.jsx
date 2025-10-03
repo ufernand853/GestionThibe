@@ -4,14 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { formatQuantity } from '../../utils/quantity.js';
-
-const LIST_OPTIONS = [
-  { value: 'general', label: 'Stock General' },
-  { value: 'overstockGeneral', label: 'Sobrestock General' },
-  { value: 'overstockThibe', label: 'Sobrestock Thibe' },
-  { value: 'overstockArenal', label: 'Sobrestock Arenal' },
-  { value: 'customer', label: 'Cliente reservado' }
-];
+import { STOCK_LIST_OPTIONS, formatStockListLabel } from '../../utils/stockLists.js';
 
 const TYPE_LABELS = {
   in: 'Entrada',
@@ -200,7 +193,7 @@ export default function MovementRequestsPage() {
               <label htmlFor="fromList">Desde</label>
               <select id="fromList" name="fromList" value={formValues.fromList} onChange={handleFormChange} required={formValues.type !== 'in'}>
                 <option value="">Seleccione lista origen</option>
-                {LIST_OPTIONS.map(option => (
+                {STOCK_LIST_OPTIONS.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -213,7 +206,7 @@ export default function MovementRequestsPage() {
               <label htmlFor="toList">Hacia</label>
               <select id="toList" name="toList" value={formValues.toList} onChange={handleFormChange} required={formValues.type !== 'out'}>
                 <option value="">Seleccione lista destino</option>
-                {LIST_OPTIONS.map(option => (
+                {STOCK_LIST_OPTIONS.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -328,8 +321,8 @@ export default function MovementRequestsPage() {
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
                     <td>{TYPE_LABELS[request.type] || request.type}</td>
-                    <td>{request.fromList || '-'}</td>
-                    <td>{request.toList || '-'}</td>
+                    <td>{request.fromListLabel || formatStockListLabel(request.fromList) || '-'}</td>
+                    <td>{request.toListLabel || formatStockListLabel(request.toList) || '-'}</td>
                     <td>{formatQuantity(request.quantity)}</td>
                     <td>{request.customer?.name || '-'}</td>
                     <td>{request.boxLabel || '-'}</td>
