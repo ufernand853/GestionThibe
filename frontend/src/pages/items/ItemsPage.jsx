@@ -7,6 +7,53 @@ import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 
 const ATTRIBUTES = ['gender', 'size', 'color', 'material', 'season', 'fit'];
 
+const STOCK_LOCATIONS = [
+  {
+    key: 'general',
+    title: 'Stock general',
+    helper: 'Inventario disponible para la operación habitual.',
+    boxesField: 'stockGeneralBoxes',
+    unitsField: 'stockGeneralUnits',
+    labels: {
+      boxes: 'Cajas',
+      units: 'Unidades'
+    }
+  },
+  {
+    key: 'overstockGeneral',
+    title: 'Sobrestock general',
+    helper: 'Excedente disponible para reponer otras listas.',
+    boxesField: 'overstockGeneralBoxes',
+    unitsField: 'overstockGeneralUnits',
+    labels: {
+      boxes: 'Cajas',
+      units: 'Unidades'
+    }
+  },
+  {
+    key: 'overstockThibe',
+    title: 'Sobrestock Thibe',
+    helper: 'Mercadería reservada para la sucursal Thibe.',
+    boxesField: 'overstockThibeBoxes',
+    unitsField: 'overstockThibeUnits',
+    labels: {
+      boxes: 'Cajas',
+      units: 'Unidades'
+    }
+  },
+  {
+    key: 'overstockArenal',
+    title: 'Sobrestock Arenal',
+    helper: 'Stock extra asignado a Arenal.',
+    boxesField: 'overstockArenalBoxes',
+    unitsField: 'overstockArenalUnits',
+    labels: {
+      boxes: 'Cajas',
+      units: 'Unidades'
+    }
+  }
+];
+
 export default function ItemsPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -137,30 +184,8 @@ export default function ItemsPage() {
 
   const buildPayload = () => {
     const stock = {};
-    const STOCK_FIELDS = [
-      {
-        key: 'general',
-        boxesField: 'stockGeneralBoxes',
-        unitsField: 'stockGeneralUnits'
-      },
-      {
-        key: 'overstockGeneral',
-        boxesField: 'overstockGeneralBoxes',
-        unitsField: 'overstockGeneralUnits'
-      },
-      {
-        key: 'overstockThibe',
-        boxesField: 'overstockThibeBoxes',
-        unitsField: 'overstockThibeUnits'
-      },
-      {
-        key: 'overstockArenal',
-        boxesField: 'overstockArenalBoxes',
-        unitsField: 'overstockArenalUnits'
-      }
-    ];
 
-    STOCK_FIELDS.forEach(({ key, boxesField, unitsField }) => {
+    STOCK_LOCATIONS.forEach(({ key, boxesField, unitsField }) => {
       const boxesValue = formValues[boxesField];
       const unitsValue = formValues[unitsField];
       if (boxesValue === '' && unitsValue === '') {
@@ -325,152 +350,132 @@ export default function ItemsPage() {
       )}
 
       <div className="section-card">
-        <form className="form-grid" onSubmit={handleSubmit} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-          {!editingItem && (
-            <div className="input-group">
-              <label htmlFor="code">Código *</label>
-              <input
-                id="code"
-                name="code"
-                value={formValues.code}
-                onChange={handleFormChange}
-                required
-                placeholder="SKU"
-                disabled={!!editingItem}
-              />
+        <form className="item-form" onSubmit={handleSubmit}>
+          <section className="form-section">
+            <div className="form-section__header">
+              <div>
+                <h3>Datos del artículo</h3>
+                <p className="form-section__description">
+                  Define la información general y los atributos que describen al artículo.
+                </p>
+              </div>
+              {editingItem && <span className="badge">Editando {editingItem.code}</span>}
             </div>
-          )}
-          <div className="input-group">
-            <label htmlFor="description">Descripción *</label>
-            <input
-              id="description"
-              name="description"
-              value={formValues.description}
-              onChange={handleFormChange}
-              required
-              placeholder="Descripción detallada"
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="groupId">Grupo</label>
-            <select id="groupId" name="groupId" value={formValues.groupId} onChange={handleFormChange}>
-              <option value="">Sin asignar</option>
-              {groups.map(group => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
+            <div className="form-grid form-grid--spaced">
+              {!editingItem && (
+                <div className="input-group">
+                  <label htmlFor="code">Código *</label>
+                  <input
+                    id="code"
+                    name="code"
+                    value={formValues.code}
+                    onChange={handleFormChange}
+                    required
+                    placeholder="SKU"
+                  />
+                </div>
+              )}
+              <div className="input-group">
+                <label htmlFor="description">Descripción *</label>
+                <input
+                  id="description"
+                  name="description"
+                  value={formValues.description}
+                  onChange={handleFormChange}
+                  required
+                  placeholder="Descripción detallada"
+                />
+              </div>
+              <div className="input-group">
+                <label htmlFor="groupId">Grupo</label>
+                <select id="groupId" name="groupId" value={formValues.groupId} onChange={handleFormChange}>
+                  <option value="">Sin asignar</option>
+                  {groups.map(group => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {ATTRIBUTES.map(attribute => (
+                <div className="input-group" key={attribute}>
+                  <label htmlFor={attribute}>{attribute.charAt(0).toUpperCase() + attribute.slice(1)}</label>
+                  <input
+                    id={attribute}
+                    name={attribute}
+                    value={formValues[attribute]}
+                    onChange={handleFormChange}
+                    placeholder={`Ingrese ${attribute}`}
+                  />
+                </div>
               ))}
-            </select>
-          </div>
-          {ATTRIBUTES.map(attribute => (
-            <div className="input-group" key={attribute}>
-              <label htmlFor={attribute}>{attribute.charAt(0).toUpperCase() + attribute.slice(1)}</label>
-              <input
-                id={attribute}
-                name={attribute}
-                value={formValues[attribute]}
-                onChange={handleFormChange}
-                placeholder={`Ingrese ${attribute}`}
-              />
             </div>
-          ))}
-          <div className="input-group">
-            <label htmlFor="stockGeneralBoxes">Stock General (Cajas)</label>
-            <input
-              id="stockGeneralBoxes"
-              name="stockGeneralBoxes"
-              type="number"
-              min="0"
-              value={formValues.stockGeneralBoxes}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="stockGeneralUnits">Stock General (Unidades)</label>
-            <input
-              id="stockGeneralUnits"
-              name="stockGeneralUnits"
-              type="number"
-              min="0"
-              value={formValues.stockGeneralUnits}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="overstockGeneralBoxes">Sobrestock General (Cajas)</label>
-            <input
-              id="overstockGeneralBoxes"
-              name="overstockGeneralBoxes"
-              type="number"
-              min="0"
-              value={formValues.overstockGeneralBoxes}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="overstockGeneralUnits">Sobrestock General (Unidades)</label>
-            <input
-              id="overstockGeneralUnits"
-              name="overstockGeneralUnits"
-              type="number"
-              min="0"
-              value={formValues.overstockGeneralUnits}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="overstockThibeBoxes">Sobrestock Thibe (Cajas)</label>
-            <input
-              id="overstockThibeBoxes"
-              name="overstockThibeBoxes"
-              type="number"
-              min="0"
-              value={formValues.overstockThibeBoxes}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="overstockThibeUnits">Sobrestock Thibe (Unidades)</label>
-            <input
-              id="overstockThibeUnits"
-              name="overstockThibeUnits"
-              type="number"
-              min="0"
-              value={formValues.overstockThibeUnits}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="overstockArenalBoxes">Sobrestock Arenal (Cajas)</label>
-            <input
-              id="overstockArenalBoxes"
-              name="overstockArenalBoxes"
-              type="number"
-              min="0"
-              value={formValues.overstockArenalBoxes}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="overstockArenalUnits">Sobrestock Arenal (Unidades)</label>
-            <input
-              id="overstockArenalUnits"
-              name="overstockArenalUnits"
-              type="number"
-              min="0"
-              value={formValues.overstockArenalUnits}
-              onChange={handleFormChange}
-            />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
-            <button type="submit" disabled={saving || !canWrite}>
-              {editingItem ? 'Actualizar artículo' : 'Crear artículo'}
-            </button>
-            {editingItem && (
-              <button type="button" className="secondary-button" onClick={resetForm}>
-                Cancelar
+          </section>
+
+          <section className="form-section">
+            <div className="form-section__header">
+              <div>
+                <h3>Stock por lista</h3>
+                <p className="form-section__description">
+                  Registra las cantidades disponibles por depósito o canal para facilitar la reposición.
+                </p>
+              </div>
+            </div>
+            <div className="stock-grid">
+              {STOCK_LOCATIONS.map(location => (
+                <div key={location.key} className="stock-card">
+                  <div className="stock-card__header">
+                    <h4>{location.title}</h4>
+                    {location.helper && <p>{location.helper}</p>}
+                  </div>
+                  <div className="form-grid form-grid--dense">
+                    <div className="input-group">
+                      <label htmlFor={location.boxesField}>{location.labels.boxes}</label>
+                      <input
+                        id={location.boxesField}
+                        name={location.boxesField}
+                        type="number"
+                        min="0"
+                        value={formValues[location.boxesField]}
+                        onChange={handleFormChange}
+                      />
+                    </div>
+                    <div className="input-group">
+                      <label htmlFor={location.unitsField}>{location.labels.units}</label>
+                      <input
+                        id={location.unitsField}
+                        name={location.unitsField}
+                        type="number"
+                        min="0"
+                        value={formValues[location.unitsField]}
+                        onChange={handleFormChange}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="section-hint">
+              <strong>Otras opciones para organizar el formulario:</strong>
+              <ul>
+                <li>Dividir la edición en pestañas para alternar rápidamente entre atributos y stock.</li>
+                <li>Agregar un panel lateral con un resumen de stock consolidado por depósito.</li>
+                <li>Permitir duplicar los datos desde un artículo existente como plantilla inicial.</li>
+              </ul>
+            </div>
+          </section>
+
+          <div className="form-section form-section--actions">
+            <div className="inline-actions">
+              <button type="submit" disabled={saving || !canWrite}>
+                {editingItem ? 'Actualizar artículo' : 'Crear artículo'}
               </button>
-            )}
+              {editingItem && (
+                <button type="button" className="secondary-button" onClick={resetForm}>
+                  Cancelar
+                </button>
+              )}
+            </div>
           </div>
         </form>
       </div>
