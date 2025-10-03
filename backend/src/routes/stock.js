@@ -8,7 +8,8 @@ const {
   executeMovement,
   addMovementLog,
   ensureCustomerExists,
-  findItemOrThrow
+  findItemOrThrow,
+  normalizeStoredQuantity
 } = require('../services/stockService');
 
 function serializeUserSummary(user) {
@@ -39,7 +40,7 @@ function serializeMovementRequest(doc) {
     type: doc.type,
     fromList: doc.fromList,
     toList: doc.toList,
-    quantity: doc.quantity,
+    quantity: normalizeStoredQuantity(doc.quantity),
     reason: doc.reason,
     boxLabel: doc.boxLabel || null,
     requestedBy: doc.populated('requestedBy') ? serializeUserSummary(doc.requestedBy) : doc.requestedBy,
@@ -74,7 +75,7 @@ router.post(
   requirePermission('stock.request'),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    validateMovementPayload(body);
+    const { quantity } = validateMovementPayload(body);
     const normalizedBoxLabel =
       typeof body.boxLabel === 'string' && body.boxLabel.trim().length > 0
         ? body.boxLabel.trim()
@@ -88,7 +89,7 @@ router.post(
       type: body.type,
       fromList: body.fromList || null,
       toList: body.toList || null,
-      quantity: body.quantity,
+      quantity,
       reason: body.reason || '',
       requestedBy: req.user.id,
       requestedAt: new Date(),

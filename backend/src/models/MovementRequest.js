@@ -1,12 +1,20 @@
 const { Schema, model, Types } = require('mongoose');
 
+const quantitySchema = new Schema(
+  {
+    boxes: { type: Number, default: 0, min: 0 },
+    units: { type: Number, default: 0, min: 0 }
+  },
+  { _id: false }
+);
+
 const movementRequestSchema = new Schema(
   {
     item: { type: Types.ObjectId, ref: 'Item', required: true },
     type: { type: String, enum: ['in', 'out', 'transfer'], required: true },
     fromList: { type: String, default: null },
     toList: { type: String, default: null },
-    quantity: { type: Number, required: true, min: 1 },
+    quantity: { type: quantitySchema, required: true, default: () => ({}) },
     reason: { type: String, default: '' },
     requestedBy: { type: Types.ObjectId, ref: 'User', required: true },
     requestedAt: { type: Date, default: Date.now },

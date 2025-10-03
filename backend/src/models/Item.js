@@ -1,11 +1,19 @@
 const { Schema, model, Types } = require('mongoose');
 
+const quantitySchema = new Schema(
+  {
+    boxes: { type: Number, default: 0, min: 0 },
+    units: { type: Number, default: 0, min: 0 }
+  },
+  { _id: false }
+);
+
 const stockSchema = new Schema(
   {
-    general: { type: Number, default: 0, min: 0 },
-    overstockGeneral: { type: Number, default: 0, min: 0 },
-    overstockThibe: { type: Number, default: 0, min: 0 },
-    overstockArenal: { type: Number, default: 0, min: 0 }
+    general: { type: quantitySchema, default: () => ({}) },
+    overstockGeneral: { type: quantitySchema, default: () => ({}) },
+    overstockThibe: { type: quantitySchema, default: () => ({}) },
+    overstockArenal: { type: quantitySchema, default: () => ({}) }
   },
   { _id: false }
 );
