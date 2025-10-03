@@ -59,13 +59,19 @@ export default function DashboardPage() {
     };
   }, [api, canManageRequests, canViewCustomers, canViewReports, permissions]);
 
+  const pendingApprovalRequests = useMemo(() => {
+    return pendingRequests
+      .filter(request => request.status === 'pending')
+      .sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt));
+  }, [pendingRequests]);
+
   const metrics = useMemo(() => {
     const totals = {
       items: stockData.length,
       general: { boxes: 0, units: 0 },
       overstock: { boxes: 0, units: 0 },
       customers: customers.length,
-      pending: pendingRequests.filter(request => request.status === 'pending').length
+      pending: pendingApprovalRequests.length
     };
     stockData.forEach(item => {
       const stock = item.stock || {};
@@ -78,7 +84,7 @@ export default function DashboardPage() {
       );
     });
     return totals;
-  }, [customers.length, pendingRequests, stockData]);
+  }, [customers.length, pendingApprovalRequests, stockData]);
 
   const topGroups = useMemo(() => {
     const accumulator = new Map();
@@ -167,12 +173,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {pendingRequests.length > 0 && (
+      {pendingApprovalRequests.length > 0 && (
         <div className="section-card">
           <div className="flex-between">
-            <h2>Últimas solicitudes registradas</h2>
+            <h2>Solicitudes pendientes de aprobación</h2>
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
-              {pendingRequests.length > 5 ? 'Mostrando 5 más recientes' : `${pendingRequests.length} solicitudes`}
+              {pendingApprovalRequests.length > 5
+                ? 'Mostrando 5 más recientes'
+                : `${pendingApprovalRequests.length} solicitudes`}
             </span>
           </div>
           <div className="table-wrapper">
@@ -190,7 +198,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {pendingRequests.slice(0, 5).map(request => (
+                {pendingApprovalRequests.slice(0, 5).map(request => (
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
                     <td className="badge pending">{request.type}</td>
