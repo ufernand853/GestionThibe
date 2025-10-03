@@ -4,6 +4,7 @@ const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
+const { normalizeQuantityInput } = require('../services/stockService');
 
 function toPlainAttributes(attributes) {
   if (!attributes) return {};
@@ -33,11 +34,7 @@ function buildStock(input = {}) {
   for (const key of ['general', 'overstockGeneral', 'overstockThibe', 'overstockArenal']) {
     const value = input[key];
     if (value === undefined) continue;
-    const numeric = Number(value);
-    if (Number.isNaN(numeric) || numeric < 0) {
-      throw new HttpError(400, 'Stock inválido');
-    }
-    stock[key] = numeric;
+    stock[key] = normalizeQuantityInput(value, { allowZero: true, fieldName: `Stock ${key}` });
   }
   return stock;
 }

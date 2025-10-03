@@ -3,6 +3,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { formatQuantity } from '../../utils/quantity.js';
 
 const TYPE_LABELS = {
   in: 'Entrada',
@@ -115,7 +116,7 @@ export default function ApprovalsPage() {
                     <td>{TYPE_LABELS[request.type] || request.type}</td>
                     <td>{request.fromList || '-'}</td>
                     <td>{request.toList || '-'}</td>
-                    <td>{request.quantity}</td>
+                    <td>{formatQuantity(request.quantity)}</td>
                     <td>{request.customer?.name || '-'}</td>
                     <td>{request.boxLabel || '-'}</td>
                     <td>{request.requestedBy?.username || 'N/D'}</td>

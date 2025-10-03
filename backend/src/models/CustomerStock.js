@@ -1,10 +1,18 @@
 const { Schema, model, Types } = require('mongoose');
 
+const quantitySchema = new Schema(
+  {
+    boxes: { type: Number, default: 0, min: 0 },
+    units: { type: Number, default: 0, min: 0 }
+  },
+  { _id: false }
+);
+
 const customerStockSchema = new Schema(
   {
     customer: { type: Types.ObjectId, ref: 'Customer', required: true },
     item: { type: Types.ObjectId, ref: 'Item', required: true },
-    quantity: { type: Number, required: true, min: 0 },
+    quantity: { type: quantitySchema, required: true, default: () => ({}) },
     status: { type: String, enum: ['reserved', 'delivered'], default: 'reserved' },
     boxLabel: { type: String, default: null, trim: true },
     dateCreated: { type: Date, default: Date.now },
