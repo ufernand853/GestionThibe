@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const Role = require('./models/Role');
 const User = require('./models/User');
+const Group = require('./models/Group');
 const config = require('./config');
 
 const defaultRoles = [
@@ -27,11 +28,42 @@ const defaultRoles = [
   }
 ];
 
+const defaultGroups = [
+  'MEDIAS',
+  'ROPA INTERIOR',
+  'MANIQUÍ',
+  'BLANCOS',
+  'ACCESORIOS',
+  'JEAN HOMBRE',
+  'JEAN DAMA',
+  'JEAN NIÑO/A',
+  'ROPA HOMBRE',
+  'ROPA DAMA',
+  'ROPA NIÑO/A',
+  'CALZADO',
+  'ELECTRÓNICOS Y BAZAR',
+  'JUGUETES',
+  'ESCOLARES',
+  'SOBRESTOCK GENERAL',
+  'SOBRESTOCK THIBE',
+  'SOBRESTOCK ARENAL IMPORT',
+  'CLIENTES'
+];
+
 async function seedRoles() {
   for (const role of defaultRoles) {
     const existing = await Role.findOne({ name: role.name });
     if (!existing) {
       await Role.create(role);
+    }
+  }
+}
+
+async function seedGroups() {
+  for (const name of defaultGroups) {
+    const existing = await Group.findOne({ name });
+    if (!existing) {
+      await Group.create({ name });
     }
   }
 }
@@ -55,6 +87,7 @@ async function seedAdminUser() {
 
 async function seed() {
   await seedRoles();
+  await seedGroups();
   await seedAdminUser();
 }
 
