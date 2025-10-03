@@ -9,6 +9,14 @@ const quantitySchema = new Schema(
   { _id: false }
 );
 
+const quantitySchema = new Schema(
+  {
+    boxes: { type: Number, default: 0, min: 0 },
+    units: { type: Number, default: 0, min: 0 }
+  },
+  { _id: false }
+);
+
 const customerStockSchema = new Schema(
   {
     customer: { type: Types.ObjectId, ref: 'Customer', required: true },

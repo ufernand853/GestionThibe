@@ -9,6 +9,14 @@ const quantitySchema = new Schema(
   { _id: false }
 );
 
+const quantitySchema = new Schema(
+  {
+    boxes: { type: Number, default: 0, min: 0 },
+    units: { type: Number, default: 0, min: 0 }
+  },
+  { _id: false }
+);
+
 const movementRequestSchema = new Schema(
   {
     item: { type: Types.ObjectId, ref: 'Item', required: true },
