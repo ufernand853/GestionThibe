@@ -3,6 +3,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { ensureQuantity, formatQuantity, sumQuantities } from '../../utils/quantity.js';
 
 const INITIAL_FORM_STATE = { name: '', contactInfo: '', status: 'active' };
 
@@ -36,22 +37,23 @@ export default function CustomersPage() {
         buckets.set(key, {
           label: record.boxLabel ? record.boxLabel : 'Sin caja',
           boxLabel: record.boxLabel,
-          totalQuantity: 0,
+          totalQuantity: { boxes: 0, units: 0 },
           items: new Map()
         });
       }
       const bucket = buckets.get(key);
-      bucket.totalQuantity += record.quantity;
+      const recordQuantity = ensureQuantity(record.quantity);
+      bucket.totalQuantity = sumQuantities(bucket.totalQuantity, recordQuantity);
       const code = record.item?.code || record.itemId;
       if (!bucket.items.has(code)) {
         bucket.items.set(code, {
           code,
           description: record.item?.description || '',
-          quantity: 0
+          quantity: { boxes: 0, units: 0 }
         });
       }
       const itemEntry = bucket.items.get(code);
-      itemEntry.quantity += record.quantity;
+      itemEntry.quantity = sumQuantities(itemEntry.quantity, recordQuantity);
     });
     return Array.from(buckets.values())
       .map(bucket => ({
@@ -440,7 +442,7 @@ export default function CustomersPage() {
                       <td>{record.item?.description || '-'}</td>
                       <td>{record.item?.code || record.itemId}</td>
                       <td>{record.boxLabel || '-'}</td>
-                      <td>{record.quantity}</td>
+                      <td>{formatQuantity(record.quantity)}</td>
                       <td>{record.status}</td>
                       <td>{new Date(record.dateCreated).toLocaleDateString('es-AR')}</td>
                       <td>{record.dateDelivered ? new Date(record.dateDelivered).toLocaleDateString('es-AR') : '-'}</td>
@@ -470,12 +472,12 @@ export default function CustomersPage() {
                               {group.items.map(item => (
                                 <span key={item.code} className="badge">
                                   {item.code}
-                                  {item.description ? ` · ${item.description}` : ''} ({item.quantity})
+                                  {item.description ? ` · ${item.description}` : ''} ({formatQuantity(item.quantity, { compact: true })})
                                 </span>
                               ))}
                             </div>
                           </td>
-                          <td>{group.totalQuantity}</td>
+                          <td>{formatQuantity(group.totalQuantity)}</td>
                         </tr>
                       ))}
                     </tbody>
