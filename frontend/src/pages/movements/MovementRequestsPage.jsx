@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
@@ -24,6 +24,7 @@ export default function MovementRequestsPage() {
   const [customers, setCustomers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
+  const [resubmittingId, setResubmittingId] = useState(null);
   const [formValues, setFormValues] = useState({
     itemId: '',
     type: 'out',
@@ -37,6 +38,13 @@ export default function MovementRequestsPage() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+
+  const refreshRequests = useCallback(async () => {
+    const response = await api.get('/stock/requests', {
+      query: statusFilter ? { status: statusFilter } : undefined
+    });
+    return Array.isArray(response) ? response : [];
+  }, [api, statusFilter]);
 
   useEffect(() => {
     let active = true;
@@ -67,11 +75,9 @@ export default function MovementRequestsPage() {
       setLoading(true);
       setError(null);
       try {
-        const response = await api.get('/stock/requests', {
-          query: statusFilter ? { status: statusFilter } : undefined
-        });
+        const data = await refreshRequests();
         if (!active) return;
-        setRequests(Array.isArray(response) ? response : []);
+        setRequests(data);
       } catch (err) {
         if (!active) return;
         setError(err);
@@ -87,7 +93,7 @@ export default function MovementRequestsPage() {
     return () => {
       active = false;
     };
-  }, [api, canRequest, statusFilter]);
+  }, [canRequest, refreshRequests]);
 
   const handleFormChange = event => {
     const { name, value } = event.target;
@@ -109,6 +115,7 @@ export default function MovementRequestsPage() {
     if (!canRequest) return;
     setSubmitting(true);
     setError(null);
+    setSuccessMessage('');
     try {
       const payload = {
         itemId: formValues.itemId,
@@ -133,10 +140,8 @@ export default function MovementRequestsPage() {
         quantityUnits: '1',
         boxLabel: ''
       }));
-      const refreshed = await api.get('/stock/requests', {
-        query: statusFilter ? { status: statusFilter } : undefined
-      });
-      setRequests(Array.isArray(refreshed) ? refreshed : []);
+      const refreshed = await refreshRequests();
+      setRequests(refreshed);
     } catch (err) {
       setError(err);
     } finally {
@@ -151,6 +156,23 @@ export default function MovementRequestsPage() {
       setFormValues(prev => ({ ...prev, customerId: '', boxLabel: '' }));
     }
   }, [requiresCustomer, formValues.customerId, formValues.boxLabel]);
+
+  const handleResubmit = async request => {
+    if (!canRequest) return;
+    setResubmittingId(request.id);
+    setError(null);
+    setSuccessMessage('');
+    try {
+      await api.post(`/stock/request/${request.id}/resubmit`);
+      setSuccessMessage('Solicitud reenviada correctamente.');
+      const refreshed = await refreshRequests();
+      setRequests(refreshed);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setResubmittingId(null);
+    }
+  };
 
   if (!canRequest) {
     return <ErrorMessage error="No cuenta con permisos para solicitar movimientos." />;
@@ -314,6 +336,7 @@ export default function MovementRequestsPage() {
                   <th>Estado</th>
                   <th>Solicitado por</th>
                   <th>Fecha</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -331,11 +354,25 @@ export default function MovementRequestsPage() {
                     </td>
                     <td>{request.requestedBy?.username || 'N/D'}</td>
                     <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
+                    <td>
+                      {request.status === 'rejected' ? (
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => handleResubmit(request)}
+                          disabled={resubmittingId === request.id}
+                        >
+                          {resubmittingId === request.id ? 'Reenviando...' : 'Reenviar'}
+                        </button>
+                      ) : (
+                        <span style={{ color: '#94a3b8' }}>-</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {requests.length === 0 && (
                   <tr>
-                    <td colSpan={10} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={11} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se registran solicitudes con los filtros aplicados.
                     </td>
                   </tr>

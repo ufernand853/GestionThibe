@@ -48,6 +48,10 @@ paths:
     post:
       summary: Request a stock movement (requires auth)
       responses: { '201': { description: Created } }
+  /api/stock/request/{requestId}/resubmit:
+    post:
+      summary: Resubmit a rejected movement request
+      responses: { '200': { description: Resubmitted } }
   /api/stock/approve/{requestId}:
     post:
       summary: Approve and execute movement (Admin)
