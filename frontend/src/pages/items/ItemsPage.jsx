@@ -11,6 +11,23 @@ const ATTRIBUTES = ['gender', 'size', 'color', 'material', 'season', 'fit'];
 const MAX_IMAGES = 10;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('El archivo no pudo convertirse a una URL base64.'));
+      }
+    };
+    reader.onerror = () => {
+      reject(reader.error || new Error('No se pudo leer el archivo.'));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 const STOCK_LOCATIONS = [
   {
     key: 'general',
@@ -102,25 +119,8 @@ export default function ItemsPage() {
   const [groupError, setGroupError] = useState('');
 
   const clearNewImages = useCallback(() => {
-    setImageFiles(prev => {
-      prev.forEach(image => {
-        if (image?.preview) {
-          URL.revokeObjectURL(image.preview);
-        }
-      });
-      return [];
-    });
+    setImageFiles([]);
   }, []);
-
-  useEffect(() => {
-    return () => {
-      imageFiles.forEach(image => {
-        if (image?.preview) {
-          URL.revokeObjectURL(image.preview);
-        }
-      });
-    };
-  }, [imageFiles]);
 
   useEffect(() => {
     let active = true;
@@ -237,11 +237,11 @@ export default function ItemsPage() {
       groupId: formValues.groupId || null,
       attributes: Object.keys(attributes).length ? attributes : undefined,
       stock,
-      imagesToKeep: [...existingImages]
+      images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
     };
   };
 
-  const handleImageSelect = event => {
+  const handleImageSelect = async event => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) {
       return;
@@ -262,21 +262,30 @@ export default function ItemsPage() {
         return true;
       });
       if (validFiles.length > 0) {
-        setImageFiles(prev => [
-          ...prev,
-          ...validFiles.map(file => ({
-            file,
-            preview: URL.createObjectURL(file)
-          }))
-        ]);
+        try {
+          const dataUrls = await Promise.all(validFiles.map(file => fileToDataUrl(file)));
+          setImageFiles(prev => [
+            ...prev,
+            ...dataUrls.map((dataUrl, index) => ({
+              dataUrl,
+              name: validFiles[index].name,
+              size: validFiles[index].size
+            }))
+          ]);
+        } catch (error) {
+          console.error('No se pudieron procesar las imágenes seleccionadas', error);
+          message = 'Ocurrió un error al procesar las imágenes seleccionadas.';
+        }
       }
-      if (files.length > availableSlots) {
-        message = `Solo se permiten hasta ${MAX_IMAGES} imágenes por artículo.`;
-      } else if (rejectedBySize) {
-        message = 'Algunas imágenes superan el tamaño máximo de 5 MB y fueron descartadas.';
-      }
-      if (validFiles.length === 0 && rejectedBySize) {
-        message = 'Las imágenes deben pesar menos de 5 MB.';
+      if (!message) {
+        if (files.length > availableSlots) {
+          message = `Solo se permiten hasta ${MAX_IMAGES} imágenes por artículo.`;
+        } else if (rejectedBySize) {
+          message = 'Algunas imágenes superan el tamaño máximo de 5 MB y fueron descartadas.';
+        }
+        if (validFiles.length === 0 && rejectedBySize) {
+          message = 'Las imágenes deben pesar menos de 5 MB.';
+        }
       }
     }
     if (message) {
@@ -295,10 +304,7 @@ export default function ItemsPage() {
   const handleRemoveNewImage = index => {
     setImageFiles(prev => {
       const next = [...prev];
-      const [removed] = next.splice(index, 1);
-      if (removed?.preview) {
-        URL.revokeObjectURL(removed.preview);
-      }
+      next.splice(index, 1);
       return next;
     });
     setImageError('');
@@ -308,7 +314,7 @@ export default function ItemsPage() {
     if (!path) {
       return '';
     }
-    if (/^https?:\/\//i.test(path)) {
+    if (/^data:image\//i.test(path) || /^https?:\/\//i.test(path)) {
       return path;
     }
     return `${API_ROOT_URL}/${path.replace(/^\/+/, '')}`;
@@ -325,16 +331,11 @@ export default function ItemsPage() {
       if (!editingItem) {
         payload.code = formValues.code;
       }
-      const formData = new FormData();
-      formData.append('payload', JSON.stringify(payload));
-      imageFiles.forEach(image => {
-        formData.append('images', image.file);
-      });
       if (editingItem) {
-        await api.put(`/items/${editingItem.id}`, formData);
+        await api.put(`/items/${editingItem.id}`, payload);
         setSuccessMessage(`Artículo ${editingItem.code} actualizado correctamente.`);
       } else {
-        const response = await api.post('/items', formData);
+        const response = await api.post('/items', payload);
         setSuccessMessage(`Artículo ${response.code} creado correctamente.`);
       }
       resetForm();
@@ -573,8 +574,8 @@ export default function ItemsPage() {
                     <h4>Nuevas imágenes</h4>
                     <div className="image-preview-grid">
                       {imageFiles.map((image, index) => (
-                        <div key={image.preview} className="image-preview-item">
-                          <img src={image.preview} alt={image.file.name} />
+                        <div key={image.dataUrl || index} className="image-preview-item">
+                          <img src={image.dataUrl} alt={image.name || `Nueva imagen ${index + 1}`} />
                           <button type="button" className="secondary-button" onClick={() => handleRemoveNewImage(index)}>
                             Quitar
                           </button>
