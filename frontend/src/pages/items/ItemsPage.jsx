@@ -8,7 +8,7 @@ import { API_ROOT_URL } from '../../utils/apiConfig.js';
 
 const ATTRIBUTES = ['gender', 'size', 'color', 'material', 'season', 'fit'];
 
-const MAX_IMAGES = 10;
+const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 function fileToDataUrl(file) {
