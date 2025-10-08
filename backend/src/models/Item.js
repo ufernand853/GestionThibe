@@ -23,7 +23,8 @@ const itemSchema = new Schema(
     description: { type: String, required: true, trim: true },
     group: { type: Types.ObjectId, ref: 'Group', default: null },
     attributes: { type: Map, of: String, default: {} },
-    stock: { type: stockSchema, default: () => ({}) }
+    stock: { type: stockSchema, default: () => ({}) },
+    images: { type: [String], default: [] }
   },
   {
     timestamps: true,
