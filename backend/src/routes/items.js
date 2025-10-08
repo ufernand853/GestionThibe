@@ -11,7 +11,7 @@ const { normalizeQuantityInput } = require('../services/stockService');
 
 const { promises: fsPromises } = fs;
 
-const MAX_IMAGES = 10;
+const MAX_IMAGES = 5;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const projectRoot = path.join(__dirname, '..', '..');
 const uploadsRoot = path.join(projectRoot, 'uploads');
@@ -248,7 +248,6 @@ router.get(
 router.post(
   '/',
   requirePermission('items.write'),
-  uploadMiddleware,
   asyncHandler(async (req, res) => {
     const payload = parseItemPayload(req);
     const { code, description, groupId, attributes = {}, stock = {}, images = [] } = payload;
@@ -294,7 +293,6 @@ router.post(
 router.put(
   '/:id',
   requirePermission('items.write'),
-  uploadMiddleware,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const item = await Item.findById(id);
