@@ -1,10 +1,140 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+const multer = require('multer');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
 const { normalizeQuantityInput } = require('../services/stockService');
+
+const { promises: fsPromises } = fs;
+
+const MAX_IMAGES = 10;
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const projectRoot = path.join(__dirname, '..', '..');
+const uploadsRoot = path.join(projectRoot, 'uploads');
+const itemUploadsDir = path.join(uploadsRoot, 'items');
+fs.mkdirSync(itemUploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, itemUploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const randomName = crypto.randomBytes(16).toString('hex');
+    const allowedExtensions = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+    let extension = (path.extname(file.originalname || '') || '').toLowerCase();
+    if (!allowedExtensions.has(extension)) {
+      const mimeExtension = file.mimetype && file.mimetype.includes('/') ? `.${file.mimetype.split('/')[1]}` : '';
+      extension = mimeExtension.toLowerCase();
+      if (!allowedExtensions.has(extension)) {
+        extension = '.jpg';
+      }
+    }
+    cb(null, `${randomName}${extension}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: MAX_FILE_SIZE },
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new HttpError(400, 'Solo se permiten imágenes JPEG, PNG, WEBP o GIF.'));
+    }
+  }
+});
+
+const uploadMiddleware = (req, res, next) => {
+  if (!req.is('multipart/form-data')) {
+    return next();
+  }
+  upload.array('images', MAX_IMAGES)(req, res, err => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return next(new HttpError(400, 'Cada imagen debe pesar menos de 5 MB.'));
+        }
+        if (err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT') {
+          return next(new HttpError(400, `Solo se permiten hasta ${MAX_IMAGES} imágenes por artículo.`));
+        }
+      }
+      return next(err);
+    }
+    return next();
+  });
+};
+
+function sanitizeImagePath(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim().replace(/^\/+/, '');
+  if (!trimmed) {
+    return null;
+  }
+  const normalized = path.posix.normalize(trimmed);
+  if (!normalized.startsWith('uploads/items/')) {
+    return null;
+  }
+  return normalized;
+}
+
+function sanitizeImageList(values, existingSet = null) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  const seen = new Set();
+  const sanitized = [];
+  values.forEach(value => {
+    const sanitizedPath = sanitizeImagePath(value);
+    if (!sanitizedPath) return;
+    if (existingSet && !existingSet.has(sanitizedPath)) return;
+    if (seen.has(sanitizedPath)) return;
+    seen.add(sanitizedPath);
+    sanitized.push(sanitizedPath);
+  });
+  return sanitized;
+}
+
+function buildRelativeImagePath(filename) {
+  return path.posix.join('uploads', 'items', filename);
+}
+
+async function removeFileSafe(relativePath) {
+  const sanitizedPath = sanitizeImagePath(relativePath);
+  if (!sanitizedPath) {
+    return;
+  }
+  const absolutePath = path.join(projectRoot, sanitizedPath);
+  try {
+    await fsPromises.unlink(absolutePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      console.warn('No se pudo eliminar la imagen asociada al artículo', {
+        path: absolutePath,
+        error
+      });
+    }
+  }
+}
+
+function parseItemPayload(req) {
+  if (req.body && typeof req.body.payload === 'string') {
+    try {
+      return JSON.parse(req.body.payload);
+    } catch (error) {
+      throw new HttpError(400, 'El formato del payload es inválido.');
+    }
+  }
+  return req.body || {};
+}
 
 function toPlainAttributes(attributes) {
   if (!attributes) return {};
@@ -24,6 +154,7 @@ function serializeItem(doc) {
     group: group ? { id: group.id, name: group.name } : null,
     attributes: toPlainAttributes(doc.attributes),
     stock: doc.stock,
+    images: Array.isArray(doc.images) ? doc.images : [],
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt
   };
@@ -81,8 +212,10 @@ router.get(
 router.post(
   '/',
   requirePermission('items.write'),
+  uploadMiddleware,
   asyncHandler(async (req, res) => {
-    const { code, description, groupId, attributes = {}, stock = {} } = req.body || {};
+    const payload = parseItemPayload(req);
+    const { code, description, groupId, attributes = {}, stock = {} } = payload;
     if (!code || !description) {
       throw new HttpError(400, 'code y description son obligatorios');
     }
@@ -98,13 +231,25 @@ router.post(
       }
     }
     const stockData = buildStock(stock);
-    const item = await Item.create({
-      code,
-      description,
-      group: group ? group.id : null,
-      attributes,
-      stock: stockData
-    });
+    const newImagePaths = Array.isArray(req.files)
+      ? req.files.map(file => buildRelativeImagePath(file.filename))
+      : [];
+    let item;
+    try {
+      item = await Item.create({
+        code,
+        description,
+        group: group ? group.id : null,
+        attributes,
+        stock: stockData,
+        images: newImagePaths
+      });
+    } catch (error) {
+      if (newImagePaths.length > 0) {
+        await Promise.allSettled(newImagePaths.map(removeFileSafe));
+      }
+      throw error;
+    }
     const populated = await item.populate('group');
     res.status(201).json(serializeItem(populated));
   })
@@ -113,13 +258,15 @@ router.post(
 router.put(
   '/:id',
   requirePermission('items.write'),
+  uploadMiddleware,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const item = await Item.findById(id);
     if (!item) {
       throw new HttpError(404, 'Artículo no encontrado');
     }
-    const { description, groupId, attributes, stock } = req.body || {};
+    const payload = parseItemPayload(req);
+    const { description, groupId, attributes, stock, imagesToKeep } = payload || {};
     if (description) {
       item.description = description;
     }
@@ -152,7 +299,39 @@ router.put(
         item.stock[key] = value;
       });
     }
-    await item.save();
+
+    const currentImages = Array.isArray(item.images) ? item.images : [];
+    const existingSet = new Set(currentImages);
+    let sanitizedImagesToKeep;
+    if (imagesToKeep === undefined) {
+      sanitizedImagesToKeep = currentImages;
+    } else {
+      sanitizedImagesToKeep = sanitizeImageList(imagesToKeep, existingSet);
+    }
+    const keepSet = new Set(sanitizedImagesToKeep);
+    const imagesToRemove = currentImages.filter(imagePath => !keepSet.has(imagePath));
+    if (imagesToRemove.length > 0) {
+      await Promise.allSettled(imagesToRemove.map(removeFileSafe));
+    }
+    const newImagePaths = Array.isArray(req.files)
+      ? req.files.map(file => buildRelativeImagePath(file.filename))
+      : [];
+    if (sanitizedImagesToKeep.length + newImagePaths.length > MAX_IMAGES) {
+      if (newImagePaths.length > 0) {
+        await Promise.allSettled(newImagePaths.map(removeFileSafe));
+      }
+      throw new HttpError(400, `Solo se permiten hasta ${MAX_IMAGES} imágenes por artículo.`);
+    }
+    item.images = [...sanitizedImagesToKeep, ...newImagePaths];
+
+    try {
+      await item.save();
+    } catch (error) {
+      if (newImagePaths.length > 0) {
+        await Promise.allSettled(newImagePaths.map(removeFileSafe));
+      }
+      throw error;
+    }
     const populated = await item.populate('group');
     res.json(serializeItem(populated));
   })
