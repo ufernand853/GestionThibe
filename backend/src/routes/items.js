@@ -11,7 +11,7 @@ const { normalizeQuantityInput } = require('../services/stockService');
 
 const { promises: fsPromises } = fs;
 
-const MAX_IMAGES = 10;
+const MAX_IMAGES = 5;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const projectRoot = path.join(__dirname, '..', '..');
 const uploadsRoot = path.join(projectRoot, 'uploads');
