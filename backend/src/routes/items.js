@@ -248,7 +248,6 @@ router.get(
 router.post(
   '/',
   requirePermission('items.write'),
-  uploadMiddleware,
   asyncHandler(async (req, res) => {
     const payload = parseItemPayload(req);
     const { code, description, groupId, attributes = {}, stock = {}, images = [] } = payload;
@@ -294,7 +293,6 @@ router.post(
 router.put(
   '/:id',
   requirePermission('items.write'),
-  uploadMiddleware,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const item = await Item.findById(id);
