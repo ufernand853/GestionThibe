@@ -1,11 +1,32 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
+import { API_ROOT_URL } from '../../utils/apiConfig.js';
 
 const ATTRIBUTES = ['gender', 'size', 'color', 'material', 'season', 'fit'];
+
+const MAX_IMAGES = 10;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('El archivo no pudo convertirse a una URL base64.'));
+      }
+    };
+    reader.onerror = () => {
+      reject(reader.error || new Error('No se pudo leer el archivo.'));
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 const STOCK_LOCATIONS = [
   {
@@ -90,9 +111,16 @@ export default function ItemsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [imageFiles, setImageFiles] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
+  const [imageError, setImageError] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [groupError, setGroupError] = useState('');
+
+  const clearNewImages = useCallback(() => {
+    setImageFiles([]);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -169,6 +197,9 @@ export default function ItemsPage() {
       overstockArenalBoxes: '',
       overstockArenalUnits: ''
     });
+    clearNewImages();
+    setExistingImages([]);
+    setImageError('');
     setEditingItem(null);
   };
 
@@ -205,8 +236,88 @@ export default function ItemsPage() {
       description: formValues.description,
       groupId: formValues.groupId || null,
       attributes: Object.keys(attributes).length ? attributes : undefined,
-      stock
+      stock,
+      images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
     };
+  };
+
+  const handleImageSelect = async event => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) {
+      return;
+    }
+    let message = '';
+    const currentTotal = existingImages.length + imageFiles.length;
+    const availableSlots = MAX_IMAGES - currentTotal;
+    if (availableSlots <= 0) {
+      message = `Solo se permiten hasta ${MAX_IMAGES} imágenes por artículo.`;
+    } else {
+      const limitedFiles = files.slice(0, availableSlots);
+      let rejectedBySize = false;
+      const validFiles = limitedFiles.filter(file => {
+        if (file.size > MAX_IMAGE_SIZE) {
+          rejectedBySize = true;
+          return false;
+        }
+        return true;
+      });
+      if (validFiles.length > 0) {
+        try {
+          const dataUrls = await Promise.all(validFiles.map(file => fileToDataUrl(file)));
+          setImageFiles(prev => [
+            ...prev,
+            ...dataUrls.map((dataUrl, index) => ({
+              dataUrl,
+              name: validFiles[index].name,
+              size: validFiles[index].size
+            }))
+          ]);
+        } catch (error) {
+          console.error('No se pudieron procesar las imágenes seleccionadas', error);
+          message = 'Ocurrió un error al procesar las imágenes seleccionadas.';
+        }
+      }
+      if (!message) {
+        if (files.length > availableSlots) {
+          message = `Solo se permiten hasta ${MAX_IMAGES} imágenes por artículo.`;
+        } else if (rejectedBySize) {
+          message = 'Algunas imágenes superan el tamaño máximo de 5 MB y fueron descartadas.';
+        }
+        if (validFiles.length === 0 && rejectedBySize) {
+          message = 'Las imágenes deben pesar menos de 5 MB.';
+        }
+      }
+    }
+    if (message) {
+      setImageError(message);
+    } else {
+      setImageError('');
+    }
+    event.target.value = '';
+  };
+
+  const handleRemoveExistingImage = imagePath => {
+    setExistingImages(prev => prev.filter(path => path !== imagePath));
+    setImageError('');
+  };
+
+  const handleRemoveNewImage = index => {
+    setImageFiles(prev => {
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
+    setImageError('');
+  };
+
+  const getImageUrl = path => {
+    if (!path) {
+      return '';
+    }
+    if (/^data:image\//i.test(path) || /^https?:\/\//i.test(path)) {
+      return path;
+    }
+    return `${API_ROOT_URL}/${path.replace(/^\/+/, '')}`;
   };
 
   const handleSubmit = async event => {
@@ -214,13 +325,16 @@ export default function ItemsPage() {
     if (!canWrite) return;
     setSaving(true);
     setError(null);
+    setImageError('');
     try {
+      const payload = buildPayload();
+      if (!editingItem) {
+        payload.code = formValues.code;
+      }
       if (editingItem) {
-        await api.put(`/items/${editingItem.id}`, buildPayload());
+        await api.put(`/items/${editingItem.id}`, payload);
         setSuccessMessage(`Artículo ${editingItem.code} actualizado correctamente.`);
       } else {
-        const payload = buildPayload();
-        payload.code = formValues.code;
         const response = await api.post('/items', payload);
         setSuccessMessage(`Artículo ${response.code} creado correctamente.`);
       }
@@ -263,7 +377,10 @@ export default function ItemsPage() {
   };
 
   const handleEdit = item => {
+    clearNewImages();
     setEditingItem(item);
+    setExistingImages(Array.isArray(item.images) ? item.images : []);
+    setImageError('');
     const general = ensureQuantity(item.stock?.general);
     const overstockGeneral = ensureQuantity(item.stock?.overstockGeneral);
     const overstockThibe = ensureQuantity(item.stock?.overstockThibe);
@@ -410,6 +527,65 @@ export default function ItemsPage() {
                 </div>
               ))}
             </div>
+          </section>
+
+          <section className="form-section">
+            <div className="form-section__header">
+              <div>
+                <h3>Imágenes del artículo</h3>
+                <p className="form-section__description">
+                  Adjunta fotografías para identificar el artículo visualmente.
+                </p>
+              </div>
+            </div>
+            <div className="form-grid form-grid--spaced">
+              <div className="input-group">
+                <label htmlFor="itemImages">Subir imágenes</label>
+                <input
+                  id="itemImages"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  multiple
+                  onChange={handleImageSelect}
+                />
+                <p className="input-helper">Puedes seleccionar hasta 10 imágenes, máximo 5 MB cada una.</p>
+              </div>
+            </div>
+            <ErrorMessage error={imageError} />
+            {(existingImages.length > 0 || imageFiles.length > 0) && (
+              <div className="image-preview-wrapper">
+                {existingImages.length > 0 && (
+                  <div className="image-preview-group">
+                    <h4>Imágenes actuales</h4>
+                    <div className="image-preview-grid">
+                      {existingImages.map(image => (
+                        <div key={image} className="image-preview-item">
+                          <img src={getImageUrl(image)} alt="Imagen del artículo" />
+                          <button type="button" className="secondary-button" onClick={() => handleRemoveExistingImage(image)}>
+                            Quitar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {imageFiles.length > 0 && (
+                  <div className="image-preview-group">
+                    <h4>Nuevas imágenes</h4>
+                    <div className="image-preview-grid">
+                      {imageFiles.map((image, index) => (
+                        <div key={image.dataUrl || index} className="image-preview-item">
+                          <img src={image.dataUrl} alt={image.name || `Nueva imagen ${index + 1}`} />
+                          <button type="button" className="secondary-button" onClick={() => handleRemoveNewImage(index)}>
+                            Quitar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           <section className="form-section">
@@ -562,6 +738,7 @@ export default function ItemsPage() {
                   <th>Descripción</th>
                   <th>Grupo</th>
                   <th>Atributos</th>
+                  <th>Imágenes</th>
                   <th>General</th>
                   <th>Sobre. General</th>
                   <th>Sobre. Thibe</th>
@@ -585,6 +762,7 @@ export default function ItemsPage() {
                         {Object.keys(item.attributes || {}).length === 0 && <span>-</span>}
                       </div>
                     </td>
+                    <td>{Array.isArray(item.images) ? item.images.length : 0}</td>
                     <td>{formatQuantity(item.stock?.general)}</td>
                     <td>{formatQuantity(item.stock?.overstockGeneral)}</td>
                     <td>{formatQuantity(item.stock?.overstockThibe)}</td>
@@ -602,7 +780,7 @@ export default function ItemsPage() {
                 ))}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={canWrite ? 9 : 8} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={canWrite ? 10 : 9} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron artículos para los filtros seleccionados.
                     </td>
                   </tr>
