@@ -40,6 +40,13 @@ paths:
     post:
       summary: Create group
       responses: { '201': { description: Created } }
+  /api/groups/{id}:
+    put:
+      summary: Update group
+      responses: { '200': { description: OK } }
+    delete:
+      summary: Delete group
+      responses: { '204': { description: No Content } }
   /api/customers/{id}/stock:
     get:
       summary: View customer stock
