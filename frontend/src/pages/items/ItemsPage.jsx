@@ -89,8 +89,6 @@ export default function ItemsPage() {
   const [pageSize] = useState(20);
   const [groups, setGroups] = useState([]);
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
-  const [groupForm, setGroupForm] = useState({ name: '', parentId: '' });
-  const [groupEditForm, setGroupEditForm] = useState({ name: '', parentId: '' });
   const [formValues, setFormValues] = useState({
     code: '',
     description: '',
@@ -116,12 +114,6 @@ export default function ItemsPage() {
   const [existingImages, setExistingImages] = useState([]);
   const [imageError, setImageError] = useState('');
   const [editingItem, setEditingItem] = useState(null);
-  const [creatingGroup, setCreatingGroup] = useState(false);
-  const [groupCreateError, setGroupCreateError] = useState('');
-  const [groupManagementError, setGroupManagementError] = useState('');
-  const [editingGroupId, setEditingGroupId] = useState(null);
-  const [savingGroupId, setSavingGroupId] = useState(null);
-  const [deletingGroupId, setDeletingGroupId] = useState(null);
 
   const sortGroupsByName = useCallback(
     list => [...list].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
@@ -216,19 +208,6 @@ export default function ItemsPage() {
   const handleFormChange = event => {
     const { name, value } = event.target;
     setFormValues(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleGroupFormChange = event => {
-    const { name, value } = event.target;
-    setGroupForm(prev => ({ ...prev, [name]: value }));
-    setGroupCreateError('');
-    setGroupManagementError('');
-  };
-
-  const handleGroupEditFormChange = event => {
-    const { name, value } = event.target;
-    setGroupEditForm(prev => ({ ...prev, [name]: value }));
-    setGroupManagementError('');
   };
 
   const buildPayload = () => {
@@ -370,116 +349,6 @@ export default function ItemsPage() {
     }
   };
 
-  const handleCreateGroup = async event => {
-    event.preventDefault();
-    if (!canWrite || !groupForm.name.trim()) return;
-    setCreatingGroup(true);
-    setGroupCreateError('');
-    setGroupManagementError('');
-    setSuccessMessage('');
-    try {
-      const payload = {
-        name: groupForm.name.trim(),
-        parentId: groupForm.parentId || undefined
-      };
-      const newGroup = await api.post('/groups', payload);
-      setGroups(prev => sortGroupsByName([...prev, newGroup]));
-      setGroupForm({ name: '', parentId: '' });
-      setSuccessMessage(`Grupo ${newGroup.name} creado correctamente.`);
-    } catch (err) {
-      setGroupCreateError(err);
-    } finally {
-      setCreatingGroup(false);
-    }
-  };
-
-  const startGroupEdit = group => {
-    setGroupCreateError('');
-    setGroupManagementError('');
-    setSuccessMessage('');
-    setEditingGroupId(group.id);
-    setGroupEditForm({ name: group.name || '', parentId: group.parent || '' });
-  };
-
-  const cancelGroupEdit = () => {
-    setEditingGroupId(null);
-    setGroupEditForm({ name: '', parentId: '' });
-    setGroupManagementError('');
-  };
-
-  const handleUpdateGroup = async () => {
-    if (!editingGroupId) {
-      return;
-    }
-    const trimmedName = groupEditForm.name.trim();
-    if (!trimmedName) {
-      setGroupManagementError('El nombre es obligatorio');
-      return;
-    }
-    setSavingGroupId(editingGroupId);
-    setGroupManagementError('');
-    setSuccessMessage('');
-    try {
-      const payload = { name: trimmedName };
-      if (groupEditForm.parentId) {
-        payload.parentId = groupEditForm.parentId;
-      } else {
-        payload.parentId = null;
-      }
-      const updatedGroup = await api.put(`/groups/${editingGroupId}`, payload);
-      setGroups(prev =>
-        sortGroupsByName(prev.map(group => (group.id === editingGroupId ? updatedGroup : group)))
-      );
-      setSuccessMessage(`Grupo ${updatedGroup.name} actualizado correctamente.`);
-      cancelGroupEdit();
-    } catch (err) {
-      setGroupManagementError(err);
-    } finally {
-      setSavingGroupId(null);
-    }
-  };
-
-  const handleDeleteGroup = async group => {
-    if (!canWrite) {
-      return;
-    }
-    const confirmed = window.confirm(
-      `¿Seguro que deseas eliminar el grupo "${group.name}"? Esta acción no se puede deshacer.`
-    );
-    if (!confirmed) {
-      return;
-    }
-    setDeletingGroupId(group.id);
-    setGroupManagementError('');
-    setGroupCreateError('');
-    setSuccessMessage('');
-    try {
-      await api.delete(`/groups/${group.id}`);
-      setGroups(prev => prev.filter(item => item.id !== group.id));
-      setFilters(prev => (prev.groupId === group.id ? { ...prev, groupId: '' } : prev));
-      setFormValues(prev => (prev.groupId === group.id ? { ...prev, groupId: '' } : prev));
-      setGroupForm(prev => (prev.parentId === group.id ? { ...prev, parentId: '' } : prev));
-      if (editingGroupId === group.id) {
-        cancelGroupEdit();
-      }
-      setSuccessMessage(`Grupo ${group.name} eliminado correctamente.`);
-    } catch (err) {
-      setGroupManagementError(err);
-    } finally {
-      setDeletingGroupId(null);
-    }
-  };
-
-  const groupMapById = useMemo(() => {
-    const map = new Map();
-    groups.forEach(group => {
-      if (group?.id) {
-        map.set(group.id, group);
-      }
-    });
-    return map;
-  }, [groups]);
-
   const handleEdit = item => {
     clearNewImages();
     setEditingItem(item);
@@ -528,167 +397,6 @@ export default function ItemsPage() {
 
       {error && <ErrorMessage error={error} />}
       {successMessage && <div className="success-message">{successMessage}</div>}
-
-      {canWrite && (
-        <div className="section-card">
-          <h2>Gestión de grupos</h2>
-          <p style={{ color: '#64748b', marginTop: '-0.3rem' }}>
-            Cree, reorganice o elimine grupos para clasificar los artículos del catálogo.
-          </p>
-          <form className="form-grid" onSubmit={handleCreateGroup} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginTop: '1rem' }}>
-            <div className="input-group">
-              <label htmlFor="groupName">Nombre *</label>
-              <input
-                id="groupName"
-                name="name"
-                value={groupForm.name}
-                onChange={handleGroupFormChange}
-                placeholder="Ej. Calzado"
-                required
-              />
-            </div>
-            <div className="input-group">
-              <label htmlFor="parentGroup">Grupo padre</label>
-              <select
-                id="parentGroup"
-                name="parentId"
-                value={groupForm.parentId}
-                onChange={handleGroupFormChange}
-              >
-                <option value="">Sin padre</option>
-                {groups.map(group => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button type="submit" disabled={creatingGroup}>
-                {creatingGroup ? 'Creando...' : 'Crear grupo'}
-              </button>
-            </div>
-          </form>
-          <ErrorMessage error={groupCreateError} />
-
-          <div style={{ marginTop: '1.75rem' }}>
-            <h3 style={{ marginTop: 0, marginBottom: '0.75rem' }}>Grupos existentes</h3>
-            {groups.length === 0 ? (
-              <p style={{ color: '#94a3b8', margin: 0 }}>Aún no hay grupos configurados.</p>
-            ) : (
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '35%' }}>Nombre</th>
-                      <th style={{ width: '35%' }}>Grupo padre</th>
-                      <th style={{ width: '30%' }}>Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groups.map(group => {
-                      const isEditing = editingGroupId === group.id;
-                      const isSaving = savingGroupId === group.id;
-                      const isDeleting = deletingGroupId === group.id;
-                      const parentName = group.parent
-                        ? groupMapById.get(group.parent)?.name || 'Sin padre'
-                        : 'Sin padre';
-                      return (
-                        <tr key={group.id}>
-                          <td>
-                            {isEditing ? (
-                              <input
-                                name="name"
-                                value={groupEditForm.name}
-                                onChange={handleGroupEditFormChange}
-                                disabled={isSaving}
-                                required
-                              />
-                            ) : (
-                              group.name
-                            )}
-                          </td>
-                          <td>
-                            {isEditing ? (
-                              <select
-                                name="parentId"
-                                value={groupEditForm.parentId}
-                                onChange={handleGroupEditFormChange}
-                                disabled={isSaving}
-                              >
-                                <option value="">Sin padre</option>
-                                {groups
-                                  .filter(option => option.id !== group.id)
-                                  .map(option => (
-                                    <option key={option.id} value={option.id}>
-                                      {option.name}
-                                    </option>
-                                  ))}
-                              </select>
-                            ) : (
-                              parentName
-                            )}
-                          </td>
-                          <td>
-                            {isEditing ? (
-                              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button type="button" onClick={handleUpdateGroup} disabled={isSaving}>
-                                  {isSaving ? 'Guardando...' : 'Guardar'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelGroupEdit}
-                                  disabled={isSaving}
-                                  style={{
-                                    backgroundColor: '#e2e8f0',
-                                    color: '#0f172a',
-                                    border: '1px solid #cbd5f5'
-                                  }}
-                                >
-                                  Cancelar
-                                </button>
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => startGroupEdit(group)}
-                                  disabled={
-                                    (editingGroupId && editingGroupId !== group.id) ||
-                                    isDeleting ||
-                                    savingGroupId !== null ||
-                                    deletingGroupId !== null
-                                  }
-                                >
-                                  Editar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteGroup(group)}
-                                  disabled={
-                                    isDeleting ||
-                                    savingGroupId !== null ||
-                                    deletingGroupId !== null ||
-                                    editingGroupId !== null
-                                  }
-                                  style={{ backgroundColor: '#dc2626' }}
-                                >
-                                  {isDeleting ? 'Eliminando...' : 'Eliminar'}
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <ErrorMessage error={groupManagementError} />
-          </div>
-        </div>
-      )}
 
       <div className="section-card">
         <form className="item-form" onSubmit={handleSubmit}>

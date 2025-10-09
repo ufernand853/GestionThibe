@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 const NAV_ITEMS = [
   { to: '/', label: 'Resumen' },
   { to: '/items', label: 'Artículos', permission: 'items.read' },
+  { to: '/groups', label: 'Grupos', permission: 'items.write' },
   { to: '/requests', label: 'Solicitudes', permission: 'stock.request' },
   { to: '/approvals', label: 'Aprobaciones', permission: 'stock.approve' },
   { to: '/customers', label: 'Clientes', permission: 'items.read' },
