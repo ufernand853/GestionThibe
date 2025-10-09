@@ -89,7 +89,6 @@ export default function ItemsPage() {
   const [pageSize] = useState(20);
   const [groups, setGroups] = useState([]);
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
-  const [groupForm, setGroupForm] = useState({ name: '', parentId: '' });
   const [formValues, setFormValues] = useState({
     code: '',
     description: '',
@@ -115,8 +114,11 @@ export default function ItemsPage() {
   const [existingImages, setExistingImages] = useState([]);
   const [imageError, setImageError] = useState('');
   const [editingItem, setEditingItem] = useState(null);
-  const [creatingGroup, setCreatingGroup] = useState(false);
-  const [groupError, setGroupError] = useState('');
+
+  const sortGroupsByName = useCallback(
+    list => [...list].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+    []
+  );
 
   const clearNewImages = useCallback(() => {
     setImageFiles([]);
@@ -128,7 +130,7 @@ export default function ItemsPage() {
       try {
         const response = await api.get('/groups');
         if (active) {
-          setGroups(Array.isArray(response) ? response : []);
+          setGroups(Array.isArray(response) ? sortGroupsByName(response) : []);
         }
       } catch (err) {
         console.warn('No se pudieron cargar los grupos', err);
@@ -138,7 +140,7 @@ export default function ItemsPage() {
     return () => {
       active = false;
     };
-  }, [api]);
+  }, [api, sortGroupsByName]);
 
   useEffect(() => {
     let active = true;
@@ -206,11 +208,6 @@ export default function ItemsPage() {
   const handleFormChange = event => {
     const { name, value } = event.target;
     setFormValues(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleGroupFormChange = event => {
-    const { name, value } = event.target;
-    setGroupForm(prev => ({ ...prev, [name]: value }));
   };
 
   const buildPayload = () => {
@@ -352,30 +349,6 @@ export default function ItemsPage() {
     }
   };
 
-  const handleCreateGroup = async event => {
-    event.preventDefault();
-    if (!canWrite || !groupForm.name.trim()) return;
-    setCreatingGroup(true);
-    setGroupError('');
-    try {
-      const payload = {
-        name: groupForm.name.trim(),
-        parentId: groupForm.parentId || undefined
-      };
-      const newGroup = await api.post('/groups', payload);
-      setGroups(prev => {
-        const updated = [...prev, newGroup];
-        return updated.sort((a, b) => a.name.localeCompare(b.name, 'es'));
-      });
-      setGroupForm({ name: '', parentId: '' });
-      setSuccessMessage(`Grupo ${newGroup.name} creado correctamente.`);
-    } catch (err) {
-      setGroupError(err);
-    } finally {
-      setCreatingGroup(false);
-    }
-  };
-
   const handleEdit = item => {
     clearNewImages();
     setEditingItem(item);
@@ -424,47 +397,6 @@ export default function ItemsPage() {
 
       {error && <ErrorMessage error={error} />}
       {successMessage && <div className="success-message">{successMessage}</div>}
-
-      {canWrite && (
-        <div className="section-card">
-          <h2>Crear grupo</h2>
-          <form className="form-grid" onSubmit={handleCreateGroup} style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <div className="input-group">
-              <label htmlFor="groupName">Nombre *</label>
-              <input
-                id="groupName"
-                name="name"
-                value={groupForm.name}
-                onChange={handleGroupFormChange}
-                placeholder="Ej. Calzado"
-                required
-              />
-            </div>
-            <div className="input-group">
-              <label htmlFor="parentGroup">Grupo padre</label>
-              <select
-                id="parentGroup"
-                name="parentId"
-                value={groupForm.parentId}
-                onChange={handleGroupFormChange}
-              >
-                <option value="">Sin padre</option>
-                {groups.map(group => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <button type="submit" disabled={creatingGroup}>
-                {creatingGroup ? 'Creando...' : 'Crear grupo'}
-              </button>
-            </div>
-          </form>
-          <ErrorMessage error={groupError} />
-        </div>
-      )}
 
       <div className="section-card">
         <form className="item-form" onSubmit={handleSubmit}>

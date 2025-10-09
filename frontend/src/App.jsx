@@ -4,6 +4,7 @@ import AppLayout from './components/AppLayout.jsx';
 import LoginPage from './pages/Login.jsx';
 import DashboardPage from './pages/Dashboard.jsx';
 import ItemsPage from './pages/items/ItemsPage.jsx';
+import GroupsPage from './pages/groups/GroupsPage.jsx';
 import MovementRequestsPage from './pages/movements/MovementRequestsPage.jsx';
 import ApprovalsPage from './pages/movements/ApprovalsPage.jsx';
 import CustomersPage from './pages/customers/CustomersPage.jsx';
@@ -25,6 +26,7 @@ export default function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="items" element={<ItemsPage />} />
+        <Route path="groups" element={<GroupsPage />} />
         <Route path="requests" element={<MovementRequestsPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="customers" element={<CustomersPage />} />
