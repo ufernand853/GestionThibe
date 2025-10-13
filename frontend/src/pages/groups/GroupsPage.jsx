@@ -23,6 +23,17 @@ export default function GroupsPage() {
   const [savingGroupId, setSavingGroupId] = useState(null);
   const [deletingGroupId, setDeletingGroupId] = useState(null);
 
+  const normalizeGroup = useCallback(group => {
+    if (!group) {
+      return group;
+    }
+    const id = group.id || group._id;
+    if (!id) {
+      return { ...group };
+    }
+    return { ...group, id };
+  }, []);
+
   const sortGroupsByName = useCallback(
     list => [...list].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
     []
@@ -31,8 +42,12 @@ export default function GroupsPage() {
   const groupMapById = useMemo(() => {
     const map = new Map();
     groups.forEach(group => {
-      if (group?.id) {
-        map.set(group.id, group);
+      if (!group) {
+        return;
+      }
+      const id = group.id || group._id;
+      if (id) {
+        map.set(id, group);
       }
     });
     return map;
@@ -48,7 +63,11 @@ export default function GroupsPage() {
         if (!active) {
           return;
         }
-        setGroups(Array.isArray(response) ? sortGroupsByName(response) : []);
+        setGroups(
+          Array.isArray(response)
+            ? sortGroupsByName(response.map(item => normalizeGroup(item)))
+            : []
+        );
       } catch (err) {
         if (active) {
           setError(err);
@@ -64,11 +83,12 @@ export default function GroupsPage() {
     return () => {
       active = false;
     };
-  }, [api, sortGroupsByName]);
+  }, [api, sortGroupsByName, normalizeGroup]);
 
   const handleGroupFormChange = event => {
     const { name, value } = event.target;
-    setGroupForm(prev => ({ ...prev, [name]: value }));
+    const sanitizedValue = value === 'undefined' ? '' : value;
+    setGroupForm(prev => ({ ...prev, [name]: sanitizedValue }));
     setGroupCreateError('');
     setGroupManagementError('');
     setSuccessMessage('');
@@ -76,7 +96,8 @@ export default function GroupsPage() {
 
   const handleGroupEditFormChange = event => {
     const { name, value } = event.target;
-    setGroupEditForm(prev => ({ ...prev, [name]: value }));
+    const sanitizedValue = value === 'undefined' ? '' : value;
+    setGroupEditForm(prev => ({ ...prev, [name]: sanitizedValue }));
     setGroupManagementError('');
     setSuccessMessage('');
   };
@@ -96,9 +117,10 @@ export default function GroupsPage() {
         parentId: groupForm.parentId || undefined
       };
       const newGroup = await api.post('/groups', payload);
-      setGroups(prev => sortGroupsByName([...prev, newGroup]));
+      const normalizedGroup = normalizeGroup(newGroup);
+      setGroups(prev => sortGroupsByName([...prev, normalizedGroup]));
       setGroupForm({ name: '', parentId: '' });
-      setSuccessMessage(`Grupo ${newGroup.name} creado correctamente.`);
+      setSuccessMessage(`Grupo ${normalizedGroup.name} creado correctamente.`);
     } catch (err) {
       setGroupCreateError(err);
     } finally {
@@ -140,10 +162,11 @@ export default function GroupsPage() {
         payload.parentId = null;
       }
       const updatedGroup = await api.put(`/groups/${editingGroupId}`, payload);
+      const normalizedGroup = normalizeGroup(updatedGroup);
       setGroups(prev =>
-        sortGroupsByName(prev.map(group => (group.id === editingGroupId ? updatedGroup : group)))
+        sortGroupsByName(prev.map(group => (group.id === editingGroupId ? normalizedGroup : group)))
       );
-      setSuccessMessage(`Grupo ${updatedGroup.name} actualizado correctamente.`);
+      setSuccessMessage(`Grupo ${normalizedGroup.name} actualizado correctamente.`);
       cancelGroupEdit();
     } catch (err) {
       setGroupManagementError(err);
