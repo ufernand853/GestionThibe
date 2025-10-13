@@ -78,3 +78,21 @@ Todas las rutas (excepto `POST /api/auth/login` y `POST /api/auth/refresh`) requ
 2. Completar endpoints adicionales, paginaciones avanzadas y validaciones específicas según las necesidades de la operación.
 3. Construir el frontend React y pipelines CI/CD descritos en la hoja de ruta.
 4. Configurar métricas, monitoreo y backups para la instancia de MongoDB en los ambientes de despliegue.
+
+## ¿Necesitas desplegar una demo rápida?
+
+Ejecuta el asistente automático incluido en [`scripts/demo_deployer.py`](scripts/demo_deployer.py):
+
+```bash
+python scripts/demo_deployer.py
+```
+
+El script se encargará de:
+
+- Instalar MongoDB automáticamente (modo `install`) o crear/reutilizar un contenedor Docker listo para la demo.
+- Instalar dependencias y generar los archivos `.env` del backend y frontend.
+- Construir el frontend y levantar ambos servicios (puedes omitir el arranque con `--no-start`).
+- Opcionalmente, empaquetar todo en un ZIP portable mediante `--package-zip` para moverlo a otra máquina (si Docker no está
+  disponible, el script generará el paquete y omitirá el arranque de servicios automáticamente).
+
+Para más detalles y opciones avanzadas (`--mongo-mode`, `--backend-port`, etc.), revisa la guía [`docs/demo-deployment.md`](docs/demo-deployment.md).
