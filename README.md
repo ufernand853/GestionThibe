@@ -58,6 +58,23 @@ Al primer arranque se crean los roles `Administrador`, `Operador` y `Consulta`, 
 
 Se recomienda cambiar la contraseña apenas se acceda al sistema y ajustar los permisos según la operación real.
 
+### Datos de ejemplo
+
+En `backend/docs/sample-dataset.json` se incluye un juego de datos genérico que cubre roles, usuarios, grupos, artículos, clientes,
+reservas y bitácoras de movimiento. El archivo está pensado para acelerar pruebas manuales o demostraciones locales.
+
+Para importarlo en una base MongoDB vacía puede utilizarse `mongoimport` (ajustando la URI y la base de datos destino):
+
+```bash
+mongoimport \
+  --uri "mongodb://localhost:27017/gestionthibe" \
+  --collection seedDataset \
+  --file backend/docs/sample-dataset.json
+```
+
+La colección destino (`seedDataset` en el ejemplo) actúa como contenedor intermedio para manipular los documentos antes de
+distribuirlos en las colecciones finales mediante scripts o pipelines personalizados.
+
 ### Endpoints principales
 
 La API implementa el contrato descripto en `openapi.yaml`, incluyendo:
