@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node -e \"console.log('No hay pruebas automatizadas definidas')\""
+    "test": "node -e \"console.log('No hay pruebas automatizadas definidas')\"",
+    "seed:sample": "node scripts/import-sample-dataset.js"
   },
   "keywords": [],
   "author": "",
