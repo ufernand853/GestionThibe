@@ -46,6 +46,8 @@ python scripts/demo_deployer.py --no-start --package-zip
 
 Esto instalará las dependencias, construirá el frontend y generará el archivo `dist/demo-package.zip` (puedes especificar otra ruta con `--package-zip /ruta/archivo.zip`). Copia el ZIP a la nueva máquina, descomprímelo y, desde la carpeta extraída, ejecuta `python scripts/demo_deployer.py --mongo-mode skip --no-start` para reutilizar los archivos `.env` y dependencias ya generados.
 
+> Nota: si en el equipo origen no cuentas con Docker, el script detectará la situación, generará el paquete igualmente y evitará iniciar los servicios automáticamente.
+
 ## 1. Requisitos previos
 
 1. **Sistema operativo**: Linux, macOS o Windows 10/11 con WSL2.

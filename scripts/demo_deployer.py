@@ -22,6 +22,12 @@ DOCKER_CONTAINER_NAME = "gestionthibe-mongo"
 DEFAULT_PACKAGE_PATH = REPO_ROOT / "dist" / "demo-package.zip"
 
 
+class MissingDependencyError(RuntimeError):
+    def __init__(self, tool: str):
+        super().__init__(tool)
+        self.tool = tool
+
+
 def which_or_exit(tool: str) -> None:
     if shutil.which(tool) is None:
         print(f"Error: se requiere '{tool}' pero no se encontró en PATH.", file=sys.stderr)
@@ -86,7 +92,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def ensure_docker_container() -> str:
-    which_or_exit("docker")
+    if shutil.which("docker") is None:
+        raise MissingDependencyError("docker")
     try:
         result = subprocess.run(
             [
@@ -330,7 +337,27 @@ def main() -> None:
     which_or_exit("node")
 
     if args.mongo_mode == "docker":
-        mongo_uri = ensure_docker_container()
+        try:
+            mongo_uri = ensure_docker_container()
+        except MissingDependencyError:
+            if args.package_zip or args.no_start:
+                print(
+                    "Advertencia: Docker no está disponible. Se continuará sin preparar un contenedor,"
+                    " pero se usará la URI por defecto para que completes la demo en otra máquina."
+                )
+                if not args.no_start:
+                    print(
+                        "Como no hay MongoDB disponible, los servicios no se iniciarán automáticamente en este equipo."
+                    )
+                    args.no_start = True
+                mongo_uri = DOCKER_MONGO_URI
+            else:
+                print(
+                    "Docker es necesario para preparar MongoDB automáticamente. Ejecuta el script con"
+                    " --mongo-mode install, --mongo-mode skip o proporciona --mongo-uri para continuar sin Docker.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
     elif args.mongo_mode == "install":
         mongo_uri = ensure_local_mongodb_service()
     else:

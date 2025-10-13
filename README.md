@@ -164,6 +164,7 @@ El script se encargará de:
 - Instalar MongoDB automáticamente (modo `install`) o crear/reutilizar un contenedor Docker listo para la demo.
 - Instalar dependencias y generar los archivos `.env` del backend y frontend.
 - Construir el frontend y levantar ambos servicios (puedes omitir el arranque con `--no-start`).
-- Opcionalmente, empaquetar todo en un ZIP portable mediante `--package-zip` para moverlo a otra máquina.
+- Opcionalmente, empaquetar todo en un ZIP portable mediante `--package-zip` para moverlo a otra máquina (si Docker no está
+  disponible, el script generará el paquete y omitirá el arranque de servicios automáticamente).
 
 Para más detalles y opciones avanzadas (`--mongo-mode`, `--backend-port`, etc.), revisa la guía [`docs/demo-deployment.md`](docs/demo-deployment.md).
