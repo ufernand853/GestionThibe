@@ -115,6 +115,12 @@ export default function ItemsPage() {
   const [imageError, setImageError] = useState('');
   const [editingItem, setEditingItem] = useState(null);
 
+  const getGroupId = useCallback(group => {
+    const rawId = group?.id ?? group?._id;
+    if (!rawId) return '';
+    return typeof rawId === 'string' ? rawId : String(rawId);
+  }, []);
+
   const sortGroupsByName = useCallback(
     list => [...list].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
     []
@@ -439,11 +445,14 @@ export default function ItemsPage() {
                 <label htmlFor="groupId">Grupo</label>
                 <select id="groupId" name="groupId" value={formValues.groupId} onChange={handleFormChange}>
                   <option value="">Sin asignar</option>
-                  {groups.map(group => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
+                  {groups.map(group => {
+                    const id = getGroupId(group);
+                    return (
+                      <option key={id || group.name} value={id}>
+                        {group.name}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               {ATTRIBUTES.map(attribute => (
@@ -614,11 +623,14 @@ export default function ItemsPage() {
               }}
             >
               <option value="">Todos</option>
-              {groups.map(group => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
+              {groups.map(group => {
+                const id = getGroupId(group);
+                return (
+                  <option key={id || group.name} value={id}>
+                    {group.name}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="input-group">
