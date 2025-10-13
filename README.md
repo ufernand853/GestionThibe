@@ -58,6 +58,55 @@ Al primer arranque se crean los roles `Administrador`, `Operador` y `Consulta`, 
 
 Se recomienda cambiar la contraseña apenas se acceda al sistema y ajustar los permisos según la operación real.
 
+### Datos de ejemplo
+
+En `backend/docs/sample-dataset.json` se incluye un juego de datos genérico que cubre roles, usuarios, grupos, artículos, clientes,
+reservas y bitácoras de movimiento. El archivo está pensado para acelerar pruebas manuales o demostraciones locales.
+
+#### Importación automática (CLI)
+
+Desde el directorio `backend/` podés ejecutar un script que distribuye el contenido del dataset en las colecciones reales que usa la aplicación:
+
+```bash
+cd backend
+npm run seed:sample -- --uri mongodb://localhost:27017 --db gestionthibe --drop-existing
+```
+
+Opciones disponibles:
+
+- `--uri`: cadena de conexión a MongoDB (por defecto `mongodb://localhost:27017`).
+- `--db`: nombre de la base de datos destino (por defecto `gestionthibe`).
+- `--file`: ruta alternativa al JSON a importar.
+- `--drop-existing`: elimina el contenido previo de cada colección antes de insertar los datos (recomendado para ambientes de prueba limpios).
+
+El script convierte automáticamente las fechas en objetos `Date` y muestra un resumen con la cantidad de documentos insertados por colección.
+
+#### Importación manual con `mongoimport`
+
+Si preferís un enfoque manual, podés cargar el JSON completo en una colección temporal usando `mongoimport` (ajustando la URI y la base de datos destino):
+
+```bash
+mongoimport \
+  --uri "mongodb://localhost:27017/gestionthibe" \
+  --collection seedDataset \
+  --file backend/docs/sample-dataset.json
+```
+
+La colección destino (`seedDataset` en el ejemplo) actúa como contenedor intermedio para manipular los documentos antes de distribuirlos en las colecciones finales mediante scripts o pipelines personalizados.
+
+#### Importación manual desde MongoDB Compass
+
+Si preferís realizar la importación desde **MongoDB Compass**, seguí estos pasos:
+
+1. Abrí Compass y conectate a tu instancia de MongoDB (por ejemplo `mongodb://localhost:27017`).
+2. En el panel izquierdo, creá o seleccioná la base de datos donde querés cargar los datos (por ejemplo `gestionthibe`).
+3. Creá una colección vacía (por ejemplo `seedDataset`) y hacé clic en ella.
+4. En la barra superior elegí **Add Data** → **Import JSON or CSV file...**.
+5. Seleccioná el archivo `backend/docs/sample-dataset.json` y asegurate de que el tipo de importación sea **JSON**.
+6. Confirmá con **Import**. Compass cargará todos los documentos en la colección seleccionada.
+
+Una vez importados, podés distribuir los documentos a las colecciones definitivas mediante agregaciones o scripts según tu flujo de trabajo.
+
 ### Endpoints principales
 
 La API implementa el contrato descripto en `openapi.yaml`, incluyendo:

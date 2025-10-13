@@ -1,0 +1,338 @@
+{
+  "generatedAt": "2024-05-30T00:00:00.000Z",
+  "metadata": {
+    "description": "Conjunto de datos genérico de ejemplo para la solución de gestión de stock y reservas.",
+    "notes": "Los identificadores están expresados como UUID v4 en texto plano para facilitar su lectura."
+  },
+  "groups": [
+    {
+      "_id": "2d7bb1a0-7d43-4a3b-a8d5-305fb4c62b6d",
+      "name": "ROPA HOMBRE"
+    },
+    {
+      "_id": "fa5cbd6e-8e63-4121-9f02-07e2e726d2c4",
+      "name": "ROPA DAMA"
+    },
+    {
+      "_id": "cc90c60f-6e43-4cfa-8dd0-2d4d4f2fce1b",
+      "name": "CALZADO"
+    },
+    {
+      "_id": "e3f8cb8b-5d75-4b7e-8791-5c7d5f7d989a",
+      "name": "SOBRESTOCK GENERAL"
+    },
+    {
+      "_id": "d0d4037a-0cbe-46ff-9ef9-00c8dfe8e94f",
+      "name": "SOBRESTOCK THIBE"
+    },
+    {
+      "_id": "d55a1d2d-3d9e-4cb6-9b28-b9fd7efb76d8",
+      "name": "CLIENTES"
+    }
+  ],
+  "roles": [
+    {
+      "_id": "0f8b5d46-5a1c-4d84-9f2b-8d9d2714dfe5",
+      "name": "Administrador",
+      "permissions": [
+        "items.read",
+        "items.write",
+        "stock.request",
+        "stock.approve",
+        "stock.logs.read",
+        "users.read",
+        "users.write",
+        "reports.read"
+      ]
+    },
+    {
+      "_id": "f7d95d63-20f0-4d5c-963e-8d1b2c7c8a6a",
+      "name": "Operador",
+      "permissions": ["items.read", "items.write", "stock.request", "reports.read"]
+    },
+    {
+      "_id": "2bca4a6d-1191-4a8d-9b62-a581aba3a1fe",
+      "name": "Consulta",
+      "permissions": ["items.read", "reports.read"]
+    }
+  ],
+  "users": [
+    {
+      "_id": "5fca31d1-9dd1-4cf0-81b0-851b2e0e5c67",
+      "username": "admin",
+      "email": "admin@example.com",
+      "passwordHash": "$2a$12$DXT/WGFZEDw9T4S8wOLNruR6awupV27bzgQx/iDITFFMjE8oK3pCK",
+      "role": "0f8b5d46-5a1c-4d84-9f2b-8d9d2714dfe5",
+      "status": "active",
+      "createdAt": "2024-04-01T13:20:00.000Z",
+      "lastLoginAt": "2024-05-15T09:45:00.000Z"
+    },
+    {
+      "_id": "bc04a678-a74f-4bb6-9b9a-1a672d1c037e",
+      "username": "operaciones",
+      "email": "operador@example.com",
+      "passwordHash": "$2a$12$N4uWs1v4zDczet3/fVguH.Lw/rH4Wf1oDXNcytt4w6ErTEJBOIG2W",
+      "role": "f7d95d63-20f0-4d5c-963e-8d1b2c7c8a6a",
+      "status": "active",
+      "createdAt": "2024-04-05T10:10:00.000Z",
+      "lastLoginAt": "2024-05-20T14:12:00.000Z"
+    },
+    {
+      "_id": "e408d791-0b8a-41d7-bd06-c1c56d92782f",
+      "username": "consulta",
+      "email": "consulta@example.com",
+      "passwordHash": "$2a$12$yvrUHbdDNfESLZKiBAsoF.AHMNck5uWgHyu5WB3fPWXSBqMZdsRfy",
+      "role": "2bca4a6d-1191-4a8d-9b62-a581aba3a1fe",
+      "status": "active",
+      "createdAt": "2024-04-12T16:45:00.000Z",
+      "lastLoginAt": "2024-05-18T08:00:00.000Z"
+    }
+  ],
+  "items": [
+    {
+      "_id": "9f4e66d6-3c3a-4bc8-bb64-88ff88dc1b11",
+      "code": "JHN-001",
+      "description": "Jean slim fit azul oscuro",
+      "group": "2d7bb1a0-7d43-4a3b-a8d5-305fb4c62b6d",
+      "attributes": {
+        "gender": "Caballero",
+        "size": "32-42",
+        "color": "Azul oscuro",
+        "material": "Denim stretch",
+        "season": "All season",
+        "fit": "Slim"
+      },
+      "stock": {
+        "general": { "boxes": 120, "units": 0 },
+        "overstockGeneral": { "boxes": 10, "units": 0 },
+        "overstockThibe": { "boxes": 5, "units": 0 },
+        "overstockArenal": { "boxes": 0, "units": 0 }
+      },
+      "images": [
+        "https://cdn.example.com/items/JHN-001/front.jpg",
+        "https://cdn.example.com/items/JHN-001/back.jpg"
+      ],
+      "createdAt": "2024-03-20T11:00:00.000Z",
+      "updatedAt": "2024-05-10T15:30:00.000Z"
+    },
+    {
+      "_id": "e44bf3df-6dd2-4f0a-9d2a-6c1f1b331d26",
+      "code": "DRS-045",
+      "description": "Vestido midi floral",
+      "group": "fa5cbd6e-8e63-4121-9f02-07e2e726d2c4",
+      "attributes": {
+        "gender": "Dama",
+        "size": "S-XL",
+        "color": "Estampado floral",
+        "material": "Rayón",
+        "season": "Primavera-Verano"
+      },
+      "stock": {
+        "general": { "boxes": 60, "units": 24 },
+        "overstockGeneral": { "boxes": 8, "units": 0 },
+        "overstockThibe": { "boxes": 0, "units": 0 },
+        "overstockArenal": { "boxes": 0, "units": 0 }
+      },
+      "images": [
+        "https://cdn.example.com/items/DRS-045/front.jpg"
+      ],
+      "createdAt": "2024-03-25T09:30:00.000Z",
+      "updatedAt": "2024-05-08T12:00:00.000Z"
+    },
+    {
+      "_id": "b1c6e199-742b-45d0-bb3d-4a091696e4d8",
+      "code": "SHO-210",
+      "description": "Zapatilla urbana unisex",
+      "group": "cc90c60f-6e43-4cfa-8dd0-2d4d4f2fce1b",
+      "attributes": {
+        "gender": "Unisex",
+        "size": "35-45",
+        "color": "Blanco",
+        "material": "Cuero sintético",
+        "season": "All season"
+      },
+      "stock": {
+        "general": { "boxes": 95, "units": 12 },
+        "overstockGeneral": { "boxes": 12, "units": 0 },
+        "overstockThibe": { "boxes": 0, "units": 0 },
+        "overstockArenal": { "boxes": 3, "units": 0 }
+      },
+      "images": [],
+      "createdAt": "2024-04-02T08:15:00.000Z",
+      "updatedAt": "2024-05-17T17:45:00.000Z"
+    }
+  ],
+  "customers": [
+    {
+      "_id": "ef8b2c18-45ad-47b6-b2f2-9c7066c4e769",
+      "name": "Boutique Central",
+      "contactInfo": "Laura Díaz - laura@boutiquecentral.com - +54 9 11 5555-1212",
+      "status": "active",
+      "createdAt": "2024-03-18T10:00:00.000Z",
+      "updatedAt": "2024-05-01T16:30:00.000Z"
+    },
+    {
+      "_id": "4e1ed0c5-8c47-4f74-a4bc-523c8b80b9a2",
+      "name": "Arenal Retail",
+      "contactInfo": "Carlos Ramos - carlos@arenalretail.com - +54 9 341 123-4567",
+      "status": "active",
+      "createdAt": "2024-03-22T11:45:00.000Z",
+      "updatedAt": "2024-04-28T09:50:00.000Z"
+    },
+    {
+      "_id": "c647f624-657c-4bbd-8e97-b7c0b1819b74",
+      "name": "Distribuidora Patagónica",
+      "contactInfo": "María Paredes - mp@distribuidorapata.com - +54 9 299 455-8899",
+      "status": "inactive",
+      "createdAt": "2024-02-10T14:20:00.000Z",
+      "updatedAt": "2024-05-05T19:05:00.000Z"
+    }
+  ],
+  "customerStocks": [
+    {
+      "_id": "50977bb5-f2bd-4d7e-b8dd-51583490d13c",
+      "customer": "ef8b2c18-45ad-47b6-b2f2-9c7066c4e769",
+      "item": "9f4e66d6-3c3a-4bc8-bb64-88ff88dc1b11",
+      "quantity": { "boxes": 18, "units": 0 },
+      "status": "reserved",
+      "boxLabel": "BC-2024-051",
+      "dateCreated": "2024-05-12T13:40:00.000Z",
+      "dateDelivered": null,
+      "createdAt": "2024-05-12T13:40:00.000Z",
+      "updatedAt": "2024-05-12T13:40:00.000Z"
+    },
+    {
+      "_id": "b58f9d2b-919f-4dfb-9495-3f2589f25f97",
+      "customer": "4e1ed0c5-8c47-4f74-a4bc-523c8b80b9a2",
+      "item": "e44bf3df-6dd2-4f0a-9d2a-6c1f1b331d26",
+      "quantity": { "boxes": 6, "units": 12 },
+      "status": "delivered",
+      "boxLabel": "AR-2024-033",
+      "dateCreated": "2024-04-18T09:05:00.000Z",
+      "dateDelivered": "2024-04-25T10:20:00.000Z",
+      "createdAt": "2024-04-18T09:05:00.000Z",
+      "updatedAt": "2024-04-25T10:20:00.000Z"
+    }
+  ],
+  "movementRequests": [
+    {
+      "_id": "1b9f3c5a-9e67-4975-bc0b-d4957332e9b9",
+      "item": "9f4e66d6-3c3a-4bc8-bb64-88ff88dc1b11",
+      "type": "transfer",
+      "fromList": "general",
+      "toList": "customer",
+      "quantity": { "boxes": 18, "units": 0 },
+      "reason": "Reserva para lanzamiento Boutique Central",
+      "requestedBy": "bc04a678-a74f-4bb6-9b9a-1a672d1c037e",
+      "requestedAt": "2024-05-12T13:15:00.000Z",
+      "status": "executed",
+      "approvedBy": "5fca31d1-9dd1-4cf0-81b0-851b2e0e5c67",
+      "approvedAt": "2024-05-12T13:25:00.000Z",
+      "executedAt": "2024-05-12T13:40:00.000Z",
+      "rejectedReason": null,
+      "customer": "ef8b2c18-45ad-47b6-b2f2-9c7066c4e769",
+      "boxLabel": "BC-2024-051",
+      "createdAt": "2024-05-12T13:15:00.000Z",
+      "updatedAt": "2024-05-12T13:40:00.000Z"
+    },
+    {
+      "_id": "34db7c0d-9445-4ef6-9c2c-9d54bb2064c3",
+      "item": "b1c6e199-742b-45d0-bb3d-4a091696e4d8",
+      "type": "out",
+      "fromList": "general",
+      "toList": null,
+      "quantity": { "boxes": 12, "units": 0 },
+      "reason": "Venta mayorista trimestral",
+      "requestedBy": "bc04a678-a74f-4bb6-9b9a-1a672d1c037e",
+      "requestedAt": "2024-05-18T10:05:00.000Z",
+      "status": "approved",
+      "approvedBy": "5fca31d1-9dd1-4cf0-81b0-851b2e0e5c67",
+      "approvedAt": "2024-05-18T10:20:00.000Z",
+      "executedAt": null,
+      "rejectedReason": null,
+      "customer": null,
+      "boxLabel": null,
+      "createdAt": "2024-05-18T10:05:00.000Z",
+      "updatedAt": "2024-05-18T10:20:00.000Z"
+    },
+    {
+      "_id": "7c6d6ad5-7df1-4b3c-91af-d6a5a455e021",
+      "item": "e44bf3df-6dd2-4f0a-9d2a-6c1f1b331d26",
+      "type": "transfer",
+      "fromList": "overstockGeneral",
+      "toList": "general",
+      "quantity": { "boxes": 5, "units": 0 },
+      "reason": "Reabastecimiento piso de ventas",
+      "requestedBy": "bc04a678-a74f-4bb6-9b9a-1a672d1c037e",
+      "requestedAt": "2024-05-05T08:35:00.000Z",
+      "status": "executed",
+      "approvedBy": null,
+      "approvedAt": null,
+      "executedAt": "2024-05-05T09:00:00.000Z",
+      "rejectedReason": null,
+      "customer": null,
+      "boxLabel": null,
+      "createdAt": "2024-05-05T08:35:00.000Z",
+      "updatedAt": "2024-05-05T09:00:00.000Z"
+    }
+  ],
+  "movementLogs": [
+    {
+      "_id": "3d5ce65d-7af7-4f6c-8b4e-4c2830cf25bc",
+      "movementRequest": "1b9f3c5a-9e67-4975-bc0b-d4957332e9b9",
+      "action": "requested",
+      "actor": "bc04a678-a74f-4bb6-9b9a-1a672d1c037e",
+      "timestamp": "2024-05-12T13:15:00.000Z",
+      "metadata": {
+        "ip": "192.168.10.12",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "notes": "Reserva por apertura de tienda"
+      }
+    },
+    {
+      "_id": "f65a2a40-0e6e-40e3-a693-e1430d4d0618",
+      "movementRequest": "1b9f3c5a-9e67-4975-bc0b-d4957332e9b9",
+      "action": "approved",
+      "actor": "5fca31d1-9dd1-4cf0-81b0-851b2e0e5c67",
+      "timestamp": "2024-05-12T13:25:00.000Z",
+      "metadata": {
+        "ip": "192.168.10.5",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4)"
+      }
+    },
+    {
+      "_id": "6b1097ef-265d-4ba4-8b40-7da4f0a48b39",
+      "movementRequest": "1b9f3c5a-9e67-4975-bc0b-d4957332e9b9",
+      "action": "executed",
+      "actor": "bc04a678-a74f-4bb6-9b9a-1a672d1c037e",
+      "timestamp": "2024-05-12T13:40:00.000Z",
+      "metadata": {
+        "ip": "192.168.10.12",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "notes": "Cajas trasladadas a depósito reservado"
+      }
+    },
+    {
+      "_id": "a0ecb7b0-feb8-49c7-90b6-59024713f53e",
+      "movementRequest": "34db7c0d-9445-4ef6-9c2c-9d54bb2064c3",
+      "action": "requested",
+      "actor": "bc04a678-a74f-4bb6-9b9a-1a672d1c037e",
+      "timestamp": "2024-05-18T10:05:00.000Z",
+      "metadata": {
+        "ip": "192.168.10.15",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+      }
+    },
+    {
+      "_id": "7f9f7ec5-efb1-41c3-8f5b-5e236718d97b",
+      "movementRequest": "34db7c0d-9445-4ef6-9c2c-9d54bb2064c3",
+      "action": "approved",
+      "actor": "5fca31d1-9dd1-4cf0-81b0-851b2e0e5c67",
+      "timestamp": "2024-05-18T10:20:00.000Z",
+      "metadata": {
+        "ip": "192.168.10.5",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4)"
+      }
+    }
+  ]
+}
