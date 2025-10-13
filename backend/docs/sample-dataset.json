@@ -1,0 +1,1691 @@
+{
+    "generatedAt": "2024-06-01T00:00:00.000Z",
+    "metadata": {
+        "description": "Conjunto de datos genérico de ejemplo para la solución de gestión de stock y reservas.",
+        "notes": "Los identificadores y referencias se expresan en Extended JSON para conservar los ObjectId al importar."
+    },
+    "groups": [
+        {
+            "_id": {
+                "$oid": "4879825bcf89ef737dc7bb6e"
+            },
+            "name": "MEDIAS"
+        },
+        {
+            "_id": {
+                "$oid": "ebeec87c08b6773bd616ae5a"
+            },
+            "name": "ROPA INTERIOR"
+        },
+        {
+            "_id": {
+                "$oid": "f53f2ef3d466b8610490efa8"
+            },
+            "name": "BLANCOS"
+        },
+        {
+            "_id": {
+                "$oid": "3411c2f0e9d92a111780f97f"
+            },
+            "name": "ACCESORIOS"
+        },
+        {
+            "_id": {
+                "$oid": "13e807b60c8f77271ee23b5d"
+            },
+            "name": "JEAN HOMBRE"
+        },
+        {
+            "_id": {
+                "$oid": "b91c8dcee40f03083d0e2ad2"
+            },
+            "name": "JEAN DAMA"
+        },
+        {
+            "_id": {
+                "$oid": "d3c1d53a576c32323865a33f"
+            },
+            "name": "JEAN NIÑO"
+        },
+        {
+            "_id": {
+                "$oid": "b573a7a2ee19894ff8370a6c"
+            },
+            "name": "ROPA HOMBRE"
+        },
+        {
+            "_id": {
+                "$oid": "33fd43b894c3b908456fd5bc"
+            },
+            "name": "ROPA DAMA"
+        },
+        {
+            "_id": {
+                "$oid": "75daee160f9ebbc44b751a56"
+            },
+            "name": "ROPA NIÑO"
+        },
+        {
+            "_id": {
+                "$oid": "5bd2f35facaede18d2bbdcf5"
+            },
+            "name": "CALZADO"
+        },
+        {
+            "_id": {
+                "$oid": "764d8e15cbb1e65a974554c6"
+            },
+            "name": "ELECTRÓNICOS"
+        },
+        {
+            "_id": {
+                "$oid": "3fb084ad4ffee6e5887c078a"
+            },
+            "name": "JUGUETES"
+        },
+        {
+            "_id": {
+                "$oid": "000d69c46dbd4e83c8f3d8ab"
+            },
+            "name": "ESCOLARES"
+        }
+    ],
+    "roles": [
+        {
+            "_id": {
+                "$oid": "ef32330603acbaccb322ea2c"
+            },
+            "name": "Administrador",
+            "permissions": [
+                "items.read",
+                "items.write",
+                "stock.request",
+                "stock.approve",
+                "stock.logs.read",
+                "users.read",
+                "users.write",
+                "reports.read"
+            ]
+        },
+        {
+            "_id": {
+                "$oid": "fa40fe87f91d682bc09c7b01"
+            },
+            "name": "Operador",
+            "permissions": [
+                "items.read",
+                "items.write",
+                "stock.request",
+                "reports.read"
+            ]
+        },
+        {
+            "_id": {
+                "$oid": "4152a60c794d16a7358206b9"
+            },
+            "name": "Consulta",
+            "permissions": [
+                "items.read",
+                "reports.read"
+            ]
+        }
+    ],
+    "users": [
+        {
+            "_id": {
+                "$oid": "a3b5c304bcc29f2a5962a15c"
+            },
+            "username": "admin",
+            "email": "admin@example.com",
+            "passwordHash": "$2b$12$1Mjw.hMXV24WfsaAjS/8MuXUwYURVinj/.Tagp.YzDOqYWlB561lO",
+            "role": {
+                "$oid": "ef32330603acbaccb322ea2c"
+            },
+            "status": "active",
+            "createdAt": "2024-04-01T13:20:00.000Z",
+            "lastLoginAt": "2024-05-15T09:45:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "username": "operaciones",
+            "email": "operador@example.com",
+            "passwordHash": "$2a$12$N4uWs1v4zDczet3/fVguH.Lw/rH4Wf1oDXNcytt4w6ErTEJBOIG2W",
+            "role": {
+                "$oid": "fa40fe87f91d682bc09c7b01"
+            },
+            "status": "active",
+            "createdAt": "2024-04-05T10:10:00.000Z",
+            "lastLoginAt": "2024-05-20T14:12:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "18d4ce57fa639002edd295d6"
+            },
+            "username": "consulta",
+            "email": "consulta@example.com",
+            "passwordHash": "$2a$12$yvrUHbdDNfESLZKiBAsoF.AHMNck5uWgHyu5WB3fPWXSBqMZdsRfy",
+            "role": {
+                "$oid": "4152a60c794d16a7358206b9"
+            },
+            "status": "active",
+            "createdAt": "2024-04-12T16:45:00.000Z",
+            "lastLoginAt": "2024-05-18T08:00:00.000Z"
+        }
+    ],
+    "items": [
+        {
+            "_id": {
+                "$oid": "715ba88f0b869088f3136087"
+            },
+            "code": "MED-001",
+            "description": "Pack medias deportivas tobilleras",
+            "group": {
+                "$oid": "4879825bcf89ef737dc7bb6e"
+            },
+            "attributes": {
+                "gender": "Unisex",
+                "size": "35-45",
+                "color": "Surtido",
+                "material": "Algodón con spandex"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 80,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 12,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 0,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/MED-001/front.jpg"
+            ],
+            "createdAt": "2024-03-15T10:00:00Z",
+            "updatedAt": "2024-04-29T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "8f053cbb57aa55212b773466"
+            },
+            "code": "RIN-008",
+            "description": "Conjunto ropa interior microfibra dama",
+            "group": {
+                "$oid": "ebeec87c08b6773bd616ae5a"
+            },
+            "attributes": {
+                "gender": "Dama",
+                "size": "S-XL",
+                "color": "Negro y nude",
+                "material": "Microfibra"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 65,
+                    "units": 18
+                },
+                "overstockGeneral": {
+                    "boxes": 6,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/RIN-008/front.jpg"
+            ],
+            "createdAt": "2024-03-16T10:00:00Z",
+            "updatedAt": "2024-04-30T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "d66fe23041ad5db74bef50c6"
+            },
+            "code": "BLA-104",
+            "description": "Juego de sábanas 2 plazas 400 hilos",
+            "group": {
+                "$oid": "f53f2ef3d466b8610490efa8"
+            },
+            "attributes": {
+                "size": "2 plazas",
+                "color": "Blanco",
+                "material": "Algodón percal",
+                "threadCount": 400
+            },
+            "stock": {
+                "general": {
+                    "boxes": 40,
+                    "units": 24
+                },
+                "overstockGeneral": {
+                    "boxes": 10,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 4,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/BLA-104/front.jpg"
+            ],
+            "createdAt": "2024-03-17T10:00:00Z",
+            "updatedAt": "2024-05-01T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "e1d280fee853df2342f86a2e"
+            },
+            "code": "ACC-220",
+            "description": "Cinturón cuero trenzado",
+            "group": {
+                "$oid": "3411c2f0e9d92a111780f97f"
+            },
+            "attributes": {
+                "gender": "Caballero",
+                "size": "90-110",
+                "color": "Marrón",
+                "material": "Cuero vacuno"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 55,
+                    "units": 40
+                },
+                "overstockGeneral": {
+                    "boxes": 5,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/ACC-220/front.jpg"
+            ],
+            "createdAt": "2024-03-18T10:00:00Z",
+            "updatedAt": "2024-05-02T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "93d07de07c4dcb8912ca955a"
+            },
+            "code": "JHN-301",
+            "description": "Jean clásico straight fit",
+            "group": {
+                "$oid": "13e807b60c8f77271ee23b5d"
+            },
+            "attributes": {
+                "gender": "Caballero",
+                "size": "30-44",
+                "color": "Azul índigo",
+                "material": "Denim 13oz"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 90,
+                    "units": 12
+                },
+                "overstockGeneral": {
+                    "boxes": 9,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 3,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/JHN-301/front.jpg"
+            ],
+            "createdAt": "2024-03-19T10:00:00Z",
+            "updatedAt": "2024-05-03T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "4a0db883302fb57a1e3bc689"
+            },
+            "code": "JDN-115",
+            "description": "Jean chupín tiro alto",
+            "group": {
+                "$oid": "b91c8dcee40f03083d0e2ad2"
+            },
+            "attributes": {
+                "gender": "Dama",
+                "size": "24-34",
+                "color": "Azul oscuro",
+                "material": "Denim elástico"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 78,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 6,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/JDN-115/front.jpg"
+            ],
+            "createdAt": "2024-03-20T10:00:00Z",
+            "updatedAt": "2024-05-04T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "93dfc5c01ac997decec2492a"
+            },
+            "code": "JNN-050",
+            "description": "Jean regular fit niño",
+            "group": {
+                "$oid": "d3c1d53a576c32323865a33f"
+            },
+            "attributes": {
+                "gender": "Niños",
+                "size": "6-14",
+                "color": "Celeste",
+                "material": "Denim 10oz"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 48,
+                    "units": 18
+                },
+                "overstockGeneral": {
+                    "boxes": 5,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 1,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/JNN-050/front.jpg"
+            ],
+            "createdAt": "2024-03-21T10:00:00Z",
+            "updatedAt": "2024-05-05T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "d2fc02cc2cee3edd1a9a632e"
+            },
+            "code": "RHO-210",
+            "description": "Camisa lino mangas largas",
+            "group": {
+                "$oid": "b573a7a2ee19894ff8370a6c"
+            },
+            "attributes": {
+                "gender": "Caballero",
+                "size": "S-XXL",
+                "color": "Arena",
+                "material": "Lino"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 60,
+                    "units": 24
+                },
+                "overstockGeneral": {
+                    "boxes": 8,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 1,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/RHO-210/front.jpg"
+            ],
+            "createdAt": "2024-03-22T10:00:00Z",
+            "updatedAt": "2024-05-06T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "6e73b39a7574fccf185a7382"
+            },
+            "code": "RDA-340",
+            "description": "Blusa satinada cuello mao",
+            "group": {
+                "$oid": "33fd43b894c3b908456fd5bc"
+            },
+            "attributes": {
+                "gender": "Dama",
+                "size": "S-XL",
+                "color": "Verde jade",
+                "material": "Satén"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 52,
+                    "units": 30
+                },
+                "overstockGeneral": {
+                    "boxes": 7,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 1,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/RDA-340/front.jpg"
+            ],
+            "createdAt": "2024-03-23T10:00:00Z",
+            "updatedAt": "2024-05-07T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "a9ba2f509b29c1dad3988503"
+            },
+            "code": "RNI-125",
+            "description": "Buzo frisa estampado niño",
+            "group": {
+                "$oid": "75daee160f9ebbc44b751a56"
+            },
+            "attributes": {
+                "gender": "Niños",
+                "size": "6-16",
+                "color": "Gris vigoré",
+                "material": "Algodón y poliéster"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 70,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 6,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/RNI-125/front.jpg"
+            ],
+            "createdAt": "2024-03-24T10:00:00Z",
+            "updatedAt": "2024-05-08T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "dc263a50dcdedd4cfad1b3b3"
+            },
+            "code": "CAL-500",
+            "description": "Zapatilla urbana knit",
+            "group": {
+                "$oid": "5bd2f35facaede18d2bbdcf5"
+            },
+            "attributes": {
+                "gender": "Unisex",
+                "size": "35-45",
+                "color": "Negro",
+                "material": "Tejido knit"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 88,
+                    "units": 12
+                },
+                "overstockGeneral": {
+                    "boxes": 10,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 4,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 1,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/CAL-500/front.jpg"
+            ],
+            "createdAt": "2024-03-25T10:00:00Z",
+            "updatedAt": "2024-05-09T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "81437fc495129783221b2488"
+            },
+            "code": "ELE-015",
+            "description": "Auriculares inalámbricos ANC",
+            "group": {
+                "$oid": "764d8e15cbb1e65a974554c6"
+            },
+            "attributes": {
+                "category": "Audio",
+                "color": "Negro",
+                "connectivity": "Bluetooth 5.3"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 36,
+                    "units": 48
+                },
+                "overstockGeneral": {
+                    "boxes": 6,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 3,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/ELE-015/front.jpg"
+            ],
+            "createdAt": "2024-03-26T10:00:00Z",
+            "updatedAt": "2024-05-10T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "d0161696211c8030ce522b78"
+            },
+            "code": "JUG-412",
+            "description": "Set construcción magnética 60 piezas",
+            "group": {
+                "$oid": "3fb084ad4ffee6e5887c078a"
+            },
+            "attributes": {
+                "ageRange": "4+",
+                "material": "ABS imantado",
+                "color": "Multicolor"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 54,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 5,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/JUG-412/front.jpg"
+            ],
+            "createdAt": "2024-03-27T10:00:00Z",
+            "updatedAt": "2024-05-11T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "df404b80561bc7f9464f7e49"
+            },
+            "code": "ESC-090",
+            "description": "Mochila reforzada triple cierre",
+            "group": {
+                "$oid": "000d69c46dbd4e83c8f3d8ab"
+            },
+            "attributes": {
+                "size": "35L",
+                "color": "Azul marino",
+                "material": "Poliéster 600D"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 72,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 8,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 1,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/ESC-090/front.jpg"
+            ],
+            "createdAt": "2024-03-28T10:00:00Z",
+            "updatedAt": "2024-05-12T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "e0f596516a78a75cf53c4611"
+            },
+            "code": "ACC-305",
+            "description": "Gorra trucker logo urbano",
+            "group": {
+                "$oid": "3411c2f0e9d92a111780f97f"
+            },
+            "attributes": {
+                "gender": "Unisex",
+                "size": "Único",
+                "color": "Negro",
+                "material": "Poliéster"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 64,
+                    "units": 36
+                },
+                "overstockGeneral": {
+                    "boxes": 7,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 1,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/ACC-305/front.jpg"
+            ],
+            "createdAt": "2024-03-29T10:00:00Z",
+            "updatedAt": "2024-05-13T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "19ed83cf827f403d8b1ac804"
+            },
+            "code": "RIN-022",
+            "description": "Pack bóxer algodón premium",
+            "group": {
+                "$oid": "ebeec87c08b6773bd616ae5a"
+            },
+            "attributes": {
+                "gender": "Caballero",
+                "size": "S-XXL",
+                "color": "Surtido",
+                "material": "Algodón peinado"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 58,
+                    "units": 24
+                },
+                "overstockGeneral": {
+                    "boxes": 4,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/RIN-022/front.jpg"
+            ],
+            "createdAt": "2024-03-30T10:00:00Z",
+            "updatedAt": "2024-05-14T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "7d3d03a08c51d6a0760f86c7"
+            },
+            "code": "MED-014",
+            "description": "Medias térmicas trekking",
+            "group": {
+                "$oid": "4879825bcf89ef737dc7bb6e"
+            },
+            "attributes": {
+                "gender": "Unisex",
+                "size": "36-44",
+                "color": "Gris",
+                "material": "Lana merino"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 46,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 5,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 1,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/MED-014/front.jpg"
+            ],
+            "createdAt": "2024-03-31T10:00:00Z",
+            "updatedAt": "2024-05-15T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "b8035050bcb00d8f7c771651"
+            },
+            "code": "BLA-205",
+            "description": "Acolchado liviano reversible",
+            "group": {
+                "$oid": "f53f2ef3d466b8610490efa8"
+            },
+            "attributes": {
+                "size": "Queen",
+                "color": "Gris/Coral",
+                "material": "Microfibra"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 38,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 6,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/BLA-205/front.jpg"
+            ],
+            "createdAt": "2024-04-01T10:00:00Z",
+            "updatedAt": "2024-05-16T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "81231e01c58b6bfa641b081a"
+            },
+            "code": "RDA-362",
+            "description": "Vestido midi lino estampado",
+            "group": {
+                "$oid": "33fd43b894c3b908456fd5bc"
+            },
+            "attributes": {
+                "gender": "Dama",
+                "size": "S-L",
+                "color": "Estampado floral",
+                "material": "Lino viscosa"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 44,
+                    "units": 18
+                },
+                "overstockGeneral": {
+                    "boxes": 5,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/RDA-362/front.jpg"
+            ],
+            "createdAt": "2024-04-02T10:00:00Z",
+            "updatedAt": "2024-05-17T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "0eb2397c1c3bfaf11865cf56"
+            },
+            "code": "RHO-275",
+            "description": "Saco sastrero slim",
+            "group": {
+                "$oid": "b573a7a2ee19894ff8370a6c"
+            },
+            "attributes": {
+                "gender": "Caballero",
+                "size": "38-48",
+                "color": "Azul marino",
+                "material": "Poliéster viscosa"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 42,
+                    "units": 6
+                },
+                "overstockGeneral": {
+                    "boxes": 4,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/RHO-275/front.jpg"
+            ],
+            "createdAt": "2024-04-03T10:00:00Z",
+            "updatedAt": "2024-05-18T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "691eb54a0838115a28755165"
+            },
+            "code": "RNI-210",
+            "description": "Campera rompeviento niño",
+            "group": {
+                "$oid": "75daee160f9ebbc44b751a56"
+            },
+            "attributes": {
+                "gender": "Niños",
+                "size": "4-16",
+                "color": "Azul cielo",
+                "material": "Ripstop"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 50,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 5,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 1,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/RNI-210/front.jpg"
+            ],
+            "createdAt": "2024-04-04T10:00:00Z",
+            "updatedAt": "2024-05-19T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "b0c83805fb3ec93eeb1c6692"
+            },
+            "code": "CAL-575",
+            "description": "Bota outdoor impermeable",
+            "group": {
+                "$oid": "5bd2f35facaede18d2bbdcf5"
+            },
+            "attributes": {
+                "gender": "Unisex",
+                "size": "36-45",
+                "color": "Marrón",
+                "material": "Cuero y membrana"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 34,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 5,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/CAL-575/front.jpg"
+            ],
+            "createdAt": "2024-04-05T10:00:00Z",
+            "updatedAt": "2024-05-20T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "b8f5dc5914b35dc544d62157"
+            },
+            "code": "ELE-040",
+            "description": "Reloj inteligente deportivo",
+            "group": {
+                "$oid": "764d8e15cbb1e65a974554c6"
+            },
+            "attributes": {
+                "category": "Wearables",
+                "color": "Negro",
+                "battery": "7 días"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 52,
+                    "units": 36
+                },
+                "overstockGeneral": {
+                    "boxes": 6,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 3,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/ELE-040/front.jpg"
+            ],
+            "createdAt": "2024-04-06T10:00:00Z",
+            "updatedAt": "2024-05-21T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "9eef0f3a48a6fb143b7e24c9"
+            },
+            "code": "JUG-520",
+            "description": "Set arte creativo 120 piezas",
+            "group": {
+                "$oid": "3fb084ad4ffee6e5887c078a"
+            },
+            "attributes": {
+                "ageRange": "6+",
+                "material": "Madera y crayones",
+                "color": "Multicolor"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 46,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 4,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 1,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/JUG-520/front.jpg"
+            ],
+            "createdAt": "2024-04-07T10:00:00Z",
+            "updatedAt": "2024-05-22T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "54cd1d283839a683cbfd37ce"
+            },
+            "code": "ESC-130",
+            "description": "Cartuchera triple cierre",
+            "group": {
+                "$oid": "000d69c46dbd4e83c8f3d8ab"
+            },
+            "attributes": {
+                "size": "Mediana",
+                "color": "Lila",
+                "material": "Poliéster"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 68,
+                    "units": 0
+                },
+                "overstockGeneral": {
+                    "boxes": 6,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 1,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/ESC-130/front.jpg"
+            ],
+            "createdAt": "2024-04-08T10:00:00Z",
+            "updatedAt": "2024-05-23T10:00:00Z"
+        },
+        {
+            "_id": {
+                "$oid": "d75af315f54d25debf6f7dff"
+            },
+            "code": "ACC-410",
+            "description": "Bufanda lana merino",
+            "group": {
+                "$oid": "3411c2f0e9d92a111780f97f"
+            },
+            "attributes": {
+                "gender": "Unisex",
+                "size": "180x30 cm",
+                "color": "Bordó",
+                "material": "Lana merino"
+            },
+            "stock": {
+                "general": {
+                    "boxes": 44,
+                    "units": 30
+                },
+                "overstockGeneral": {
+                    "boxes": 5,
+                    "units": 0
+                },
+                "overstockThibe": {
+                    "boxes": 2,
+                    "units": 0
+                },
+                "overstockArenal": {
+                    "boxes": 0,
+                    "units": 0
+                }
+            },
+            "images": [
+                "https://cdn.example.com/items/ACC-410/front.jpg"
+            ],
+            "createdAt": "2024-04-09T10:00:00Z",
+            "updatedAt": "2024-05-24T10:00:00Z"
+        }
+    ],
+    "customers": [
+        {
+            "_id": {
+                "$oid": "b9a7d24a650795fb89b8fc67"
+            },
+            "name": "Boutique Central",
+            "contactInfo": "Lucía Nóbile - lnobile@boutiquecentral.com - +54 11 4444-8899",
+            "status": "active",
+            "createdAt": "2024-02-01T11:00:00.000Z",
+            "updatedAt": "2024-05-15T16:30:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "3c20796c8ef9e72714855520"
+            },
+            "name": "Tiendas Atlántico",
+            "contactInfo": "Rodrigo Méndez - rmendez@atlanticotiendas.com - +54 223 555-7711",
+            "status": "active",
+            "createdAt": "2024-02-12T09:45:00.000Z",
+            "updatedAt": "2024-05-18T12:15:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "e3cd4d22c2a6180fd3280643"
+            },
+            "name": "Mercado del Sur",
+            "contactInfo": "Paula Figueroa - pfigueroa@mercadelsur.com - +54 261 455-3200",
+            "status": "active",
+            "createdAt": "2024-03-04T14:05:00.000Z",
+            "updatedAt": "2024-05-19T18:10:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "31afe13cf0c248dcb63eebaa"
+            },
+            "name": "Distribuidora Patagónica",
+            "contactInfo": "María Paredes - mp@distribuidorapata.com - +54 9 299 455-8899",
+            "status": "inactive",
+            "createdAt": "2024-02-10T14:20:00.000Z",
+            "updatedAt": "2024-05-05T19:05:00.000Z"
+        }
+    ],
+    "customerStocks": [
+        {
+            "_id": {
+                "$oid": "fd1c73638a4da47a9f3530e3"
+            },
+            "customer": {
+                "$oid": "b9a7d24a650795fb89b8fc67"
+            },
+            "item": {
+                "$oid": "93d07de07c4dcb8912ca955a"
+            },
+            "quantity": {
+                "boxes": 18,
+                "units": 0
+            },
+            "status": "reserved",
+            "boxLabel": "BC-2024-051",
+            "dateCreated": "2024-05-12T13:40:00.000Z",
+            "dateDelivered": null,
+            "createdAt": "2024-05-12T13:40:00.000Z",
+            "updatedAt": "2024-05-12T13:40:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "8a8dbc8ff5c7bfda303b9401"
+            },
+            "customer": {
+                "$oid": "3c20796c8ef9e72714855520"
+            },
+            "item": {
+                "$oid": "81231e01c58b6bfa641b081a"
+            },
+            "quantity": {
+                "boxes": 6,
+                "units": 12
+            },
+            "status": "delivered",
+            "boxLabel": "TA-2024-033",
+            "dateCreated": "2024-04-18T09:05:00.000Z",
+            "dateDelivered": "2024-04-25T10:20:00.000Z",
+            "createdAt": "2024-04-18T09:05:00.000Z",
+            "updatedAt": "2024-04-25T10:20:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "57752a45f42de2a9f1f194f8"
+            },
+            "customer": {
+                "$oid": "e3cd4d22c2a6180fd3280643"
+            },
+            "item": {
+                "$oid": "df404b80561bc7f9464f7e49"
+            },
+            "quantity": {
+                "boxes": 12,
+                "units": 0
+            },
+            "status": "reserved",
+            "boxLabel": "MS-2024-019",
+            "dateCreated": "2024-05-20T11:30:00.000Z",
+            "dateDelivered": null,
+            "createdAt": "2024-05-20T11:30:00.000Z",
+            "updatedAt": "2024-05-20T11:30:00.000Z"
+        }
+    ],
+    "movementRequests": [
+        {
+            "_id": {
+                "$oid": "8638d58b25d90006d8684ddb"
+            },
+            "item": {
+                "$oid": "93d07de07c4dcb8912ca955a"
+            },
+            "type": "transfer",
+            "fromList": "general",
+            "toList": "customer",
+            "quantity": {
+                "boxes": 18,
+                "units": 0
+            },
+            "reason": "Reserva para apertura Boutique Central",
+            "requestedBy": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "requestedAt": "2024-05-12T13:15:00.000Z",
+            "status": "executed",
+            "approvedBy": {
+                "$oid": "a3b5c304bcc29f2a5962a15c"
+            },
+            "approvedAt": "2024-05-12T13:25:00.000Z",
+            "executedAt": "2024-05-12T13:40:00.000Z",
+            "rejectedReason": null,
+            "customer": {
+                "$oid": "b9a7d24a650795fb89b8fc67"
+            },
+            "boxLabel": "BC-2024-051",
+            "createdAt": "2024-05-12T13:15:00.000Z",
+            "updatedAt": "2024-05-12T13:40:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "58630955afc1926ee05906aa"
+            },
+            "item": {
+                "$oid": "dc263a50dcdedd4cfad1b3b3"
+            },
+            "type": "out",
+            "fromList": "general",
+            "toList": null,
+            "quantity": {
+                "boxes": 12,
+                "units": 0
+            },
+            "reason": "Venta mayorista trimestral",
+            "requestedBy": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "requestedAt": "2024-05-18T10:05:00.000Z",
+            "status": "approved",
+            "approvedBy": {
+                "$oid": "a3b5c304bcc29f2a5962a15c"
+            },
+            "approvedAt": "2024-05-18T10:20:00.000Z",
+            "executedAt": null,
+            "rejectedReason": null,
+            "customer": null,
+            "boxLabel": null,
+            "createdAt": "2024-05-18T10:05:00.000Z",
+            "updatedAt": "2024-05-18T10:20:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "5354c1f4c0bad8ae2c4ccdea"
+            },
+            "item": {
+                "$oid": "81231e01c58b6bfa641b081a"
+            },
+            "type": "transfer",
+            "fromList": "overstockGeneral",
+            "toList": "general",
+            "quantity": {
+                "boxes": 5,
+                "units": 0
+            },
+            "reason": "Reabastecimiento piso de ventas",
+            "requestedBy": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "requestedAt": "2024-05-05T08:35:00.000Z",
+            "status": "executed",
+            "approvedBy": null,
+            "approvedAt": null,
+            "executedAt": "2024-05-05T09:00:00.000Z",
+            "rejectedReason": null,
+            "customer": null,
+            "boxLabel": null,
+            "createdAt": "2024-05-05T08:35:00.000Z",
+            "updatedAt": "2024-05-05T09:00:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "1307fe0e0fce9b092c8a46fa"
+            },
+            "item": {
+                "$oid": "81437fc495129783221b2488"
+            },
+            "type": "transfer",
+            "fromList": "overstockThibe",
+            "toList": "general",
+            "quantity": {
+                "boxes": 2,
+                "units": 0
+            },
+            "reason": "Reforzar exhibición local norte",
+            "requestedBy": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "requestedAt": "2024-05-14T08:40:00.000Z",
+            "status": "executed",
+            "approvedBy": null,
+            "approvedAt": null,
+            "executedAt": "2024-05-14T09:05:00.000Z",
+            "rejectedReason": null,
+            "customer": null,
+            "boxLabel": null,
+            "createdAt": "2024-05-14T08:40:00.000Z",
+            "updatedAt": "2024-05-14T09:05:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "814edf182e0677e9a66ab885"
+            },
+            "item": {
+                "$oid": "df404b80561bc7f9464f7e49"
+            },
+            "type": "transfer",
+            "fromList": "general",
+            "toList": "customer",
+            "quantity": {
+                "boxes": 12,
+                "units": 0
+            },
+            "reason": "Reserva especial para campaña escolar",
+            "requestedBy": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "requestedAt": "2024-05-20T11:10:00.000Z",
+            "status": "approved",
+            "approvedBy": {
+                "$oid": "a3b5c304bcc29f2a5962a15c"
+            },
+            "approvedAt": "2024-05-20T11:25:00.000Z",
+            "executedAt": null,
+            "rejectedReason": null,
+            "customer": {
+                "$oid": "e3cd4d22c2a6180fd3280643"
+            },
+            "boxLabel": "MS-2024-019",
+            "createdAt": "2024-05-20T11:10:00.000Z",
+            "updatedAt": "2024-05-20T11:25:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "b72edaf43635615a6f120fb7"
+            },
+            "item": {
+                "$oid": "d75af315f54d25debf6f7dff"
+            },
+            "type": "out",
+            "fromList": "general",
+            "toList": null,
+            "quantity": {
+                "boxes": 8,
+                "units": 0
+            },
+            "reason": "Pedido minorista Patagonia",
+            "requestedBy": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "requestedAt": "2024-05-22T09:15:00.000Z",
+            "status": "requested",
+            "approvedBy": null,
+            "approvedAt": null,
+            "executedAt": null,
+            "rejectedReason": null,
+            "customer": null,
+            "boxLabel": null,
+            "createdAt": "2024-05-22T09:15:00.000Z",
+            "updatedAt": "2024-05-22T09:15:00.000Z"
+        }
+    ],
+    "movementLogs": [
+        {
+            "_id": {
+                "$oid": "8f91bd44f6377f6cd9b76f57"
+            },
+            "movementRequest": {
+                "$oid": "8638d58b25d90006d8684ddb"
+            },
+            "action": "requested",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-12T13:15:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.12",
+                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "notes": "Reserva para apertura Boutique Central"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "25dafef28e1ae559b783b125"
+            },
+            "movementRequest": {
+                "$oid": "8638d58b25d90006d8684ddb"
+            },
+            "action": "approved",
+            "actor": {
+                "$oid": "a3b5c304bcc29f2a5962a15c"
+            },
+            "timestamp": "2024-05-12T13:25:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.5",
+                "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4)"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "ff598439a71b34ef41c8bcca"
+            },
+            "movementRequest": {
+                "$oid": "8638d58b25d90006d8684ddb"
+            },
+            "action": "executed",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-12T13:40:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.18",
+                "userAgent": "Mozilla/5.0 (X11; Linux x86_64)"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "22d0db531f4829f8a6f81227"
+            },
+            "movementRequest": {
+                "$oid": "58630955afc1926ee05906aa"
+            },
+            "action": "requested",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-18T10:05:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.12",
+                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "notes": "Venta mayorista trimestral"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "31aae6086a164fed5faaab3e"
+            },
+            "movementRequest": {
+                "$oid": "58630955afc1926ee05906aa"
+            },
+            "action": "approved",
+            "actor": {
+                "$oid": "a3b5c304bcc29f2a5962a15c"
+            },
+            "timestamp": "2024-05-18T10:20:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.5",
+                "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4)"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "cd9ec40f7828c36be04a6dc2"
+            },
+            "movementRequest": {
+                "$oid": "5354c1f4c0bad8ae2c4ccdea"
+            },
+            "action": "requested",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-05T08:35:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.12",
+                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "notes": "Reabastecimiento piso de ventas"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "056f1e34c4242ead111aa8a7"
+            },
+            "movementRequest": {
+                "$oid": "5354c1f4c0bad8ae2c4ccdea"
+            },
+            "action": "executed",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-05T09:00:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.18",
+                "userAgent": "Mozilla/5.0 (X11; Linux x86_64)"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "280138354f5d117b9499d5b8"
+            },
+            "movementRequest": {
+                "$oid": "1307fe0e0fce9b092c8a46fa"
+            },
+            "action": "requested",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-14T08:40:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.12",
+                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "notes": "Reforzar exhibición local norte"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "e7e0cc3a6149d19b32cfdeb2"
+            },
+            "movementRequest": {
+                "$oid": "1307fe0e0fce9b092c8a46fa"
+            },
+            "action": "executed",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-14T09:05:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.18",
+                "userAgent": "Mozilla/5.0 (X11; Linux x86_64)"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "76fca3ed32ef18bb9da20178"
+            },
+            "movementRequest": {
+                "$oid": "814edf182e0677e9a66ab885"
+            },
+            "action": "requested",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-20T11:10:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.12",
+                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "notes": "Reserva especial para campaña escolar"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "5d8c614a9fff9bf752342774"
+            },
+            "movementRequest": {
+                "$oid": "814edf182e0677e9a66ab885"
+            },
+            "action": "approved",
+            "actor": {
+                "$oid": "a3b5c304bcc29f2a5962a15c"
+            },
+            "timestamp": "2024-05-20T11:25:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.5",
+                "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_4)"
+            }
+        },
+        {
+            "_id": {
+                "$oid": "2c2344a831a3286bb8b4a8d8"
+            },
+            "movementRequest": {
+                "$oid": "b72edaf43635615a6f120fb7"
+            },
+            "action": "requested",
+            "actor": {
+                "$oid": "f61afdbec55ee16412b6374d"
+            },
+            "timestamp": "2024-05-22T09:15:00.000Z",
+            "metadata": {
+                "ip": "192.168.10.12",
+                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "notes": "Pedido minorista Patagonia"
+            }
+        }
+    ]
+}
