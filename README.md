@@ -62,7 +62,8 @@ Se recomienda cambiar la contraseña apenas se acceda al sistema y ajustar los p
 
 En `backend/docs/sample-dataset.json` se incluye un juego de datos genérico que cubre roles, usuarios, grupos, artículos, clientes,
 reservas y bitácoras de movimiento. El archivo está pensado para acelerar pruebas manuales o demostraciones locales e incorpora
-un catálogo ampliado de artículos para probar listados y filtros.
+un catálogo ampliado de artículos para probar listados y filtros. El contenido está expresado en **Extended JSON**, por lo que
+conserva los `ObjectId` y referencias entre colecciones al importarlo desde herramientas como MongoDB Compass o `mongoimport`.
 
 El dataset define los grupos iniciales requeridos por la solución:
 
@@ -99,7 +100,8 @@ Opciones disponibles:
 - `--file`: ruta alternativa al JSON a importar.
 - `--drop-existing`: elimina el contenido previo de cada colección antes de insertar los datos (recomendado para ambientes de prueba limpios).
 
-El script convierte automáticamente las fechas en objetos `Date` y muestra un resumen con la cantidad de documentos insertados por colección.
+El script convierte automáticamente las fechas en objetos `Date`, normaliza todos los identificadores a `ObjectId` válidos y muestra
+un resumen con la cantidad de documentos insertados por colección.
 
 #### Importación manual con `mongoimport`
 
@@ -122,7 +124,8 @@ Si preferís realizar la importación desde **MongoDB Compass**, seguí estos pa
 2. En el panel izquierdo, creá o seleccioná la base de datos donde querés cargar los datos (por ejemplo `gestionthibe`).
 3. Creá una colección vacía (por ejemplo `seedDataset`) y hacé clic en ella.
 4. En la barra superior elegí **Add Data** → **Import JSON or CSV file...**.
-5. Seleccioná el archivo `backend/docs/sample-dataset.json` y asegurate de que el tipo de importación sea **JSON**.
+5. Seleccioná el archivo `backend/docs/sample-dataset.json`, definí el formato como **JSON** y marcá la casilla **Import as Extended JSON**
+   para que Compass respete los `ObjectId` definidos.
 6. Confirmá con **Import**. Compass cargará todos los documentos en la colección seleccionada.
 
 Una vez importados, podés distribuir los documentos a las colecciones definitivas mediante agregaciones o scripts según tu flujo de trabajo.

@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 
+const { ObjectId } = mongoose.Types;
+
 const args = process.argv.slice(2);
 
 const optionValue = (flag) => {
@@ -77,6 +79,88 @@ const dataset = JSON.parse(datasetRaw, (key, value) => {
   return value;
 });
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const idMaps = {};
+
+const resolveObjectId = (datasetKey, raw) => {
+  if (raw == null) {
+    return raw;
+  }
+
+  if (raw instanceof ObjectId) {
+    return raw;
+  }
+
+  if (typeof raw === 'object' && raw.$oid && typeof raw.$oid === 'string') {
+    return new ObjectId(raw.$oid);
+  }
+
+  if (typeof raw === 'string') {
+    if (ObjectId.isValid(raw) && raw.length === 24) {
+      return new ObjectId(raw);
+    }
+
+    if (uuidPattern.test(raw)) {
+      if (!idMaps[datasetKey]) {
+        idMaps[datasetKey] = new Map();
+      }
+      const map = idMaps[datasetKey];
+      if (!map.has(raw)) {
+        map.set(raw, new ObjectId());
+      }
+      return map.get(raw);
+    }
+  }
+
+  return raw;
+};
+
+const converters = {
+  groups: (doc) => ({
+    ...doc,
+    _id: resolveObjectId('groups', doc._id),
+    parent: resolveObjectId('groups', doc.parent)
+  }),
+  roles: (doc) => ({
+    ...doc,
+    _id: resolveObjectId('roles', doc._id)
+  }),
+  users: (doc) => ({
+    ...doc,
+    _id: resolveObjectId('users', doc._id),
+    role: resolveObjectId('roles', doc.role)
+  }),
+  items: (doc) => ({
+    ...doc,
+    _id: resolveObjectId('items', doc._id),
+    group: resolveObjectId('groups', doc.group)
+  }),
+  customers: (doc) => ({
+    ...doc,
+    _id: resolveObjectId('customers', doc._id)
+  }),
+  customerStocks: (doc) => ({
+    ...doc,
+    _id: resolveObjectId('customerStocks', doc._id),
+    customer: resolveObjectId('customers', doc.customer),
+    item: resolveObjectId('items', doc.item)
+  }),
+  movementRequests: (doc) => ({
+    ...doc,
+    _id: resolveObjectId('movementRequests', doc._id),
+    item: resolveObjectId('items', doc.item),
+    requestedBy: resolveObjectId('users', doc.requestedBy),
+    approvedBy: resolveObjectId('users', doc.approvedBy),
+    customer: resolveObjectId('customers', doc.customer)
+  }),
+  movementLogs: (doc) => ({
+    ...doc,
+    _id: resolveObjectId('movementLogs', doc._id),
+    movementRequest: resolveObjectId('movementRequests', doc.movementRequest),
+    actor: resolveObjectId('users', doc.actor)
+  })
+};
+
 const collectionMap = {
   groups: 'groups',
   roles: 'roles',
@@ -112,8 +196,13 @@ const run = async () => {
         deletedCount = deleteResult.deletedCount || 0;
       }
 
+      const transformer = converters[datasetKey];
+      const documentsToInsert = transformer
+        ? documents.map((doc) => transformer(doc))
+        : documents;
+
       try {
-        const insertResult = await collection.insertMany(documents, { ordered: true });
+        const insertResult = await collection.insertMany(documentsToInsert, { ordered: true });
         const insertedCount = insertResult.insertedCount ?? documents.length;
         summary.push({ datasetKey, collectionName, insertedCount, deletedCount });
       } catch (error) {
