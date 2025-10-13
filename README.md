@@ -64,6 +64,22 @@ En `backend/docs/sample-dataset.json` se incluye un juego de datos genérico que
 reservas y bitácoras de movimiento. El archivo está pensado para acelerar pruebas manuales o demostraciones locales e incorpora
 un catálogo ampliado de artículos para probar listados y filtros.
 
+El dataset define los grupos iniciales requeridos por la solución:
+
+- Medias
+- Ropa Interior
+- Blancos
+- Accesorios
+- Jean Hombre / Jean Dama / Jean Niño
+- Ropa Hombre / Ropa Dama / Ropa Niño
+- Calzado
+- Electrónicos
+- Juguetes
+- Escolares
+
+Sobre esos grupos se cargan 26 artículos de ejemplo distribuidos en todas las categorías, junto con movimientos de stock que
+incluyen casos ejecutados, autorizados pendientes de ejecución y una solicitud todavía pendiente de aprobación.
+
 **Credenciales del dataset:** el usuario administrador incluido (`admin@example.com`) tiene la contraseña `Admin#2024` para iniciar sesión
 con los datos importados. Podés modificarla desde la API una vez que accedas al sistema.
 
