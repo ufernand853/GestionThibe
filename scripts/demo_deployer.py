@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -15,8 +16,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BACKEND_DIR = REPO_ROOT / "backend"
 FRONTEND_DIR = REPO_ROOT / "frontend"
 
-DEFAULT_MONGO_URI = "mongodb://admin:admin123@localhost:27017/gestionthibe?authSource=admin"
+DOCKER_MONGO_URI = "mongodb://admin:admin123@localhost:27017/gestionthibe?authSource=admin"
+LOCAL_MONGO_URI = "mongodb://localhost:27017/gestionthibe"
 DOCKER_CONTAINER_NAME = "gestionthibe-mongo"
+DEFAULT_PACKAGE_PATH = REPO_ROOT / "dist" / "demo-package.zip"
 
 
 def which_or_exit(tool: str) -> None:
@@ -47,10 +50,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mongo-mode",
-        choices=["docker", "uri", "skip"],
+        choices=["docker", "install", "uri", "skip"],
         default="docker",
         help=(
-            "Cómo preparar MongoDB: 'docker' crea un contenedor local, 'uri' usa la cadena proporcionada y 'skip' supone que ya está disponible."
+            "Cómo preparar MongoDB: 'docker' crea un contenedor local, 'install' intenta instalar el servicio nativo, 'uri' usa la cadena proporcionada y 'skip' supone que ya está disponible."
         ),
     )
     parser.add_argument(
@@ -70,6 +73,14 @@ def parse_args() -> argparse.Namespace:
         "--no-start",
         action="store_true",
         help="Prepara todo pero no deja procesos corriendo. Ideal si deseas iniciarlos manualmente después.",
+    )
+    parser.add_argument(
+        "--package-zip",
+        nargs="?",
+        const=str(DEFAULT_PACKAGE_PATH),
+        help=(
+            "Crea un ZIP portátil con todo lo necesario para la demo. Si no se indica ruta, se usa dist/demo-package.zip."
+        ),
     )
     return parser.parse_args()
 
@@ -117,7 +128,83 @@ def ensure_docker_container() -> str:
                 "mongo:6",
             ]
         )
-    return DEFAULT_MONGO_URI
+    return DOCKER_MONGO_URI
+
+
+def run_privileged(cmd: Iterable[str]) -> None:
+    if os.name != "nt" and hasattr(os, "geteuid") and os.geteuid() != 0:
+        if shutil.which("sudo") is None:
+            print("Se requiere privilegios elevados para ejecutar este paso y 'sudo' no está disponible.", file=sys.stderr)
+            sys.exit(1)
+        cmd = ["sudo", *cmd]
+    run(cmd)
+
+
+def ensure_local_mongodb_service() -> str:
+    if shutil.which("mongod") is not None or shutil.which("mongo") is not None:
+        print("MongoDB ya está instalado; se intentará iniciar el servicio si no estuviera activo.")
+    system = platform.system().lower()
+
+    if system == "linux":
+        if shutil.which("apt-get") is not None:
+            print("Instalando MongoDB con apt-get (requiere privilegios).")
+            run_privileged(["apt-get", "update"])
+            run_privileged(["apt-get", "install", "-y", "mongodb"])
+            try:
+                run_privileged(["systemctl", "enable", "--now", "mongodb"])
+            except SystemExit:
+                run_privileged(["service", "mongodb", "start"])
+        elif shutil.which("dnf") is not None:
+            print("Instalando MongoDB con dnf (requiere privilegios).")
+            run_privileged(["dnf", "install", "-y", "mongodb-org"])
+            run_privileged(["systemctl", "enable", "--now", "mongod"])
+        else:
+            print(
+                "No se detectó un gestor de paquetes compatible (apt-get/dnf). Instala MongoDB manualmente o usa --mongo-mode docker.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    elif system == "darwin":
+        if shutil.which("brew") is None:
+            print("Homebrew es necesario para instalar MongoDB automáticamente en macOS.", file=sys.stderr)
+            sys.exit(1)
+        print("Instalando MongoDB con Homebrew.")
+        run(["brew", "tap", "mongodb/brew"])
+        run(["brew", "install", "mongodb-community@6.0"])
+        run(["brew", "services", "start", "mongodb-community@6.0"])
+    elif system.startswith("win"):
+        if shutil.which("choco") is not None:
+            print("Instalando MongoDB con Chocolatey.")
+            run(["choco", "install", "mongodb", "-y"])
+        elif shutil.which("winget") is not None:
+            print("Instalando MongoDB con Winget.")
+            run([
+                "winget",
+                "install",
+                "--exact",
+                "--id",
+                "MongoDB.Server",
+                "--accept-package-agreements",
+                "--accept-source-agreements",
+            ])
+        else:
+            print(
+                "No se detectó Chocolatey ni Winget. Instala MongoDB manualmente o usa --mongo-mode docker.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
+        print("Iniciando el servicio de MongoDB en Windows.")
+        run(["powershell", "-Command", "Start-Service -Name MongoDB"],)
+    else:
+        print(
+            "Sistema operativo no soportado para instalación automática. Usa Docker o instala MongoDB manualmente.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    print("MongoDB instalado/preparado. La URI por defecto será mongodb://localhost:27017/gestionthibe")
+    return LOCAL_MONGO_URI
 
 
 def write_env_file(path: Path, values: Dict[str, str]) -> None:
@@ -170,6 +257,39 @@ def prepare_frontend(backend_port: int) -> None:
     run(["npm", "install"], cwd=FRONTEND_DIR)
 
 
+def create_demo_package(path_str: str) -> Path:
+    print("\n=== Generando paquete ZIP para demo ===")
+    output_path = Path(path_str).expanduser().resolve()
+    if output_path.suffix != ".zip":
+        output_path = output_path.with_suffix(".zip")
+
+    output_dir = output_path.parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    staging_dir = output_dir / output_path.stem
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+
+    ignore = shutil.ignore_patterns(
+        ".git",
+        "dist",
+        "__pycache__",
+        "*.pyc",
+        "*.pyo",
+        "*.log",
+    )
+
+    shutil.copytree(REPO_ROOT, staging_dir, ignore=ignore)
+
+    base_name = output_path.with_suffix("")
+    shutil.make_archive(str(base_name), "zip", root_dir=staging_dir.parent, base_dir=staging_dir.name)
+    shutil.rmtree(staging_dir)
+
+    size_mb = output_path.stat().st_size / (1024 * 1024)
+    print(f"Paquete creado en {output_path} ({size_mb:.2f} MB)")
+    return output_path
+
+
 def start_services(args: argparse.Namespace) -> None:
     backend_cmd = ["npm", "start"]
     frontend_cmd = [
@@ -211,6 +331,8 @@ def main() -> None:
 
     if args.mongo_mode == "docker":
         mongo_uri = ensure_docker_container()
+    elif args.mongo_mode == "install":
+        mongo_uri = ensure_local_mongodb_service()
     else:
         if args.mongo_uri:
             mongo_uri = args.mongo_uri
@@ -218,13 +340,16 @@ def main() -> None:
             print("Debes proporcionar --mongo-uri cuando uses --mongo-mode uri.", file=sys.stderr)
             sys.exit(1)
         else:
-            mongo_uri = DEFAULT_MONGO_URI
+            mongo_uri = DOCKER_MONGO_URI
 
     prepare_backend(mongo_uri, args.backend_port, args.admin_email, args.admin_password)
     prepare_frontend(args.backend_port)
 
     if not args.skip_build:
         run(["npm", "run", "build"], cwd=FRONTEND_DIR)
+
+    if args.package_zip:
+        create_demo_package(args.package_zip)
 
     if args.no_start:
         print("\nPreparación completa. Puedes iniciar los servicios manualmente si lo deseas.")

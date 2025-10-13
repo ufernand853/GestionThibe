@@ -22,7 +22,7 @@ El script acepta varias banderas para personalizar la demo:
 
 | Bandera | Descripción |
 | --- | --- |
-| `--mongo-mode {docker,uri,skip}` | Controla cómo se prepara MongoDB. `docker` (por defecto) crea/reutiliza un contenedor local. `uri` exige proporcionar `--mongo-uri`. `skip` asume que ya tienes MongoDB listo e igualmente puedes definir `--mongo-uri`. |
+| `--mongo-mode {docker,install,uri,skip}` | Controla cómo se prepara MongoDB. `docker` (por defecto) crea/reutiliza un contenedor local. `install` intenta instalar MongoDB Community Edition con el gestor de paquetes disponible y arranca el servicio local. `uri` exige proporcionar `--mongo-uri`. `skip` asume que ya tienes MongoDB listo e igualmente puedes definir `--mongo-uri`. |
 | `--mongo-uri <cadena>` | Cadena de conexión a MongoDB cuando no usas Docker o necesitas un host diferente. |
 | `--backend-port <puerto>` | Puerto HTTP para el backend (por defecto `3000`). |
 | `--frontend-port <puerto>` | Puerto para `npm run preview` del frontend (por defecto `4173`). |
@@ -30,10 +30,21 @@ El script acepta varias banderas para personalizar la demo:
 | `--admin-password <clave>` | Contraseña del usuario administrador semilla. |
 | `--skip-build` | Evita ejecutar `npm run build` en el frontend (útil para validaciones rápidas). |
 | `--no-start` | Prepara todo pero no deja procesos corriendo; así puedes iniciarlos manualmente luego. |
+| `--package-zip [ruta]` | Genera un ZIP con todo el repositorio listo para copiar en otra máquina. Si omites la ruta se crea `dist/demo-package.zip`. |
 
 > Presiona `Ctrl+C` para detener los procesos iniciados por el script. Al hacerlo, se envían señales de terminación a backend y frontend.
 
 Si prefieres ejecutar cada paso manualmente o necesitas comprender el detalle de lo que hace el script, continúa con la guía paso a paso.
+
+### Empaquetar para ejecutar la demo sin conexión
+
+Si debes mover la demo a un equipo sin conexión a Internet, ejecuta:
+
+```bash
+python scripts/demo_deployer.py --no-start --package-zip
+```
+
+Esto instalará las dependencias, construirá el frontend y generará el archivo `dist/demo-package.zip` (puedes especificar otra ruta con `--package-zip /ruta/archivo.zip`). Copia el ZIP a la nueva máquina, descomprímelo y, desde la carpeta extraída, ejecuta `python scripts/demo_deployer.py --mongo-mode skip --no-start` para reutilizar los archivos `.env` y dependencias ya generados.
 
 ## 1. Requisitos previos
 
@@ -49,7 +60,17 @@ Si prefieres ejecutar cada paso manualmente o necesitas comprender el detalle de
 
 ## 2. Preparar MongoDB
 
-### Opción A: Usar un contenedor Docker (recomendado para demos)
+### Opción A: Instalar MongoDB automáticamente con el script (`--mongo-mode install`)
+
+Al ejecutar `python scripts/demo_deployer.py --mongo-mode install` el asistente detecta tu sistema operativo y:
+
+- En Linux usa `apt-get` o `dnf` (según disponibilidad) para instalar MongoDB Community Edition y habilita el servicio.
+- En macOS utiliza Homebrew (`brew tap mongodb/brew && brew install mongodb-community@6.0`).
+- En Windows intenta instalar `MongoDB Server` con Chocolatey o Winget y arranca el servicio `MongoDB`.
+
+La URI configurada en el backend será `mongodb://localhost:27017/gestionthibe` (sin autenticación por defecto). Si tu entorno requiere credenciales adicionales, ejecuta el script con `--mongo-uri` después de la instalación automática.
+
+### Opción B: Usar un contenedor Docker (recomendado para demos)
 
 ```bash
 docker run --name gestionthibe-mongo \
@@ -60,9 +81,9 @@ docker run --name gestionthibe-mongo \
 ```
 
 - El backend se conectará a `mongodb://admin:admin123@localhost:27017/gestionthibe?authSource=admin`.
-- Si Docker no está instalado, salta a la opción B.
+- Si Docker no está instalado, usa la opción A (`--mongo-mode install`) o prepara una instancia existente (opción C).
 
-### Opción B: Usar una instalación existente de MongoDB
+### Opción C: Usar una instalación existente de MongoDB
 
 1. Instala MongoDB Community Edition o usa un clúster de MongoDB Atlas.
 2. Asegúrate de que el puerto 27017 esté accesible desde la máquina donde correrá el backend.
