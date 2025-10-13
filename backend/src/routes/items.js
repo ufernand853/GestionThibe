@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { Types } = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
@@ -206,6 +207,23 @@ function buildStock(input = {}) {
   return stock;
 }
 
+function normalizeOptionalObjectId(value) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    return trimmed;
+  }
+  return value;
+}
+
 const router = express.Router();
 
 router.get(
@@ -259,8 +277,12 @@ router.post(
       throw new HttpError(400, 'El código ya existe');
     }
     let group = null;
-    if (groupId) {
-      group = await Group.findById(groupId);
+    const normalizedGroupId = normalizeOptionalObjectId(groupId);
+    if (normalizedGroupId) {
+      if (!Types.ObjectId.isValid(normalizedGroupId)) {
+        throw new HttpError(400, 'Grupo inválido');
+      }
+      group = await Group.findById(normalizedGroupId);
       if (!group) {
         throw new HttpError(400, 'Grupo inválido');
       }
@@ -295,6 +317,9 @@ router.put(
   requirePermission('items.write'),
   asyncHandler(async (req, res) => {
     const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      throw new HttpError(400, 'Artículo inválido');
+    }
     const item = await Item.findById(id);
     if (!item) {
       throw new HttpError(404, 'Artículo no encontrado');
@@ -304,11 +329,15 @@ router.put(
     if (description) {
       item.description = description;
     }
-    if (groupId !== undefined) {
-      if (groupId === null) {
+    const normalizedGroupId = normalizeOptionalObjectId(groupId);
+    if (normalizedGroupId !== undefined) {
+      if (normalizedGroupId === null) {
         item.group = null;
       } else {
-        const group = await Group.findById(groupId);
+        if (!Types.ObjectId.isValid(normalizedGroupId)) {
+          throw new HttpError(400, 'Grupo inválido');
+        }
+        const group = await Group.findById(normalizedGroupId);
         if (!group) {
           throw new HttpError(400, 'Grupo inválido');
         }
