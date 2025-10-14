@@ -42,12 +42,21 @@ Por defecto el servidor se levanta en `http://localhost:3000` y se conecta a `mo
 | Variable | Descripción | Valor por defecto |
 |----------|-------------|-------------------|
 | `PORT` | Puerto HTTP del backend | `3000` |
-| `MONGO_URI` | Cadena de conexión a MongoDB | `mongodb://localhost:27017/gestionthibe` |
+| `MONGO_URI` | Cadena de conexión a MongoDB. Si incluye usuario/contraseña asegurate de agregar los parámetros necesarios (p. ej. `authSource`). | `mongodb://localhost:27017/gestionthibe` |
+| `MONGO_DB_NAME` | Nombre de la base de datos a utilizar cuando se provee la URI sin sufijo o se necesita forzar otra base. | `gestionthibe` (si no se especifica en la URI) |
+| `MONGO_USER` | Usuario para autenticarse contra MongoDB (alternativa a incrustarlo en la URI). | - |
+| `MONGO_PASSWORD` | Contraseña asociada al usuario anterior. | - |
+| `MONGO_AUTH_SOURCE` | Base de datos donde está definido el usuario (comúnmente `admin` en instalaciones con autenticación). | - |
+| `MONGO_AUTH_MECHANISM` | Mecanismo de autenticación (por ejemplo `SCRAM-SHA-1` o `SCRAM-SHA-256`). | - |
+| `MONGO_TLS` | Activa la conexión TLS cuando la instancia lo requiere (`true`/`false`). | - |
+| `MONGO_TLS_CA_FILE` | Ruta al certificado CA cuando se habilita TLS con certificados propios. | - |
 | `JWT_SECRET` | Secreto para firmar los tokens JWT | `development-secret` |
 | `ACCESS_TOKEN_TTL` | Tiempo de vida del access token (segundos) | `3600` |
 | `REFRESH_TOKEN_TTL` | Tiempo de vida del refresh token (segundos) | `604800` |
 | `ADMIN_EMAIL` | Email del usuario administrador semilla | `admin@example.com` |
 | `ADMIN_PASSWORD` | Contraseña del usuario administrador semilla | `ChangeMe123!` |
+
+> 💡 **Tip:** si ves el error `MongoServerError: Authentication failed` asegurate de que las variables `MONGO_USER`, `MONGO_PASSWORD` y `MONGO_AUTH_SOURCE` coincidan con el usuario creado en tu instancia. Alternativamente podés incluirlas directamente en `MONGO_URI`, recordando sumar los parámetros como `authSource=admin` cuando corresponda.
 
 ### Credenciales iniciales
 
