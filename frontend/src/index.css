@@ -363,6 +363,44 @@ th {
   font-weight: 700;
 }
 
+.metric-trend {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sparkline {
+  width: 100%;
+  height: 48px;
+}
+
+.trend-indicator {
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.trend-indicator span {
+  font-weight: 400;
+  color: #64748b;
+  margin-left: 0.25rem;
+}
+
+.trend-indicator.positive {
+  color: #15803d;
+}
+
+.trend-indicator.negative {
+  color: #b91c1c;
+}
+
+.trend-indicator.neutral {
+  color: #475569;
+}
+
 .flex-between {
   display: flex;
   justify-content: space-between;
