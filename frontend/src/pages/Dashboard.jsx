@@ -3,6 +3,7 @@ import useApi from '../hooks/useApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import LoadingIndicator from '../components/LoadingIndicator.jsx';
 import ErrorMessage from '../components/ErrorMessage.jsx';
+import Sparkline from '../components/Sparkline.jsx';
 import { formatQuantity, sumQuantities, ensureQuantity } from '../utils/quantity.js';
 import { formatStockListLabel } from '../utils/stockLists.js';
 
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const [stockData, setStockData] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [stockTrends, setStockTrends] = useState(null);
 
   const canViewReports = permissions.includes('reports.read');
   const canManageRequests = permissions.includes('stock.request') || permissions.includes('stock.approve');
@@ -40,13 +42,19 @@ export default function DashboardPage() {
         if (canViewCustomers) {
           customersResponse = await api.get('/customers');
         }
+        let trendsResponse = null;
+        if (canViewReports) {
+          trendsResponse = await api.get('/reports/stock/trends', { query: { days: 30 } });
+        }
         if (!isMounted) return;
         setStockData(Array.isArray(stockResponse) ? stockResponse : []);
         setPendingRequests(Array.isArray(pendingResponse) ? pendingResponse : []);
         setCustomers(Array.isArray(customersResponse) ? customersResponse : []);
+        setStockTrends(trendsResponse && Array.isArray(trendsResponse.points) ? trendsResponse : null);
       } catch (err) {
         if (!isMounted) return;
         setError(err);
+        setStockTrends(null);
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -85,6 +93,78 @@ export default function DashboardPage() {
     });
     return totals;
   }, [customers.length, pendingApprovalRequests, stockData]);
+
+  const trendSummary = useMemo(() => {
+    if (!stockTrends || !Array.isArray(stockTrends.points) || stockTrends.points.length === 0) {
+      return null;
+    }
+
+    const quantityToValue = quantity => {
+      const normalized = ensureQuantity(quantity);
+      return normalized.boxes + normalized.units / 100;
+    };
+
+    const trendQuantityToValue = quantity => {
+      if (!quantity) {
+        return 0;
+      }
+      const boxes = Number(quantity.boxes ?? 0);
+      const units = Number(quantity.units ?? 0);
+      const safeBoxes = Number.isFinite(boxes) ? boxes : 0;
+      const safeUnits = Number.isFinite(units) ? units : 0;
+      return safeBoxes + safeUnits / 100;
+    };
+
+    const buildSeries = (currentQuantity, deltas) => {
+      if (!deltas.length) {
+        return [];
+      }
+      const currentValue = quantityToValue(currentQuantity);
+      const totalDelta = deltas.reduce((acc, value) => acc + value, 0);
+      let running = Math.max(0, currentValue - totalDelta);
+      return deltas.map(delta => {
+        running = Math.max(0, running + delta);
+        return running;
+      });
+    };
+
+    const computeChange = series => {
+      if (!series.length) {
+        return { change: 0, first: 0, last: 0 };
+      }
+      const first = series[0];
+      const last = series[series.length - 1];
+      const change = first === 0 ? 0 : ((last - first) / Math.abs(first)) * 100;
+      return { change, first, last };
+    };
+
+    const generalDeltas = stockTrends.points.map(point => trendQuantityToValue(point.deltas?.general));
+    const overstockDeltas = stockTrends.points.map(point => trendQuantityToValue(point.deltas?.overstock));
+
+    const generalSeries = buildSeries(metrics.general, generalDeltas);
+    const overstockSeries = buildSeries(metrics.overstock, overstockDeltas);
+
+    return {
+      window: stockTrends.points.length,
+      general: { series: generalSeries, ...computeChange(generalSeries) },
+      overstock: { series: overstockSeries, ...computeChange(overstockSeries) }
+    };
+  }, [metrics, stockTrends]);
+
+  const getTrendIndicator = change => {
+    if (change > 0) {
+      return { arrow: '▲', className: 'positive' };
+    }
+    if (change < 0) {
+      return { arrow: '▼', className: 'negative' };
+    }
+    return { arrow: '■', className: 'neutral' };
+  };
+
+  const generalIndicator = trendSummary?.general ? getTrendIndicator(trendSummary.general.change) : null;
+  const overstockIndicator = trendSummary?.overstock
+    ? getTrendIndicator(trendSummary.overstock.change)
+    : null;
 
   const topGroups = useMemo(() => {
     const accumulator = new Map();
@@ -128,11 +208,43 @@ export default function DashboardPage() {
           <h3>Stock general</h3>
           <p>{formatQuantity(metrics.general)}</p>
           <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Cajas y unidades en depósito principal</span>
+          {trendSummary?.general?.series?.length > 0 && generalIndicator && (
+            <div className="metric-trend">
+              <Sparkline
+                data={trendSummary.general.series}
+                color="#2563eb"
+                ariaLabel={`Evolución del stock general en los últimos ${trendSummary.window} días`}
+              />
+              <span
+                className={`trend-indicator ${generalIndicator.className}`}
+              >
+                {generalIndicator.arrow}
+                {` ${Math.abs(trendSummary.general.change).toFixed(1)}%`}
+                <span>últimos {trendSummary.window} días</span>
+              </span>
+            </div>
+          )}
         </div>
         <div className="metric-card">
           <h3>Sobrestock</h3>
           <p>{formatQuantity(metrics.overstock)}</p>
           <span style={{ fontSize: '0.8rem', color: '#64748b' }}>General + Thibe + Arenal Import</span>
+          {trendSummary?.overstock?.series?.length > 0 && overstockIndicator && (
+            <div className="metric-trend">
+              <Sparkline
+                data={trendSummary.overstock.series}
+                color="#0f766e"
+                ariaLabel={`Evolución del sobrestock en los últimos ${trendSummary.window} días`}
+              />
+              <span
+                className={`trend-indicator ${overstockIndicator.className}`}
+              >
+                {overstockIndicator.arrow}
+                {` ${Math.abs(trendSummary.overstock.change).toFixed(1)}%`}
+                <span>últimos {trendSummary.window} días</span>
+              </span>
+            </div>
+          )}
         </div>
         <div className="metric-card">
           <h3>Clientes con stock reservado</h3>
