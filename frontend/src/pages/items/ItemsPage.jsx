@@ -6,7 +6,47 @@ import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
 
-const ATTRIBUTES = ['gender', 'size', 'color', 'material', 'season', 'fit'];
+const ATTRIBUTE_FIELDS = [
+  {
+    key: 'gender',
+    label: 'Género',
+    placeholder: 'Ingrese el género'
+  },
+  {
+    key: 'size',
+    label: 'Talle',
+    placeholder: 'Ingrese el talle'
+  },
+  {
+    key: 'color',
+    label: 'Color',
+    placeholder: 'Ingrese el color'
+  },
+  {
+    key: 'material',
+    label: 'Material',
+    placeholder: 'Ingrese el material'
+  },
+  {
+    key: 'season',
+    label: 'Temporada',
+    type: 'select',
+    placeholder: 'Selecciona la temporada',
+    options: [
+      { value: 'Primavera', label: 'Primavera' },
+      { value: 'Verano', label: 'Verano' },
+      { value: 'Invierno', label: 'Invierno' },
+      { value: 'Otoño', label: 'Otoño' }
+    ]
+  },
+  {
+    key: 'fit',
+    label: 'Calce',
+    placeholder: 'Ingrese el calce'
+  }
+];
+
+const ATTRIBUTE_KEYS = ATTRIBUTE_FIELDS.map(field => field.key);
 
 const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -230,7 +270,7 @@ export default function ItemsPage() {
       stock[key] = { boxes, units };
     });
     const attributes = {};
-    ATTRIBUTES.forEach(attribute => {
+    ATTRIBUTE_KEYS.forEach(attribute => {
       if (formValues[attribute]) {
         attributes[attribute] = formValues[attribute];
       }
@@ -455,18 +495,36 @@ export default function ItemsPage() {
                   })}
                 </select>
               </div>
-              {ATTRIBUTES.map(attribute => (
-                <div className="input-group" key={attribute}>
-                  <label htmlFor={attribute}>{attribute.charAt(0).toUpperCase() + attribute.slice(1)}</label>
-                  <input
-                    id={attribute}
-                    name={attribute}
-                    value={formValues[attribute]}
-                    onChange={handleFormChange}
-                    placeholder={`Ingrese ${attribute}`}
-                  />
-                </div>
-              ))}
+              {ATTRIBUTE_FIELDS.map(({ key, label, placeholder, type, options = [] }) => {
+                const selectedValue = formValues[key];
+                const hasSelectedOption = options.some(option => option.value === selectedValue);
+                return (
+                  <div className="input-group" key={key}>
+                    <label htmlFor={key}>{label}</label>
+                    {type === 'select' ? (
+                      <select id={key} name={key} value={selectedValue} onChange={handleFormChange}>
+                        <option value="">{placeholder || 'Sin especificar'}</option>
+                        {options.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                        {!hasSelectedOption && selectedValue && (
+                          <option value={selectedValue}>{selectedValue}</option>
+                        )}
+                      </select>
+                    ) : (
+                      <input
+                        id={key}
+                        name={key}
+                        value={selectedValue}
+                        onChange={handleFormChange}
+                        placeholder={placeholder}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </section>
 
