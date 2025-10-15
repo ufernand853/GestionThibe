@@ -50,6 +50,11 @@ router.get(
   '/stock/by-group',
   requirePermission('reports.read'),
   asyncHandler(async (req, res) => {
+    const includeItems =
+      typeof req.query.includeItems === 'string' && req.query.includeItems.toLowerCase() === 'true';
+    const requestedGroupId = typeof req.query.groupId === 'string' ? req.query.groupId : null;
+    const isRequestingUngrouped = requestedGroupId === 'ungrouped';
+
     const [items, groups, locations] = await Promise.all([
       Item.find().populate('group'),
       Group.find(),
@@ -60,10 +65,17 @@ router.get(
     );
     const groupIndex = new Map();
     groups.forEach(group => {
-      groupIndex.set(group.id, { id: group.id, name: group.name, items: [], total: { boxes: 0, units: 0 } });
+      groupIndex.set(
+        group.id,
+        includeItems
+          ? { id: group.id, name: group.name, items: [], total: { boxes: 0, units: 0 } }
+          : { id: group.id, name: group.name, total: { boxes: 0, units: 0 } }
+      );
     });
 
-    const ungrouped = { id: null, name: 'Sin grupo', items: [], total: { boxes: 0, units: 0 } };
+    const ungrouped = includeItems
+      ? { id: null, name: 'Sin grupo', items: [], total: { boxes: 0, units: 0 } }
+      : { id: null, name: 'Sin grupo', total: { boxes: 0, units: 0 } };
 
     items.forEach(item => {
       const stockEntries = mapStockToArray(item.stock, locationsById);
@@ -76,22 +88,62 @@ router.get(
         { boxes: 0, units: 0 }
       );
 
-      targetGroup.items.push({
-        id: item.id,
-        code: item.code,
-        description: item.description,
-        stockByLocation: stockEntries,
-        total: itemTotal
-      });
+      if (includeItems && Array.isArray(targetGroup.items)) {
+        targetGroup.items.push({
+          id: item.id,
+          code: item.code,
+          description: item.description,
+          stockByLocation: stockEntries,
+          total: itemTotal
+        });
+      }
       addQuantity(targetGroup.total, itemTotal);
     });
 
-    const response = Array.from(groupIndex.values()).filter(group => group.items.length > 0);
-    if (ungrouped.items.length > 0) {
+    const hasStock = total => Number(total.boxes) > 0 || Number(total.units) > 0;
+
+    const response = Array.from(groupIndex.values());
+    if (includeItems ? ungrouped.items.length > 0 : hasStock(ungrouped.total)) {
       response.push(ungrouped);
     }
 
-    res.json(response);
+    const filtered = response.filter(group => {
+      if (requestedGroupId) {
+        if (group.id) {
+          return String(group.id) === requestedGroupId;
+        }
+        return isRequestingUngrouped;
+      }
+      if (includeItems) {
+        return Array.isArray(group.items) && group.items.length > 0;
+      }
+      return hasStock(group.total);
+    });
+
+    const formatted = filtered.map(group => {
+      const base = {
+        id: group.id ?? null,
+        name: group.name ?? '',
+        total: ensureQuantity(group.total)
+      };
+      if (includeItems) {
+        return {
+          ...base,
+          items: Array.isArray(group.items)
+            ? group.items.map(item => ({
+                id: item.id,
+                code: item.code,
+                description: item.description,
+                stockByLocation: item.stockByLocation,
+                total: ensureQuantity(item.total)
+              }))
+            : []
+        };
+      }
+      return base;
+    });
+
+    res.json(formatted);
   })
 );
 
