@@ -1,6 +1,6 @@
-# Gestión de Stock y Clientes
+# Gestión de Stock Multidepósito
 
-Este repositorio reúne la documentación funcional y una base de código inicial para construir la solución de inventario y reservas descrita en `Proyecto_Tecnico_Stock.md`.
+Este repositorio reúne la documentación funcional y una base de código inicial para construir una solución de inventario multidepósito centrada en transferencias entre depósitos y gestión de destinos comerciales, tal como se detalla en `Proyecto_Tecnico_Stock.md`.
 
 ## Contenido principal
 
@@ -15,11 +15,11 @@ Este repositorio reúne la documentación funcional y una base de código inicia
 El directorio `backend/` contiene un proyecto Express que persiste la información en MongoDB mediante Mongoose. Cubre:
 
 - Autenticación por JWT (access + refresh tokens) y control de acceso por permisos de rol.
-- ABM de usuarios, grupos, artículos, clientes y reservas.
+- ABM de usuarios, grupos, artículos, destinos y depósitos.
 - Solicitud, aprobación, ejecución y rechazo de movimientos de stock con bitácora de auditoría.
-- Reportes básicos de stock general y reservas por cliente.
+- Reportes de stock por grupo y por depósito.
 
-La capa de persistencia utiliza colecciones dedicadas (`users`, `roles`, `items`, `customers`, `customerstocks`, `movementrequests`, `movementlogs`, `refreshtokens`). Al iniciar el servicio se crean automáticamente los roles base y el usuario administrador inicial.
+La capa de persistencia utiliza colecciones dedicadas (`users`, `roles`, `items`, `destinations`, `deposits`, `movementrequests`, `movementlogs`, `refreshtokens`). Al iniciar el servicio se crean automáticamente los roles base y el usuario administrador inicial.
 
 ### Requisitos previos
 
@@ -69,10 +69,12 @@ Se recomienda cambiar la contraseña apenas se acceda al sistema y ajustar los p
 
 ### Datos de ejemplo
 
-En `backend/docs/sample-dataset.json` se incluye un juego de datos genérico que cubre roles, usuarios, grupos, artículos, clientes,
-reservas y bitácoras de movimiento. El archivo está pensado para acelerar pruebas manuales o demostraciones locales e incorpora
+En `backend/docs/sample-dataset.json` se incluye un juego de datos genérico que cubre roles, usuarios, grupos, artículos, depósitos,
+destinos y bitácoras de movimiento. El archivo está pensado para acelerar pruebas manuales o demostraciones locales e incorpora
 un catálogo ampliado de artículos para probar listados y filtros. El contenido está expresado en **Extended JSON**, por lo que
 conserva los `ObjectId` y referencias entre colecciones al importarlo desde herramientas como MongoDB Compass o `mongoimport`.
+
+El dataset crea automáticamente los depósitos base (Depósito General, Sobrestock General, Sobrestock Thibe, Sobrestock Arenal y Preparación de despachos) y asigna stock a cada artículo utilizando los identificadores reales de esos depósitos. Asimismo, incluye destinos comerciales de ejemplo y solicitudes de transferencia entre depósitos para ilustrar los distintos estados (pendiente, aprobado, ejecutado y rechazado).
 
 El dataset define los grupos iniciales requeridos por la solución:
 
@@ -146,10 +148,10 @@ La API implementa el contrato descripto en `openapi.yaml`, incluyendo:
 - `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`
 - `/api/users` (CRUD), `/api/roles`
 - `/api/groups`, `/api/items`
-- `/api/customers`, `/api/customers/{id}/stock`
+- `/api/destinations`, `/api/deposits`
 - `/api/stock/request`, `/api/stock/approve/{id}`, `/api/stock/reject/{id}`, `/api/stock/requests`
 - `/api/logs/movements`
-- `/api/reports/stock`
+- `/api/reports/stock/by-group`, `/api/reports/stock/by-deposit`
 
 Todas las rutas (excepto `POST /api/auth/login` y `POST /api/auth/refresh`) requieren encabezado `Authorization: Bearer <token>` generado desde el login.
 

@@ -190,20 +190,45 @@ function serializeItem(doc) {
     groupId: group ? group.id : doc.group,
     group: group ? { id: group.id, name: group.name } : null,
     attributes: toPlainAttributes(doc.attributes),
-    stock: doc.stock,
+    stock: toPlainStock(doc.stock),
     images: Array.isArray(doc.images) ? doc.images : [],
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt
   };
 }
 
+function toPlainStock(stock) {
+  const plain = {};
+  if (stock instanceof Map) {
+    for (const [key, value] of stock.entries()) {
+      if (value === null || value === undefined) {
+        continue;
+      }
+      plain[key] = normalizeQuantityInput(value, { allowZero: true, fieldName: `Stock ${key}` });
+    }
+  } else if (stock && typeof stock === 'object') {
+    Object.entries(stock).forEach(([key, value]) => {
+      if (value === null || value === undefined) {
+        return;
+      }
+      plain[key] = normalizeQuantityInput(value, { allowZero: true, fieldName: `Stock ${key}` });
+    });
+  }
+  return plain;
+}
+
 function buildStock(input = {}) {
   const stock = {};
-  for (const key of ['general', 'overstockGeneral', 'overstockThibe', 'overstockArenal']) {
-    const value = input[key];
-    if (value === undefined) continue;
-    stock[key] = normalizeQuantityInput(value, { allowZero: true, fieldName: `Stock ${key}` });
+  if (!input || typeof input !== 'object') {
+    return stock;
   }
+  Object.entries(input).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') {
+      stock[key] = null;
+    } else {
+      stock[key] = normalizeQuantityInput(value, { allowZero: true, fieldName: `Stock ${key}` });
+    }
+  });
   return stock;
 }
 
@@ -287,7 +312,9 @@ router.post(
         throw new HttpError(400, 'Grupo inválido');
       }
     }
-    const stockData = buildStock(stock);
+    const stockData = Object.fromEntries(
+      Object.entries(buildStock(stock)).filter(([, value]) => value !== null)
+    );
     const { paths: sanitizedImages, newPaths: createdPaths } = await processIncomingImages(images);
     if (sanitizedImages.length > MAX_IMAGES) {
       await cleanupNewFiles(createdPaths);
@@ -358,8 +385,15 @@ router.put(
     }
     if (stock) {
       const stockUpdates = buildStock(stock);
+      if (!(item.stock instanceof Map)) {
+        item.stock = new Map(Object.entries(item.stock || {}));
+      }
       Object.entries(stockUpdates).forEach(([key, value]) => {
-        item.stock[key] = value;
+        if (value === null) {
+          item.stock.delete(key);
+        } else {
+          item.stock.set(key, value);
+        }
       });
     }
 

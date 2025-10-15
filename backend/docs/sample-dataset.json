@@ -191,20 +191,12 @@
                 "material": "Algodón con spandex"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 80,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 12,
-                    "units": 0
-                },
-                "overstockThibe": {
-                    "boxes": 0,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -230,20 +222,16 @@
                 "material": "Microfibra"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 65,
                     "units": 18
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 6,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -269,20 +257,16 @@
                 "threadCount": 400
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 40,
                     "units": 24
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 10,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 4,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -308,20 +292,16 @@
                 "material": "Cuero vacuno"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 55,
                     "units": 40
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 5,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -347,20 +327,16 @@
                 "material": "Denim 13oz"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 90,
                     "units": 12
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 9,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 3,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -386,20 +362,16 @@
                 "material": "Denim elástico"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 78,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 6,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -425,20 +397,16 @@
                 "material": "Denim 10oz"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 48,
                     "units": 18
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 5,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 1,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -464,19 +432,19 @@
                 "material": "Lino"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 60,
                     "units": 24
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 8,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
                     "units": 0
                 },
-                "overstockArenal": {
+                "64b3e2d5a6f0c8b1a1a1a1a4": {
                     "boxes": 1,
                     "units": 0
                 }
@@ -503,19 +471,19 @@
                 "material": "Satén"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 52,
                     "units": 30
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 7,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
                     "units": 0
                 },
-                "overstockArenal": {
+                "64b3e2d5a6f0c8b1a1a1a1a4": {
                     "boxes": 1,
                     "units": 0
                 }
@@ -542,20 +510,16 @@
                 "material": "Algodón y poliéster"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 70,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 6,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -581,19 +545,19 @@
                 "material": "Tejido knit"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 88,
                     "units": 12
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 10,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 4,
                     "units": 0
                 },
-                "overstockArenal": {
+                "64b3e2d5a6f0c8b1a1a1a1a4": {
                     "boxes": 1,
                     "units": 0
                 }
@@ -619,20 +583,16 @@
                 "connectivity": "Bluetooth 5.3"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 36,
                     "units": 48
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 6,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 3,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -657,20 +617,16 @@
                 "color": "Multicolor"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 54,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 5,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -695,19 +651,19 @@
                 "material": "Poliéster 600D"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 72,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 8,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
                     "units": 0
                 },
-                "overstockArenal": {
+                "64b3e2d5a6f0c8b1a1a1a1a4": {
                     "boxes": 1,
                     "units": 0
                 }
@@ -734,20 +690,16 @@
                 "material": "Poliéster"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 64,
                     "units": 36
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 7,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 1,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -773,20 +725,16 @@
                 "material": "Algodón peinado"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 58,
                     "units": 24
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 4,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -812,20 +760,16 @@
                 "material": "Lana merino"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 46,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 5,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 1,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -850,20 +794,16 @@
                 "material": "Microfibra"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 38,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 6,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -889,20 +829,16 @@
                 "material": "Lino viscosa"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 44,
                     "units": 18
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 5,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -928,20 +864,16 @@
                 "material": "Poliéster viscosa"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 42,
                     "units": 6
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 4,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -967,20 +899,16 @@
                 "material": "Ripstop"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 50,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 5,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 1,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -1006,20 +934,16 @@
                 "material": "Cuero y membrana"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 34,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 5,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -1044,20 +968,16 @@
                 "battery": "7 días"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 52,
                     "units": 36
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 6,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 3,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -1082,20 +1002,16 @@
                 "color": "Multicolor"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 46,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 4,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 1,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -1120,20 +1036,16 @@
                 "material": "Poliéster"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 68,
                     "units": 0
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 6,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 1,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -1159,20 +1071,16 @@
                 "material": "Lana merino"
             },
             "stock": {
-                "general": {
+                "64b3e2d5a6f0c8b1a1a1a1a1": {
                     "boxes": 44,
                     "units": 30
                 },
-                "overstockGeneral": {
+                "64b3e2d5a6f0c8b1a1a1a1a2": {
                     "boxes": 5,
                     "units": 0
                 },
-                "overstockThibe": {
+                "64b3e2d5a6f0c8b1a1a1a1a3": {
                     "boxes": 2,
-                    "units": 0
-                },
-                "overstockArenal": {
-                    "boxes": 0,
                     "units": 0
                 }
             },
@@ -1181,113 +1089,6 @@
             ],
             "createdAt": "2024-04-09T10:00:00Z",
             "updatedAt": "2024-05-24T10:00:00Z"
-        }
-    ],
-    "customers": [
-        {
-            "_id": {
-                "$oid": "b9a7d24a650795fb89b8fc67"
-            },
-            "name": "Boutique Central",
-            "contactInfo": "Lucía Nóbile - lnobile@boutiquecentral.com - +54 11 4444-8899",
-            "status": "active",
-            "createdAt": "2024-02-01T11:00:00.000Z",
-            "updatedAt": "2024-05-15T16:30:00.000Z"
-        },
-        {
-            "_id": {
-                "$oid": "3c20796c8ef9e72714855520"
-            },
-            "name": "Tiendas Atlántico",
-            "contactInfo": "Rodrigo Méndez - rmendez@atlanticotiendas.com - +54 223 555-7711",
-            "status": "active",
-            "createdAt": "2024-02-12T09:45:00.000Z",
-            "updatedAt": "2024-05-18T12:15:00.000Z"
-        },
-        {
-            "_id": {
-                "$oid": "e3cd4d22c2a6180fd3280643"
-            },
-            "name": "Mercado del Sur",
-            "contactInfo": "Paula Figueroa - pfigueroa@mercadelsur.com - +54 261 455-3200",
-            "status": "active",
-            "createdAt": "2024-03-04T14:05:00.000Z",
-            "updatedAt": "2024-05-19T18:10:00.000Z"
-        },
-        {
-            "_id": {
-                "$oid": "31afe13cf0c248dcb63eebaa"
-            },
-            "name": "Distribuidora Patagónica",
-            "contactInfo": "María Paredes - mp@distribuidorapata.com - +54 9 299 455-8899",
-            "status": "inactive",
-            "createdAt": "2024-02-10T14:20:00.000Z",
-            "updatedAt": "2024-05-05T19:05:00.000Z"
-        }
-    ],
-    "customerStocks": [
-        {
-            "_id": {
-                "$oid": "fd1c73638a4da47a9f3530e3"
-            },
-            "customer": {
-                "$oid": "b9a7d24a650795fb89b8fc67"
-            },
-            "item": {
-                "$oid": "93d07de07c4dcb8912ca955a"
-            },
-            "quantity": {
-                "boxes": 18,
-                "units": 0
-            },
-            "status": "reserved",
-            "boxLabel": "BC-2024-051",
-            "dateCreated": "2024-05-12T13:40:00.000Z",
-            "dateDelivered": null,
-            "createdAt": "2024-05-12T13:40:00.000Z",
-            "updatedAt": "2024-05-12T13:40:00.000Z"
-        },
-        {
-            "_id": {
-                "$oid": "8a8dbc8ff5c7bfda303b9401"
-            },
-            "customer": {
-                "$oid": "3c20796c8ef9e72714855520"
-            },
-            "item": {
-                "$oid": "81231e01c58b6bfa641b081a"
-            },
-            "quantity": {
-                "boxes": 6,
-                "units": 12
-            },
-            "status": "delivered",
-            "boxLabel": "TA-2024-033",
-            "dateCreated": "2024-04-18T09:05:00.000Z",
-            "dateDelivered": "2024-04-25T10:20:00.000Z",
-            "createdAt": "2024-04-18T09:05:00.000Z",
-            "updatedAt": "2024-04-25T10:20:00.000Z"
-        },
-        {
-            "_id": {
-                "$oid": "57752a45f42de2a9f1f194f8"
-            },
-            "customer": {
-                "$oid": "e3cd4d22c2a6180fd3280643"
-            },
-            "item": {
-                "$oid": "df404b80561bc7f9464f7e49"
-            },
-            "quantity": {
-                "boxes": 12,
-                "units": 0
-            },
-            "status": "reserved",
-            "boxLabel": "MS-2024-019",
-            "dateCreated": "2024-05-20T11:30:00.000Z",
-            "dateDelivered": null,
-            "createdAt": "2024-05-20T11:30:00.000Z",
-            "updatedAt": "2024-05-20T11:30:00.000Z"
         }
     ],
     "movementRequests": [
@@ -1299,8 +1100,6 @@
                 "$oid": "93d07de07c4dcb8912ca955a"
             },
             "type": "transfer",
-            "fromList": "general",
-            "toList": "customer",
             "quantity": {
                 "boxes": 18,
                 "units": 0
@@ -1317,12 +1116,14 @@
             "approvedAt": "2024-05-12T13:25:00.000Z",
             "executedAt": "2024-05-12T13:40:00.000Z",
             "rejectedReason": null,
-            "customer": {
-                "$oid": "b9a7d24a650795fb89b8fc67"
-            },
-            "boxLabel": "BC-2024-051",
             "createdAt": "2024-05-12T13:15:00.000Z",
-            "updatedAt": "2024-05-12T13:40:00.000Z"
+            "updatedAt": "2024-05-12T13:40:00.000Z",
+            "fromDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
+            },
+            "toDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
+            }
         },
         {
             "_id": {
@@ -1331,9 +1132,7 @@
             "item": {
                 "$oid": "dc263a50dcdedd4cfad1b3b3"
             },
-            "type": "out",
-            "fromList": "general",
-            "toList": null,
+            "type": "transfer",
             "quantity": {
                 "boxes": 12,
                 "units": 0
@@ -1350,10 +1149,14 @@
             "approvedAt": "2024-05-18T10:20:00.000Z",
             "executedAt": null,
             "rejectedReason": null,
-            "customer": null,
-            "boxLabel": null,
             "createdAt": "2024-05-18T10:05:00.000Z",
-            "updatedAt": "2024-05-18T10:20:00.000Z"
+            "updatedAt": "2024-05-18T10:20:00.000Z",
+            "fromDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
+            },
+            "toDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
+            }
         },
         {
             "_id": {
@@ -1363,8 +1166,6 @@
                 "$oid": "81231e01c58b6bfa641b081a"
             },
             "type": "transfer",
-            "fromList": "overstockGeneral",
-            "toList": "general",
             "quantity": {
                 "boxes": 5,
                 "units": 0
@@ -1379,10 +1180,14 @@
             "approvedAt": null,
             "executedAt": "2024-05-05T09:00:00.000Z",
             "rejectedReason": null,
-            "customer": null,
-            "boxLabel": null,
             "createdAt": "2024-05-05T08:35:00.000Z",
-            "updatedAt": "2024-05-05T09:00:00.000Z"
+            "updatedAt": "2024-05-05T09:00:00.000Z",
+            "fromDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a2"
+            },
+            "toDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
+            }
         },
         {
             "_id": {
@@ -1392,8 +1197,6 @@
                 "$oid": "81437fc495129783221b2488"
             },
             "type": "transfer",
-            "fromList": "overstockThibe",
-            "toList": "general",
             "quantity": {
                 "boxes": 2,
                 "units": 0
@@ -1408,10 +1211,14 @@
             "approvedAt": null,
             "executedAt": "2024-05-14T09:05:00.000Z",
             "rejectedReason": null,
-            "customer": null,
-            "boxLabel": null,
             "createdAt": "2024-05-14T08:40:00.000Z",
-            "updatedAt": "2024-05-14T09:05:00.000Z"
+            "updatedAt": "2024-05-14T09:05:00.000Z",
+            "fromDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a3"
+            },
+            "toDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
+            }
         },
         {
             "_id": {
@@ -1421,8 +1228,6 @@
                 "$oid": "df404b80561bc7f9464f7e49"
             },
             "type": "transfer",
-            "fromList": "general",
-            "toList": "customer",
             "quantity": {
                 "boxes": 12,
                 "units": 0
@@ -1439,12 +1244,14 @@
             "approvedAt": "2024-05-20T11:25:00.000Z",
             "executedAt": null,
             "rejectedReason": null,
-            "customer": {
-                "$oid": "e3cd4d22c2a6180fd3280643"
-            },
-            "boxLabel": "MS-2024-019",
             "createdAt": "2024-05-20T11:10:00.000Z",
-            "updatedAt": "2024-05-20T11:25:00.000Z"
+            "updatedAt": "2024-05-20T11:25:00.000Z",
+            "fromDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
+            },
+            "toDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
+            }
         },
         {
             "_id": {
@@ -1453,9 +1260,7 @@
             "item": {
                 "$oid": "d75af315f54d25debf6f7dff"
             },
-            "type": "out",
-            "fromList": "general",
-            "toList": null,
+            "type": "transfer",
             "quantity": {
                 "boxes": 8,
                 "units": 0
@@ -1470,10 +1275,14 @@
             "approvedAt": null,
             "executedAt": null,
             "rejectedReason": null,
-            "customer": null,
-            "boxLabel": null,
             "createdAt": "2024-05-22T09:15:00.000Z",
-            "updatedAt": "2024-05-22T09:15:00.000Z"
+            "updatedAt": "2024-05-22T09:15:00.000Z",
+            "fromDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
+            },
+            "toDeposit": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
+            }
         }
     ],
     "movementLogs": [
@@ -1687,5 +1496,100 @@
                 "notes": "Pedido minorista Patagonia"
             }
         }
+    ],
+    "deposits": [
+        {
+            "_id": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
+            },
+            "name": "Depósito General",
+            "description": "Stock disponible para despacho principal",
+            "status": "active",
+            "createdAt": "2024-03-01T10:00:00.000Z",
+            "updatedAt": "2024-05-20T15:00:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a2"
+            },
+            "name": "Sobrestock General",
+            "description": "Excedentes almacenados en depósito secundario",
+            "status": "active",
+            "createdAt": "2024-03-01T10:00:00.000Z",
+            "updatedAt": "2024-05-20T15:00:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a3"
+            },
+            "name": "Sobrestock Thibe",
+            "description": "Mercadería consignada por Thibe",
+            "status": "active",
+            "createdAt": "2024-03-01T10:00:00.000Z",
+            "updatedAt": "2024-05-20T15:00:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a4"
+            },
+            "name": "Sobrestock Arenal",
+            "description": "Mercadería consignada por Arenal Import",
+            "status": "active",
+            "createdAt": "2024-03-01T10:00:00.000Z",
+            "updatedAt": "2024-05-20T15:00:00.000Z"
+        },
+        {
+            "_id": {
+                "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
+            },
+            "name": "Preparación de despachos",
+            "description": "Mercadería separada para envíos a destinos",
+            "status": "active",
+            "createdAt": "2024-03-01T10:00:00.000Z",
+            "updatedAt": "2024-05-20T15:00:00.000Z"
+        }
+    ],
+    "destinations": [
+        {
+            "_id": {
+                "$oid": "b9a7d24a650795fb89b8fc67"
+            },
+            "name": "Boutique Central",
+            "contactInfo": "Lucía Nóbile - lnobile@boutiquecentral.com - +54 11 4444-8899",
+            "createdAt": "2024-02-01T11:00:00.000Z",
+            "updatedAt": "2024-05-15T16:30:00.000Z",
+            "status": "active"
+        },
+        {
+            "_id": {
+                "$oid": "3c20796c8ef9e72714855520"
+            },
+            "name": "Tiendas Atlántico",
+            "contactInfo": "Rodrigo Méndez - rmendez@atlanticotiendas.com - +54 223 555-7711",
+            "createdAt": "2024-02-12T09:45:00.000Z",
+            "updatedAt": "2024-05-18T12:15:00.000Z",
+            "status": "active"
+        },
+        {
+            "_id": {
+                "$oid": "e3cd4d22c2a6180fd3280643"
+            },
+            "name": "Mercado del Sur",
+            "contactInfo": "Paula Figueroa - pfigueroa@mercadelsur.com - +54 261 455-3200",
+            "createdAt": "2024-03-04T14:05:00.000Z",
+            "updatedAt": "2024-05-19T18:10:00.000Z",
+            "status": "active"
+        },
+        {
+            "_id": {
+                "$oid": "31afe13cf0c248dcb63eebaa"
+            },
+            "name": "Distribuidora Patagónica",
+            "contactInfo": "María Paredes - mp@distribuidorapata.com - +54 9 299 455-8899",
+            "createdAt": "2024-02-10T14:20:00.000Z",
+            "updatedAt": "2024-05-05T19:05:00.000Z",
+            "status": "active"
+        }
     ]
 }
+

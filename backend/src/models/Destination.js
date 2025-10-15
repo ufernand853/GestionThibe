@@ -1,6 +1,6 @@
 const { Schema, model } = require('mongoose');
 
-const customerSchema = new Schema(
+const destinationSchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     contactInfo: { type: String, default: '' },
@@ -12,4 +12,4 @@ const customerSchema = new Schema(
   }
 );
 
-module.exports = model('Customer', customerSchema);
+module.exports = model('Destination', destinationSchema);

@@ -1,8 +1,7 @@
-
 openapi: 3.0.3
 info:
-  title: Stock & Customers API
-  version: 0.1.0
+  title: Stock Multidepósito API
+  version: 0.2.0
 servers:
   - url: http://localhost:3000
 paths:
@@ -12,67 +11,175 @@ paths:
       responses:
         '200':
           description: OK
+  /api/auth/refresh:
+    post:
+      summary: Refresh access token
+      responses:
+        '200':
+          description: OK
   /api/users:
     get:
       summary: List users
-      responses: { '200': { description: OK } }
+      responses:
+        '200':
+          description: OK
     post:
       summary: Create user
-      responses: { '201': { description: Created } }
+      responses:
+        '201':
+          description: Created
   /api/users/{id}:
     put:
       summary: Update user
-      responses: { '200': { description: OK } }
+      responses:
+        '200':
+          description: OK
     delete:
       summary: Disable user
-      responses: { '204': { description: No Content } }
-  /api/items:
+      responses:
+        '204':
+          description: No Content
+  /api/roles:
     get:
-      summary: List items (filters by facets)
-      responses: { '200': { description: OK } }
-    post:
-      summary: Create item
-      responses: { '201': { description: Created } }
+      summary: List roles and permissions
+      responses:
+        '200':
+          description: OK
   /api/groups:
     get:
       summary: List groups
-      responses: { '200': { description: OK } }
+      responses:
+        '200':
+          description: OK
     post:
       summary: Create group
-      responses: { '201': { description: Created } }
+      responses:
+        '201':
+          description: Created
   /api/groups/{id}:
     put:
       summary: Update group
-      responses: { '200': { description: OK } }
+      responses:
+        '200':
+          description: OK
     delete:
       summary: Delete group
-      responses: { '204': { description: No Content } }
-  /api/customers/{id}/stock:
+      responses:
+        '204':
+          description: No Content
+  /api/items:
     get:
-      summary: View customer stock
-      responses: { '200': { description: OK } }
+      summary: List items (filters by attributes and group)
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create item
+      responses:
+        '201':
+          description: Created
+  /api/items/{id}:
+    put:
+      summary: Update item
+      responses:
+        '200':
+          description: OK
+  /api/deposits:
+    get:
+      summary: List deposits
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create deposit
+      responses:
+        '201':
+          description: Created
+  /api/deposits/{id}:
+    put:
+      summary: Update deposit
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete deposit
+      responses:
+        '200':
+          description: Deleted
+  /api/destinations:
+    get:
+      summary: List destinations
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create destination
+      responses:
+        '201':
+          description: Created
+  /api/destinations/{id}:
+    put:
+      summary: Update destination
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete destination
+      responses:
+        '200':
+          description: Deleted
   /api/stock/request:
     post:
-      summary: Request a stock movement (requires auth)
-      responses: { '201': { description: Created } }
+      summary: Request a deposit-to-deposit transfer
+      responses:
+        '201':
+          description: Created
   /api/stock/request/{requestId}/resubmit:
     post:
       summary: Resubmit a rejected movement request
-      responses: { '200': { description: Resubmitted } }
+      responses:
+        '200':
+          description: Resubmitted
   /api/stock/approve/{requestId}:
     post:
-      summary: Approve and execute movement (Admin)
-      responses: { '200': { description: Executed } }
+      summary: Approve and execute movement (requires stock.approve)
+      responses:
+        '200':
+          description: Executed
   /api/stock/reject/{requestId}:
     post:
-      summary: Reject movement (Admin)
-      responses: { '200': { description: Rejected } }
+      summary: Reject movement (requires stock.approve)
+      responses:
+        '200':
+          description: Rejected
   /api/stock/requests:
     get:
       summary: List movement requests
-      responses: { '200': { description: OK } }
+      responses:
+        '200':
+          description: OK
+  /api/stock/deposits:
+    get:
+      summary: List deposits with minimal metadata for stock workflows
+      responses:
+        '200':
+          description: OK
   /api/logs/movements:
     get:
-      summary: Read audit logs
-      responses: { '200': { description: OK } }
+      summary: Read movement audit logs
+      responses:
+        '200':
+          description: OK
+  /api/reports/stock/by-group:
+    get:
+      summary: Stock report grouped by taxonomy
+      responses:
+        '200':
+          description: OK
+  /api/reports/stock/by-deposit:
+    get:
+      summary: Stock report aggregated by deposit
+      responses:
+        '200':
+          description: OK
 components: {}

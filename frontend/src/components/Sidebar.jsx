@@ -7,7 +7,8 @@ const NAV_ITEMS = [
   { to: '/groups', label: 'Grupos', permission: 'items.write' },
   { to: '/requests', label: 'Solicitudes', permission: 'stock.request' },
   { to: '/approvals', label: 'Aprobaciones', permission: 'stock.approve' },
-  { to: '/customers', label: 'Clientes', permission: 'items.read' },
+  { to: '/destinations', label: 'Destinos', permission: 'items.read' },
+  { to: '/deposits', label: 'Depósitos', permission: 'items.write' },
   { to: '/reports', label: 'Reportes', permission: 'reports.read' },
   { to: '/audit', label: 'Auditoría', permission: 'stock.logs.read' },
   { to: '/users', label: 'Usuarios', permission: 'users.read' }

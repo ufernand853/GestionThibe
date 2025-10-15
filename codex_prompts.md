@@ -5,7 +5,7 @@ Genera esquemas Mongoose para las entidades definidas en `SPEC.md`:
 - Users, Roles
 - Items, Groups
 - MovementRequest, MovementLog
-- Customers, CustomerStock
+- Deposits, Destinations
 
 Requisitos: timestamps, índices útiles (code, groupId, attributes.gender/size/color), validaciones básicas, enum de estados.
 
@@ -30,12 +30,12 @@ Actualizar stocks de manera transaccional al aprobar."
 
 ## 4) Logging de Auditoría
 > Prompt:
-"Implementa el servicio `AuditLogger` que persista `MovementLog` para acciones: requested, approved, rejected, executed, rollback, con ip y userAgent. 
-Crea endpoint GET /api/logs/movements con filtros por fecha, usuario, itemId, customerId, tipo de acción y status."
+"Implementa el servicio `AuditLogger` que persista `MovementLog` para acciones: requested, approved, rejected, executed, rollback, con ip y userAgent.
+Crea endpoint GET /api/logs/movements con filtros por fecha, usuario, itemId, fromDepositId, toDepositId, tipo de acción y status."
 
 ## 5) Endpoints de Catálogo
 > Prompt:
-"Implementa CRUD de Items, Groups, Customers y soporte de facetas (género, talla, color). 
+"Implementa CRUD de Items, Groups, Deposits y Destinations con soporte de facetas (género, talla, color).
 GET /api/items debe permitir filtros por facetas y paginación; responde en <1s con índices adecuados."
 
 ## 6) Frontend Básico (React)

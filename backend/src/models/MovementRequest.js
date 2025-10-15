@@ -5,9 +5,9 @@ const quantitySubSchema = require('./schemas/quantity');
 const movementRequestSchema = new Schema(
   {
     item: { type: Types.ObjectId, ref: 'Item', required: true },
-    type: { type: String, enum: ['in', 'out', 'transfer'], required: true },
-    fromList: { type: String, default: null },
-    toList: { type: String, default: null },
+    type: { type: String, enum: ['transfer'], default: 'transfer' },
+    fromDeposit: { type: Types.ObjectId, ref: 'Deposit', required: true },
+    toDeposit: { type: Types.ObjectId, ref: 'Deposit', required: true },
     quantity: { type: quantitySubSchema, required: true, default: () => coerceQuantity() },
     reason: { type: String, default: '' },
     requestedBy: { type: Types.ObjectId, ref: 'User', required: true },
@@ -16,9 +16,7 @@ const movementRequestSchema = new Schema(
     approvedBy: { type: Types.ObjectId, ref: 'User', default: null },
     approvedAt: { type: Date, default: null },
     executedAt: { type: Date, default: null },
-    rejectedReason: { type: String, default: null },
-    customer: { type: Types.ObjectId, ref: 'Customer', default: null },
-    boxLabel: { type: String, default: null, trim: true }
+    rejectedReason: { type: String, default: null }
   },
   {
     timestamps: true,

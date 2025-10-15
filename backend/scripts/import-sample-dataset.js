@@ -135,24 +135,30 @@ const converters = {
     _id: resolveObjectId('items', doc._id),
     group: resolveObjectId('groups', doc.group)
   }),
-  customers: (doc) => ({
+  destinations: (doc) => ({
     ...doc,
-    _id: resolveObjectId('customers', doc._id)
+    _id: resolveObjectId('destinations', doc._id)
   }),
-  customerStocks: (doc) => ({
+  deposits: (doc) => ({
     ...doc,
-    _id: resolveObjectId('customerStocks', doc._id),
-    customer: resolveObjectId('customers', doc.customer),
-    item: resolveObjectId('items', doc.item)
+    _id: resolveObjectId('deposits', doc._id)
   }),
-  movementRequests: (doc) => ({
-    ...doc,
-    _id: resolveObjectId('movementRequests', doc._id),
-    item: resolveObjectId('items', doc.item),
-    requestedBy: resolveObjectId('users', doc.requestedBy),
-    approvedBy: resolveObjectId('users', doc.approvedBy),
-    customer: resolveObjectId('customers', doc.customer)
-  }),
+  movementRequests: (doc) => {
+    const fromDeposit = doc.fromDeposit ? resolveObjectId('deposits', doc.fromDeposit) : null;
+    const toDeposit = doc.toDeposit ? resolveObjectId('deposits', doc.toDeposit) : null;
+    if (!fromDeposit || !toDeposit) {
+      return null;
+    }
+    return {
+      ...doc,
+      _id: resolveObjectId('movementRequests', doc._id),
+      item: resolveObjectId('items', doc.item),
+      requestedBy: resolveObjectId('users', doc.requestedBy),
+      approvedBy: resolveObjectId('users', doc.approvedBy),
+      fromDeposit,
+      toDeposit
+    };
+  },
   movementLogs: (doc) => ({
     ...doc,
     _id: resolveObjectId('movementLogs', doc._id),
@@ -166,8 +172,8 @@ const collectionMap = {
   roles: 'roles',
   users: 'users',
   items: 'items',
-  customers: 'customers',
-  customerStocks: 'customerstocks',
+  destinations: 'destinations',
+  deposits: 'deposits',
   movementRequests: 'movementrequests',
   movementLogs: 'movementlogs'
 };
@@ -198,12 +204,16 @@ const run = async () => {
 
       const transformer = converters[datasetKey];
       const documentsToInsert = transformer
-        ? documents.map((doc) => transformer(doc))
+        ? documents.map((doc) => transformer(doc)).filter(Boolean)
         : documents;
+
+      if (documentsToInsert.length === 0) {
+        continue;
+      }
 
       try {
         const insertResult = await collection.insertMany(documentsToInsert, { ordered: true });
-        const insertedCount = insertResult.insertedCount ?? documents.length;
+        const insertedCount = insertResult.insertedCount ?? documentsToInsert.length;
         summary.push({ datasetKey, collectionName, insertedCount, deletedCount });
       } catch (error) {
         if (error.code === 11000) {
