@@ -56,9 +56,12 @@ export default function ReportsPage() {
     groupData.forEach(group => {
       (group.items || []).forEach(item => {
         items.push({
+          ...item,
           groupId: group.id,
           groupName: group.name || 'Sin grupo',
-          ...item
+          stockByDeposit: Array.isArray(item.stockByDeposit) ? item.stockByDeposit : [],
+          code: item.code ?? '',
+          description: item.description ?? ''
         });
       });
     });
@@ -85,7 +88,7 @@ export default function ReportsPage() {
 
   const handleExport = () => {
     const rows = filteredItems.map(item => {
-      const totals = item.stockByDeposit.reduce(
+      const totals = (item.stockByDeposit || []).reduce(
         (acc, entry) => sumQuantities(acc, ensureQuantity(entry.quantity)),
         { boxes: 0, units: 0 }
       );
@@ -162,7 +165,8 @@ export default function ReportsPage() {
             </thead>
             <tbody>
               {filteredItems.map(item => {
-                const total = item.stockByDeposit.reduce(
+                const deposits = item.stockByDeposit || [];
+                const total = deposits.reduce(
                   (acc, entry) => sumQuantities(acc, ensureQuantity(entry.quantity)),
                   { boxes: 0, units: 0 }
                 );
@@ -173,7 +177,7 @@ export default function ReportsPage() {
                     <td>{item.groupName}</td>
                     <td>
                       <div className="chip-list">
-                        {item.stockByDeposit.map(entry => (
+                        {deposits.map(entry => (
                           <span key={entry.depositId || entry.deposit?.id || Math.random()} className="badge">
                             {entry.deposit?.name || 'Depósito'} · {formatQuantity(entry.quantity, { compact: true })}
                           </span>
