@@ -8,6 +8,20 @@ const { normalizeStoredQuantity } = require('../services/stockService');
 
 const router = express.Router();
 
+function ensureQuantity(value) {
+  const normalized = normalizeStoredQuantity(value);
+  return {
+    boxes: Number.isFinite(normalized.boxes) ? normalized.boxes : 0,
+    units: Number.isFinite(normalized.units) ? normalized.units : 0
+  };
+}
+
+function addQuantity(target, quantity) {
+  const normalized = ensureQuantity(quantity);
+  target.boxes += normalized.boxes;
+  target.units += normalized.units;
+}
+
 function mapStockToArray(stock, locationsById) {
   const entries = [];
   if (stock instanceof Map) {
@@ -46,20 +60,30 @@ router.get(
     );
     const groupIndex = new Map();
     groups.forEach(group => {
-      groupIndex.set(group.id, { id: group.id, name: group.name, items: [] });
+      groupIndex.set(group.id, { id: group.id, name: group.name, items: [], total: { boxes: 0, units: 0 } });
     });
 
-    const ungrouped = { id: null, name: 'Sin grupo', items: [] };
+    const ungrouped = { id: null, name: 'Sin grupo', items: [], total: { boxes: 0, units: 0 } };
 
     items.forEach(item => {
       const stockEntries = mapStockToArray(item.stock, locationsById);
       const targetGroup = item.group ? groupIndex.get(item.group.id) : ungrouped;
+      const itemTotal = stockEntries.reduce(
+        (acc, entry) => {
+          addQuantity(acc, entry.quantity);
+          return acc;
+        },
+        { boxes: 0, units: 0 }
+      );
+
       targetGroup.items.push({
         id: item.id,
         code: item.code,
         description: item.description,
-        stockByLocation: stockEntries
+        stockByLocation: stockEntries,
+        total: itemTotal
       });
+      addQuantity(targetGroup.total, itemTotal);
     });
 
     const response = Array.from(groupIndex.values()).filter(group => group.items.length > 0);
