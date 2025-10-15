@@ -3,22 +3,14 @@ const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission, requireAuth } = require('../middlewares/auth');
 const MovementRequest = require('../models/MovementRequest');
+const Deposit = require('../models/Deposit');
 const {
   validateMovementPayload,
   executeMovement,
   addMovementLog,
-  ensureCustomerExists,
   findItemOrThrow,
   normalizeStoredQuantity
 } = require('../services/stockService');
-
-const LIST_LABELS = {
-  general: 'Depósito General',
-  overstockGeneral: 'Sobrestock General',
-  overstockThibe: 'Sobrestock Thibe',
-  overstockArenal: 'Sobrestock Arenal',
-  customer: 'Cliente reservado'
-};
 
 function serializeUserSummary(user) {
   if (!user) return null;
@@ -29,22 +21,19 @@ function serializeUserSummary(user) {
   };
 }
 
-function getId(value) {
-  if (!value) return value;
-  return value.id || value;
-}
-
-function formatListLabel(value) {
-  if (!value) {
-    return null;
-  }
-  return LIST_LABELS[value] || null;
+function serializeDepositSummary(deposit) {
+  if (!deposit) return null;
+  return {
+    id: deposit.id,
+    name: deposit.name,
+    description: deposit.description || ''
+  };
 }
 
 function serializeMovementRequest(doc) {
   return {
     id: doc.id,
-    itemId: getId(doc.item),
+    itemId: doc.item?.id || doc.item,
     item: doc.populated('item')
       ? {
           id: doc.item.id,
@@ -53,28 +42,19 @@ function serializeMovementRequest(doc) {
         }
       : null,
     type: doc.type,
-    fromList: doc.fromList,
-    toList: doc.toList,
-    fromListLabel: formatListLabel(doc.fromList),
-    toListLabel: formatListLabel(doc.toList),
+    fromDepositId: doc.fromDeposit?.id || doc.fromDeposit,
+    fromDeposit: doc.populated('fromDeposit') ? serializeDepositSummary(doc.fromDeposit) : null,
+    toDepositId: doc.toDeposit?.id || doc.toDeposit,
+    toDeposit: doc.populated('toDeposit') ? serializeDepositSummary(doc.toDeposit) : null,
     quantity: normalizeStoredQuantity(doc.quantity),
     reason: doc.reason,
-    boxLabel: doc.boxLabel || null,
     requestedBy: doc.populated('requestedBy') ? serializeUserSummary(doc.requestedBy) : doc.requestedBy,
     requestedAt: doc.requestedAt,
     status: doc.status,
     approvedBy: doc.populated('approvedBy') ? serializeUserSummary(doc.approvedBy) : doc.approvedBy,
     approvedAt: doc.approvedAt,
     executedAt: doc.executedAt,
-    rejectedReason: doc.rejectedReason,
-    customerId: getId(doc.customer),
-    customer: doc.populated('customer')
-      ? {
-          id: doc.customer.id,
-          name: doc.customer.name,
-          status: doc.customer.status
-        }
-      : null
+    rejectedReason: doc.rejectedReason
   };
 }
 
@@ -92,37 +72,25 @@ router.post(
   requirePermission('stock.request'),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const { quantity } = validateMovementPayload(body);
-    const normalizedBoxLabel =
-      typeof body.boxLabel === 'string' && body.boxLabel.trim().length > 0
-        ? body.boxLabel.trim()
-        : null;
+    const { quantity, fromDeposit, toDeposit } = await validateMovementPayload(body);
     await findItemOrThrow(body.itemId);
-    if (body.customerId) {
-      await ensureCustomerExists(body.customerId);
-    }
+
     const movementRequest = new MovementRequest({
       item: body.itemId,
-      type: body.type,
-      fromList: body.fromList || null,
-      toList: body.toList || null,
+      type: 'transfer',
+      fromDeposit: fromDeposit._id,
+      toDeposit: toDeposit._id,
       quantity,
       reason: body.reason || '',
       requestedBy: req.user.id,
       requestedAt: new Date(),
-      status: 'pending',
-      customer: body.customerId || null,
-      boxLabel: normalizedBoxLabel
+      status: 'pending'
     });
+
     await movementRequest.save();
     await addMovementLog(movementRequest.id, 'requested', req.user.id, requestMetadata(req));
-    if (movementRequest.type === 'in') {
-      movementRequest.status = 'executed';
-      await executeMovement(movementRequest, req.user.id, requestMetadata(req));
-    } else {
-      await movementRequest.populate(['item', 'requestedBy', 'customer']);
-    }
-    const populated = await movementRequest.populate(['item', 'requestedBy', 'approvedBy', 'customer']);
+
+    const populated = await movementRequest.populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit']);
     res.status(201).json(serializeMovementRequest(populated));
   })
 );
@@ -144,7 +112,7 @@ router.post(
     request.approvedAt = new Date();
     await addMovementLog(request.id, 'approved', req.user.id, requestMetadata(req));
     await executeMovement(request, req.user.id, requestMetadata(req));
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'customer']);
+    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit']);
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -168,7 +136,7 @@ router.post(
     request.approvedAt = new Date();
     await request.save();
     await addMovementLog(request.id, 'rejected', req.user.id, requestMetadata(req));
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'customer']);
+    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit']);
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -187,7 +155,7 @@ router.get(
       filter.status = status;
     }
     const requests = await MovementRequest.find(filter)
-      .populate(['item', 'requestedBy', 'approvedBy', 'customer'])
+      .populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit'])
       .sort({ requestedAt: -1 });
     res.json(requests.map(serializeMovementRequest));
   })
@@ -203,26 +171,26 @@ router.post(
       throw new HttpError(404, 'Solicitud no encontrada');
     }
     if (request.status !== 'rejected') {
-      throw new HttpError(400, 'Solo pueden reenviarse solicitudes rechazadas');
+      throw new HttpError(400, 'Solo se pueden reenviar solicitudes rechazadas');
     }
-
     request.status = 'pending';
-    request.rejectedReason = null;
-    request.approvedBy = null;
-    request.approvedAt = null;
-    request.executedAt = null;
-    request.requestedBy = req.user.id;
     request.requestedAt = new Date();
+    request.approvedAt = null;
+    request.approvedBy = null;
+    request.rejectedReason = null;
     await request.save();
-
     await addMovementLog(request.id, 'resubmitted', req.user.id, requestMetadata(req));
-
-    if (request.type === 'in') {
-      await executeMovement(request, req.user.id, requestMetadata(req));
-    }
-
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'customer']);
+    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit']);
     res.json(serializeMovementRequest(populated));
+  })
+);
+
+router.get(
+  '/deposits',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const deposits = await Deposit.find({}).sort({ name: 1 });
+    res.json(deposits.map(serializeDepositSummary));
   })
 );
 

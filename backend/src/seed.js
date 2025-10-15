@@ -3,6 +3,7 @@ const Role = require('./models/Role');
 const User = require('./models/User');
 const Group = require('./models/Group');
 const config = require('./config');
+const Deposit = require('./models/Deposit');
 
 const defaultRoles = [
   {
@@ -85,9 +86,26 @@ async function seedAdminUser() {
   }
 }
 
+const defaultDeposits = [
+  'Depósito General',
+  'Sobrestock General',
+  'Sobrestock Thibe',
+  'Sobrestock Arenal'
+];
+
+async function seedDeposits() {
+  for (const name of defaultDeposits) {
+    const existing = await Deposit.findOne({ name });
+    if (!existing) {
+      await Deposit.create({ name });
+    }
+  }
+}
+
 async function seed() {
   await seedRoles();
   await seedGroups();
+  await seedDeposits();
   await seedAdminUser();
 }
 

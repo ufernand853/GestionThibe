@@ -1,85 +1,86 @@
-# Proyecto Técnico – Gestión de Stock y Clientes
+# Proyecto Técnico – Gestión de Stock Multidepósito
 
 ## 1. Objetivo
-Desarrollar un sistema de gestión de stock que permita:
-- Controlar inventario en múltiples **grupos de artículos**.
-- Administrar **sobrestock** general y específico (Thibe, Arenal Import).
-- Gestionar **stock reservado para clientes** (evitar mezcla con stock general).
-- Registrar **movimientos** (entrada, salida, transferencia) con **flujo de autorización** por usuarios **rol Administrador** en salidas y movimientos críticos.
-- Mantener **auditoría completa (logs)** de movimientos y acciones críticas (ABM).
-- **ABM de usuarios** con **roles y permisos** (RBAC).
-- Consultar y exportar **reportes** de stock, movimientos y aprobaciones.
+Desarrollar un sistema de gestión de inventario enfocado en depósitos configurables que permita:
+- Controlar existencias de múltiples **grupos de artículos** con atributos flexibles.
+- Administrar **sobrestocks** específicos y depósitos intermedios para preparar envíos.
+- Gestionar **destinos comerciales** (clientes finales, franquicias, marketplaces) y su información de contacto.
+- Registrar **movimientos de transferencia entre depósitos** con flujos de autorización.
+- Mantener una **bitácora de auditoría** de los movimientos y de las operaciones críticas de ABM.
+- Operar con **roles y permisos** (RBAC) y autenticación JWT.
+- Consultar y exportar **reportes** de stock por depósito y por grupo.
 
 ---
 
 ## 2. Alcance Funcional
-- **Grupos de artículos (Taxonomía base)**: Medias, Ropa Interior, Blancos, Accesorios, Jean Hombre/Dama/Niño, Ropa Hombre/Dama/Niño, Calzado, Electrónicos, Juguetes, Escolares.
-- **Clasificaciones y atributos por producto (facetas)**:
-  - **Grupo**: Pantalones → (Jean, Deportivos, Chinos, Joggers, etc.).
+- **Taxonomía de artículos**: Medias, Ropa Interior, Blancos, Accesorios, Jean Hombre/Dama/Niño, Ropa Hombre/Dama/Niño, Calzado, Electrónicos, Juguetes, Escolares (extensible con jerarquía padre → subgrupo).
+- **Atributos configurables** por artículo:
   - **Género**: Dama, Caballero, Niño/a, Unisex.
-  - **Tamaños**: Sistema flexible (p.ej., S–XXL, 36–48, numérico calzado, talla niños).
-  - **Colores**: catálogo estándar + colores libres (hex/rgb) para variantes.
-  - **Atributos adicionales** por tipo de producto (ej.: material, temporada, calce).
-- **Listas de stock**:
-  - **Stock General**
-  - **Sobrestock** (General, Thibe, Arenal Import)
-  - **Clientes** (stock reservado por cliente)
+  - **Talle / tamaño**.
+  - **Color**.
+  - **Material**.
+  - **Temporada**.
+  - Otros campos libres según la categoría.
+- **Depósitos**:
+  - Depósito General.
+  - Sobrestock General.
+  - Sobrestock Thibe.
+  - Sobrestock Arenal.
+  - Preparación de despachos (mercadería asignada a envíos).
+  - Alta/Baja/Edición de depósitos adicionales según la operación.
+- **Destinos**: listado configurable de puntos de entrega y clientes corporativos con contacto.
 - **Operaciones**:
-  - **Alta de artículos** (entrada de cajas)
-  - **Baja de stock** (venta/retiro)
-  - **Transferencias** entre listas (ej.: General → Cliente)
-  - **Flujo de autorización**: Solicitud → Aprobación (Admin) → Ejecución (para salidas y movimientos críticos).
+  - Alta y edición de artículos con stock distribuido por depósito.
+  - Solicitud de transferencias entre depósitos (origen ≠ destino).
+  - Flujo de aprobación: Solicitud → Aprobación (rol con permiso `stock.approve`) → Ejecución.
+  - Registro automático de logs (requested/approved/executed/rejected).
 - **ABM de Usuarios**:
-  - Crear/editar/deshabilitar usuarios, reasignar roles.
-  - Roles mínimos: **Administrador**, **Operador**, **Consulta** (extensible).
+  - Crear/editar/deshabilitar usuarios y asignar roles.
+  - Roles base: **Administrador**, **Operador**, **Consulta** (extensible con permisos granulares).
 - **Reportes**:
-  - Stock por grupo/facetas.
-  - Stock reservado por cliente.
-  - Histórico de movimientos y **bitácora de aprobación**.
-  - Exportación CSV/Excel.
+  - Stock consolidado por grupo (detalle por artículo y depósito).
+  - Stock consolidado por depósito (detalle por artículo).
+  - Exportaciones CSV.
 
 ---
 
 ## 3. Arquitectura Técnica
 
 ### 3.1 Backend
-- **Lenguaje**: Node.js + Express
-- **Base de datos**: MongoDB (preferido) o PostgreSQL
+- **Lenguaje**: Node.js + Express.
+- **Base de datos**: MongoDB.
 - **Autenticación y seguridad**:
-  - **JWT** (access/refresh), **hash de contraseña Argon2**, política de contraseñas.
-  - **RBAC** en middleware (verificar permisos por endpoint/acción).
-  - **Autorización de movimientos** mediante estados y cola de aprobaciones.
-  - HTTPS, CORS restringido, rate limiting.
-- **API REST (principales)**:
-  - `POST /api/items` → crear artículo
-  - `GET /api/items` → listar artículos (filtros por grupo/facetas)
-  - `POST /api/stock/request` → solicitar movimiento
-  - `POST /api/stock/approve/:requestId` → aprobar (Admin) y ejecutar
-  - `POST /api/stock/reject/:requestId` → rechazar (Admin)
-  - `GET /api/stock/requests` → listar solicitudes (pendientes/históricas)
-  - `GET /api/customers/:id/stock` → stock del cliente
-  - `GET /api/reports/stock` → reportes de stock
-  - `GET /api/logs/movements` → logs de movimientos
-  - `POST /api/auth/login` / `POST /api/auth/refresh` / `POST /api/auth/logout`
-  - `GET /api/users` / `POST /api/users` / `PUT /api/users/:id` / `DELETE /api/users/:id`
-  - `GET /api/roles` → definición de roles/permisos
-- **Cola de aprobaciones**: persistida en BD; opcionalmente, usar job queue (BullMQ) para ejecutar transacciones al aprobar.
+  - JWT (access + refresh tokens).
+  - Contraseñas con bcrypt/Argon2.
+  - Middleware RBAC (`requirePermission`).
+  - Validación estricta de depósitos (origen/destino activos, distintos) en transferencias.
+  - HTTPS, CORS controlado, rate limiting.
+- **API REST** (principales):
+  - `POST /api/items`, `GET /api/items`, `PUT /api/items/:id`.
+  - `GET /api/groups`, `POST /api/groups`, `PUT /api/groups/:id`.
+  - `GET /api/deposits`, `POST /api/deposits`, `PUT /api/deposits/:id`, `DELETE /api/deposits/:id`.
+  - `GET /api/destinations`, `POST /api/destinations`, `PUT /api/destinations/:id`, `DELETE /api/destinations/:id`.
+  - `POST /api/stock/request`, `POST /api/stock/approve/:id`, `POST /api/stock/reject/:id`, `GET /api/stock/requests`.
+  - `GET /api/reports/stock/by-group`, `GET /api/reports/stock/by-deposit`.
+  - `GET /api/logs/movements`.
+  - `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`.
+  - `GET /api/users`, `POST /api/users`, `PUT /api/users/:id`, `DELETE /api/users/:id`.
+- **Cola de aprobaciones**: los estados se persisten en MongoDB; opcional integrar BullMQ para procesar ejecuciones automáticas.
 
 ### 3.2 Frontend
-- **Framework**: React.js
+- **Framework**: React.
 - **Módulos**:
-  - Gestión de artículos y variantes (facetas: género, talla, color, etc.).
-  - **Solicitudes de movimiento** (Operador): formulario y tracking de estado.
-  - **Bandeja de aprobación** (Admin): aprobar/rechazar con observaciones.
-  - Gestión de usuarios y roles (Admin).
-  - Reportes y exportaciones.
-  - Auditoría (visualización de logs y filtros).
+  - ABM de artículos con atributos y carga de imágenes.
+  - Gestión de depósitos (alta/baja/estado) y destinos.
+  - Solicitud y aprobación de transferencias entre depósitos.
+  - Panel de reportes con filtros por depósito, grupo y atributos.
+  - Administración de usuarios, roles y permisos.
+  - Auditoría de movimientos.
 
 ### 3.3 Infraestructura
-- **Hosting**: VM en Google Cloud (ej. e2-standard-4 ~ USD 150/mes)
-- **Contenedores**: Docker (backend, frontend)
-- **BD administrada**: MongoDB Atlas o Cloud SQL
-- **Seguridad**: JWT + HTTPS, backups automáticos, rotación de claves
+- **Hosting**: VM en Google Cloud (ej. e2-standard-4 ~ USD 150/mes) o plataforma equivalente.
+- **Contenedores**: Docker (backend, frontend, MongoDB).
+- **Seguridad**: HTTPS, backups automáticos, rotación de claves, monitoreo.
 
 ---
 
@@ -87,154 +88,110 @@ Desarrollar un sistema de gestión de stock que permita:
 
 ### Groups
 ```json
-{ "id": "uuid", "name": "string", "parentId": "uuid|null" }
+{ "id": "ObjectId", "name": "string", "parentId": "ObjectId|null" }
+```
+
+### Deposits
+```json
+{ "id": "ObjectId", "name": "string", "description": "string", "status": "active|inactive" }
+```
+
+### Destinations
+```json
+{ "id": "ObjectId", "name": "string", "contactInfo": "string", "status": "active|inactive" }
 ```
 
 ### Items
 ```json
 {
-  "id": "uuid",
+  "id": "ObjectId",
   "code": "string",
   "description": "string",
-  "groupId": "uuid",
+  "groupId": "ObjectId|null",
   "attributes": {
-    "gender": "Dama|Caballero|Niño/a|Unisex",
-    "size": "string",
-    "color": "string",
+    "gender": "Dama|Caballero|Niño/a|Unisex|null",
+    "size": "string|null",
+    "color": "string|null",
     "material": "string|null",
     "season": "string|null",
-    "fit": "string|null"
+    "[otros]": "string|null"
   },
   "stock": {
-    "general": "int",
-    "overstockGeneral": "int",
-    "overstockThibe": "int",
-    "overstockArenal": "int"
+    "<depositId>": { "boxes": "int", "units": "int" }
   },
+  "images": ["string"],
   "createdAt": "datetime",
   "updatedAt": "datetime"
-}
-```
-
-### Customers
-```json
-{ "id": "uuid", "name": "string", "contactInfo": "string", "status": "active|inactive" }
-```
-
-### CustomerStock
-```json
-{
-  "id": "uuid",
-  "customerId": "uuid",
-  "itemId": "uuid",
-  "quantity": "int",
-  "status": "reserved|delivered",
-  "dateCreated": "datetime",
-  "dateDelivered": "datetime|null"
 }
 ```
 
 ### MovementRequest
 ```json
 {
-  "id": "uuid",
-  "itemId": "uuid",
-  "type": "in|out|transfer",
-  "fromList": "general|overstockGeneral|overstockThibe|overstockArenal|customer",
-  "toList": "general|overstockGeneral|overstockThibe|overstockArenal|customer",
-  "quantity": "int",
+  "id": "ObjectId",
+  "itemId": "ObjectId",
+  "type": "transfer",
+  "fromDeposit": "ObjectId",
+  "toDeposit": "ObjectId",
+  "quantity": { "boxes": "int", "units": "int" },
   "reason": "string",
-  "requestedBy": "uuid",
+  "requestedBy": "ObjectId",
   "requestedAt": "datetime",
   "status": "pending|approved|rejected|executed",
-  "approvedBy": "uuid|null",
+  "approvedBy": "ObjectId|null",
   "approvedAt": "datetime|null",
-  "rejectedReason": "string|null",
-  "customerId": "uuid|null"
+  "executedAt": "datetime|null",
+  "rejectedReason": "string|null"
 }
 ```
 
 ### MovementLog
 ```json
 {
-  "id": "uuid",
-  "movementRequestId": "uuid",
-  "action": "requested|approved|rejected|executed|rollback",
-  "actorUserId": "uuid",
+  "id": "ObjectId",
+  "movementRequestId": "ObjectId",
+  "action": "requested|approved|rejected|executed",
+  "actorId": "ObjectId",
   "timestamp": "datetime",
-  "metadata": { "ip": "string", "userAgent": "string", "notes": "string|null" }
-}
-```
-
-### Users
-```json
-{
-  "id": "uuid",
-  "username": "string",
-  "email": "string",
-  "passwordHash": "string",
-  "roleId": "uuid",
-  "status": "active|disabled",
-  "createdAt": "datetime",
-  "lastLoginAt": "datetime|null"
-}
-```
-
-### Roles
-```json
-{
-  "id": "uuid",
-  "name": "Admin|Operator|Viewer|...",
-  "permissions": [
-    "items.read", "items.write",
-    "stock.request", "stock.approve", "stock.logs.read",
-    "users.read", "users.write"
-  ]
+  "metadata": {
+    "ip": "string|null",
+    "userAgent": "string|null",
+    "notes": "string|null"
+  }
 }
 ```
 
 ---
 
-## 5. Casos de Uso
+## 5. Casos de Uso Clave
 
-### Regla de Aprobaciones
-- **Aprobaciones requeridas**: únicamente para **salidas de depósitos** (ventas, entregas) y **movimientos críticos** entre listas (ej. General → Cliente, Sobrestock → Cliente).
-- **Entradas de stock** (altas por compra, producción o devolución) **no requieren aprobación**, pero sí quedan registradas en el log de movimientos.
-
-1. **Alta stock general**  
-   - Operador crea ítem o incrementa stock en lista General → se registra en log (sin aprobación).
-2. **Venta con retiro inmediato**  
-   - Operador solicita **baja** en General → **Aprobación Admin** → **Ejecución** → Log.
-3. **Venta con reserva (cliente sin retiro)**  
-   - Operador solicita **transferencia** General → Cliente (customerId) → **Aprobación Admin** → **Ejecución** → Log.
-4. **Entrega diferida**  
-   - Operador solicita **transferencia** Cliente → Entregado (actualiza `CustomerStock.status`) → **Aprobación Admin** → **Ejecución** → Log.
-5. **ABM Usuarios**  
-   - Admin crea/edita/inhabilita usuarios, asigna roles; todas las acciones se registran en log.
-6. **Reportes y Auditoría**  
-   - Consultas por stock/facetas, movimientos, estado de solicitudes, y exportación.
+1. **Transferencia interna**
+   - Operador genera solicitud Depósito General → Sobrestock General.
+   - Admin aprueba y ejecuta; el stock se descuenta/abona en cada depósito.
+2. **Preparación de despacho**
+   - Operador mueve mercadería desde Depósito General a Preparación de despachos.
+   - Cuando se confirma el envío físico se crea la documentación externa (fuera del sistema) vinculada al destino.
+3. **Reabastecimiento por campaña**
+   - Reporte por grupo identifica faltantes.
+   - Operador mueve stock desde Sobrestock Thibe hacia Depósito General para reponer tiendas.
+4. **Auditoría**
+   - Usuario de consulta revisa logs filtrados por depósito, artículo o fecha para validar quién autorizó cada transferencia.
 
 ---
 
-## 6. Seguridad y Auditoría
-- **JWT** con expiración corta; **refresh tokens** seguros.
-- **RBAC** en middleware por permiso/endpoint.
-- **Logs inmutables** (append-only) con sellado temporal.
-- **IP/userAgent** en cada log de acción.
-- **Backups** diarios + retención 30 días mínimo.
+## 6. Requerimientos No Funcionales
+- **Escalabilidad**: >100k artículos, decenas de depósitos, millones de movimientos anuales.
+- **Disponibilidad**: 99.5% mensual.
+- **Integridad**: validación transaccional de transferencias (origen y destino consistentes).
+- **Auditoría**: histórico inmutable de logs (solo append).
+- **Performance**: listados < 2s (con paginación y filtros indexados).
 
 ---
 
-## 7. Requisitos No Funcionales
-- Escalabilidad: >100k artículos, >1k clientes, >1M movimientos/año.
-- Disponibilidad: 99.5% en Google Cloud.
-- Performance: listados < 1s (paginación e índices por facetas).
-- Observabilidad: métricas y trazas básicas (p. ej., OpenTelemetry).
-
----
-
-## 8. Roadmap
-1. **Fase 1**: Autenticación, RBAC, Modelo de datos, Endpoints Items/Users.
-2. **Fase 2**: Flujo de **MovementRequest** + ejecución y logs.
-3. **Fase 3**: Frontend Operador/Admin (bandeja de aprobación) + reportes.
-4. **Fase 4**: Hardening seguridad, backups, monitoreo y despliegue cloud.
+## 7. Roadmap Sugerido
+1. Backend base (auth, grupos, artículos, depósitos, destinos).
+2. Movimientos con aprobación y logs.
+3. Reportes por depósito/grupo + exportaciones.
+4. Frontend React completo.
+5. Integraciones externas (ERP, WMS) y automatizaciones.
+6. Métricas, monitoreo y CI/CD.

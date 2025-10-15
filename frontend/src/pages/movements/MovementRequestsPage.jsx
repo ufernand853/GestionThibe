@@ -4,13 +4,6 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { formatQuantity } from '../../utils/quantity.js';
-import { STOCK_LIST_OPTIONS, formatStockListLabel } from '../../utils/stockLists.js';
-
-const TYPE_LABELS = {
-  in: 'Entrada',
-  out: 'Salida',
-  transfer: 'Transferencia'
-};
 
 export default function MovementRequestsPage() {
   const api = useApi();
@@ -21,20 +14,17 @@ export default function MovementRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
-  const [customers, setCustomers] = useState([]);
+  const [deposits, setDeposits] = useState([]);
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [resubmittingId, setResubmittingId] = useState(null);
   const [formValues, setFormValues] = useState({
     itemId: '',
-    type: 'out',
-    fromList: 'general',
-    toList: 'customer',
+    fromDeposit: '',
+    toDeposit: '',
     quantityBoxes: '',
     quantityUnits: '',
-    reason: '',
-    customerId: '',
-    boxLabel: ''
+    reason: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -50,13 +40,17 @@ export default function MovementRequestsPage() {
     let active = true;
     const loadMetadata = async () => {
       try {
-        const [itemsResponse, customersResponse] = await Promise.all([
+        const [itemsResponse, depositsResponse] = await Promise.all([
           api.get('/items', { query: { page: 1, pageSize: 100 } }),
-          api.get('/customers')
+          api.get('/deposits')
         ]);
         if (!active) return;
         setItems(itemsResponse.items || []);
-        setCustomers(Array.isArray(customersResponse) ? customersResponse : []);
+        setDeposits(
+          Array.isArray(depositsResponse)
+            ? depositsResponse.filter(deposit => deposit.status !== 'inactive')
+            : []
+        );
       } catch (err) {
         console.warn('No se pudieron cargar recursos de apoyo', err);
       }
@@ -100,16 +94,6 @@ export default function MovementRequestsPage() {
     setFormValues(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleTypeChange = event => {
-    const value = event.target.value;
-    setFormValues(prev => ({
-      ...prev,
-      type: value,
-      fromList: value === 'in' ? '' : prev.fromList || 'general',
-      toList: value === 'out' ? '' : prev.toList || 'general'
-    }));
-  };
-
   const handleSubmit = async event => {
     event.preventDefault();
     if (!canRequest) return;
@@ -132,28 +116,36 @@ export default function MovementRequestsPage() {
         return;
       }
 
+      if (!formValues.fromDeposit || !formValues.toDeposit) {
+        setError('Debe seleccionar depósitos de origen y destino.');
+        setSubmitting(false);
+        return;
+      }
+
+      if (formValues.fromDeposit === formValues.toDeposit) {
+        setError('El depósito de origen y destino no pueden ser el mismo.');
+        setSubmitting(false);
+        return;
+      }
+
       const payload = {
         itemId: formValues.itemId,
-        type: formValues.type,
+        fromDeposit: formValues.fromDeposit,
+        toDeposit: formValues.toDeposit,
         quantity: {
           boxes,
           units
         },
         reason: formValues.reason
       };
-      if (formValues.fromList) payload.fromList = formValues.fromList;
-      if (formValues.toList) payload.toList = formValues.toList;
-      if (formValues.customerId) payload.customerId = formValues.customerId;
-      const trimmedBox = formValues.boxLabel.trim();
-      if (trimmedBox) payload.boxLabel = trimmedBox;
+
       await api.post('/stock/request', payload);
       setSuccessMessage('Solicitud registrada correctamente.');
       setFormValues(prev => ({
         ...prev,
         reason: '',
         quantityBoxes: '',
-        quantityUnits: '',
-        boxLabel: ''
+        quantityUnits: ''
       }));
       const refreshed = await refreshRequests();
       setRequests(refreshed);
@@ -163,14 +155,6 @@ export default function MovementRequestsPage() {
       setSubmitting(false);
     }
   };
-
-  const requiresCustomer = formValues.fromList === 'customer' || formValues.toList === 'customer';
-
-  useEffect(() => {
-    if (!requiresCustomer && (formValues.customerId || formValues.boxLabel)) {
-      setFormValues(prev => ({ ...prev, customerId: '', boxLabel: '' }));
-    }
-  }, [requiresCustomer, formValues.customerId, formValues.boxLabel]);
 
   const handleResubmit = async request => {
     if (!canRequest) return;
@@ -195,9 +179,9 @@ export default function MovementRequestsPage() {
 
   return (
     <div>
-      <h2>Solicitudes de movimiento</h2>
+      <h2>Solicitudes de transferencia</h2>
       <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-        Genere solicitudes de entrada, salida o transferencia de stock. Las salidas y movimientos críticos requerirán aprobación.
+        Genere solicitudes de transferencia de stock entre depósitos. Las solicitudes serán ejecutadas luego de la aprobación.
       </p>
 
       {error && <ErrorMessage error={error} />}
@@ -218,39 +202,27 @@ export default function MovementRequestsPage() {
             </select>
           </div>
           <div className="input-group">
-            <label htmlFor="type">Tipo *</label>
-            <select id="type" name="type" value={formValues.type} onChange={handleTypeChange}>
-              <option value="out">Salida</option>
-              <option value="in">Entrada</option>
-              <option value="transfer">Transferencia</option>
+            <label htmlFor="fromDeposit">Depósito origen *</label>
+            <select id="fromDeposit" name="fromDeposit" value={formValues.fromDeposit} onChange={handleFormChange} required>
+              <option value="">Seleccione origen</option>
+              {deposits.map(deposit => (
+                <option key={deposit.id} value={deposit.id}>
+                  {deposit.name}
+                </option>
+              ))}
             </select>
           </div>
-          {formValues.type !== 'in' && (
-            <div className="input-group">
-              <label htmlFor="fromList">Desde</label>
-              <select id="fromList" name="fromList" value={formValues.fromList} onChange={handleFormChange} required={formValues.type !== 'in'}>
-                <option value="">Seleccione lista origen</option>
-                {STOCK_LIST_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {formValues.type !== 'out' && (
-            <div className="input-group">
-              <label htmlFor="toList">Hacia</label>
-              <select id="toList" name="toList" value={formValues.toList} onChange={handleFormChange} required={formValues.type !== 'out'}>
-                <option value="">Seleccione lista destino</option>
-                {STOCK_LIST_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="input-group">
+            <label htmlFor="toDeposit">Depósito destino *</label>
+            <select id="toDeposit" name="toDeposit" value={formValues.toDeposit} onChange={handleFormChange} required>
+              <option value="">Seleccione destino</option>
+              {deposits.map(deposit => (
+                <option key={deposit.id} value={deposit.id}>
+                  {deposit.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="input-group">
             <label htmlFor="quantityBoxes">Cajas</label>
             <input
@@ -273,42 +245,9 @@ export default function MovementRequestsPage() {
               onChange={handleFormChange}
             />
           </div>
-          {requiresCustomer && (
-            <div className="input-group">
-              <label htmlFor="customerId">Cliente</label>
-              <select id="customerId" name="customerId" value={formValues.customerId} onChange={handleFormChange} required>
-                <option value="">Seleccione cliente</option>
-                {customers.map(customer => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {requiresCustomer && (
-            <div className="input-group">
-              <label htmlFor="boxLabel">Caja</label>
-              <input
-                id="boxLabel"
-                name="boxLabel"
-                value={formValues.boxLabel}
-                onChange={handleFormChange}
-                placeholder="Identificador de caja"
-                maxLength={100}
-              />
-            </div>
-          )}
           <div className="input-group" style={{ gridColumn: '1 / -1' }}>
             <label htmlFor="reason">Motivo</label>
-            <textarea
-              id="reason"
-              name="reason"
-              value={formValues.reason}
-              onChange={handleFormChange}
-              rows={2}
-              placeholder="Ej: Reserva para cliente, entrega a tienda, devolución, etc."
-            />
+            <textarea id="reason" name="reason" value={formValues.reason} onChange={handleFormChange} rows={2} />
           </div>
           <div>
             <button type="submit" disabled={submitting}>
@@ -319,34 +258,29 @@ export default function MovementRequestsPage() {
       </div>
 
       <div className="section-card">
-        <div className="flex-between">
-          <h3>Historial de solicitudes</h3>
-          <div className="input-group" style={{ maxWidth: '220px' }}>
-            <label htmlFor="statusFilter">Estado</label>
-            <select id="statusFilter" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
-              <option value="">Todos</option>
-              <option value="pending">Pendientes</option>
-              <option value="approved">Aprobadas</option>
-              <option value="rejected">Rechazadas</option>
-              <option value="executed">Ejecutadas</option>
-            </select>
-          </div>
+        <div className="flex-between" style={{ alignItems: 'center' }}>
+          <h3>Solicitudes registradas</h3>
+          <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
+            <option value="">Todas</option>
+            <option value="pending">Pendientes</option>
+            <option value="approved">Aprobadas</option>
+            <option value="executed">Ejecutadas</option>
+            <option value="rejected">Rechazadas</option>
+          </select>
         </div>
-
         {loading ? (
-          <LoadingIndicator message="Cargando solicitudes..." />
+          <LoadingIndicator message="Buscando solicitudes..." />
+        ) : requests.length === 0 ? (
+          <p style={{ color: '#64748b' }}>No hay solicitudes registradas con el filtro seleccionado.</p>
         ) : (
           <div className="table-wrapper" style={{ marginTop: '1rem' }}>
             <table>
               <thead>
                 <tr>
                   <th>Artículo</th>
-                  <th>Tipo</th>
                   <th>Origen</th>
                   <th>Destino</th>
                   <th>Cantidad</th>
-                  <th>Cliente</th>
-                  <th>Caja</th>
                   <th>Estado</th>
                   <th>Solicitado por</th>
                   <th>Fecha</th>
@@ -357,19 +291,16 @@ export default function MovementRequestsPage() {
                 {requests.map(request => (
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
-                    <td>{TYPE_LABELS[request.type] || request.type}</td>
-                    <td>{request.fromListLabel || formatStockListLabel(request.fromList) || '-'}</td>
-                    <td>{request.toListLabel || formatStockListLabel(request.toList) || '-'}</td>
+                    <td>{request.fromDeposit?.name || '-'}</td>
+                    <td>{request.toDeposit?.name || '-'}</td>
                     <td>{formatQuantity(request.quantity)}</td>
-                    <td>{request.customer?.name || '-'}</td>
-                    <td>{request.boxLabel || '-'}</td>
                     <td>
                       <span className={`badge ${request.status}`}>{request.status}</span>
                     </td>
                     <td>{request.requestedBy?.username || 'N/D'}</td>
                     <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
                     <td>
-                      {request.status === 'rejected' ? (
+                      {request.status === 'rejected' && (
                         <button
                           type="button"
                           className="secondary-button"
@@ -378,19 +309,10 @@ export default function MovementRequestsPage() {
                         >
                           {resubmittingId === request.id ? 'Reenviando...' : 'Reenviar'}
                         </button>
-                      ) : (
-                        <span style={{ color: '#94a3b8' }}>-</span>
                       )}
                     </td>
                   </tr>
                 ))}
-                {requests.length === 0 && (
-                  <tr>
-                    <td colSpan={11} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-                      No se registran solicitudes con los filtros aplicados.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>

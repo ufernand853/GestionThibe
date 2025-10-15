@@ -4,13 +4,6 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { formatQuantity } from '../../utils/quantity.js';
-import { formatStockListLabel } from '../../utils/stockLists.js';
-
-const TYPE_LABELS = {
-  in: 'Entrada',
-  out: 'Salida',
-  transfer: 'Transferencia'
-};
 
 export default function ApprovalsPage() {
   const api = useApi();
@@ -81,7 +74,7 @@ export default function ApprovalsPage() {
     <div>
       <h2>Bandeja de aprobación</h2>
       <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-        Evalúe y apruebe o rechace las solicitudes de movimiento críticas. Cada acción quedará registrada en la auditoría.
+        Evalúe y apruebe o rechace las solicitudes de transferencia registradas por los operadores.
       </p>
 
       {error && <ErrorMessage error={error} />}
@@ -99,12 +92,9 @@ export default function ApprovalsPage() {
               <thead>
                 <tr>
                   <th>Artículo</th>
-                  <th>Tipo</th>
                   <th>Origen</th>
                   <th>Destino</th>
                   <th>Cantidad</th>
-                  <th>Cliente</th>
-                  <th>Caja</th>
                   <th>Solicitado por</th>
                   <th>Fecha</th>
                   <th>Acciones</th>
@@ -114,12 +104,9 @@ export default function ApprovalsPage() {
                 {requests.map(request => (
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
-                    <td>{TYPE_LABELS[request.type] || request.type}</td>
-                    <td>{request.fromListLabel || formatStockListLabel(request.fromList) || '-'}</td>
-                    <td>{request.toListLabel || formatStockListLabel(request.toList) || '-'}</td>
+                    <td>{request.fromDeposit?.name || '-'}</td>
+                    <td>{request.toDeposit?.name || '-'}</td>
                     <td>{formatQuantity(request.quantity)}</td>
-                    <td>{request.customer?.name || '-'}</td>
-                    <td>{request.boxLabel || '-'}</td>
                     <td>{request.requestedBy?.username || 'N/D'}</td>
                     <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
                     <td>

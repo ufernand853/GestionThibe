@@ -2,118 +2,115 @@ const express = require('express');
 const asyncHandler = require('../utils/asyncHandler');
 const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
-const MovementRequest = require('../models/MovementRequest');
+const Group = require('../models/Group');
+const Deposit = require('../models/Deposit');
 const { normalizeStoredQuantity } = require('../services/stockService');
 
 const router = express.Router();
 
+function mapStockToArray(stock, depositsById) {
+  const entries = [];
+  if (stock instanceof Map) {
+    for (const [depositId, quantity] of stock.entries()) {
+      const key = String(depositId);
+      entries.push({
+        depositId: key,
+        quantity: normalizeStoredQuantity(quantity),
+        deposit: depositsById.get(key) || null
+      });
+    }
+  } else if (stock && typeof stock === 'object') {
+    Object.entries(stock).forEach(([depositId, quantity]) => {
+      const key = String(depositId);
+      entries.push({
+        depositId: key,
+        quantity: normalizeStoredQuantity(quantity),
+        deposit: depositsById.get(key) || null
+      });
+    });
+  }
+  return entries;
+}
+
 router.get(
-  '/stock',
+  '/stock/by-group',
   requirePermission('reports.read'),
   asyncHandler(async (req, res) => {
-    const items = await Item.find().populate('group');
-    res.json(
-      items.map(item => ({
+    const [items, groups, deposits] = await Promise.all([
+      Item.find().populate('group'),
+      Group.find(),
+      Deposit.find()
+    ]);
+    const depositsById = new Map(deposits.map(deposit => [deposit.id, { id: deposit.id, name: deposit.name, status: deposit.status }]));
+    const groupIndex = new Map();
+    groups.forEach(group => {
+      groupIndex.set(group.id, { id: group.id, name: group.name, items: [] });
+    });
+
+    const ungrouped = { id: null, name: 'Sin grupo', items: [] };
+
+    items.forEach(item => {
+      const stockEntries = mapStockToArray(item.stock, depositsById);
+      const targetGroup = item.group ? groupIndex.get(item.group.id) : ungrouped;
+      targetGroup.items.push({
         id: item.id,
         code: item.code,
         description: item.description,
-        groupId: item.group ? item.group.id : item.group,
-        group: item.group ? { id: item.group.id, name: item.group.name } : null,
-        stock: item.stock
-      }))
-    );
+        stockByDeposit: stockEntries
+      });
+    });
+
+    const response = Array.from(groupIndex.values()).filter(group => group.items.length > 0);
+    if (ungrouped.items.length > 0) {
+      response.push(ungrouped);
+    }
+
+    res.json(response);
   })
 );
 
-function createEmptyTrendEntry() {
-  return {
-    general: { boxes: 0, units: 0 },
-    overstock: { boxes: 0, units: 0 }
-  };
-}
-
-function addQuantity(target, quantity, factor = 1) {
-  const normalized = normalizeStoredQuantity(quantity);
-  target.boxes += normalized.boxes * factor;
-  target.units += normalized.units * factor;
-}
-
-const LIST_TO_BUCKET = {
-  general: 'general',
-  overstockGeneral: 'overstock',
-  overstockThibe: 'overstock',
-  overstockArenal: 'overstock'
-};
-
 router.get(
-  '/stock/trends',
+  '/stock/by-deposit',
   requirePermission('reports.read'),
   asyncHandler(async (req, res) => {
-    const { days = '30' } = req.query || {};
-    const parsedDays = Math.min(Math.max(parseInt(days, 10) || 30, 1), 180);
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const windowStart = new Date(todayStart);
-    windowStart.setDate(windowStart.getDate() - (parsedDays - 1));
+    const [items, deposits] = await Promise.all([Item.find(), Deposit.find()]);
+    const totals = new Map(deposits.map(deposit => [deposit.id, { id: deposit.id, name: deposit.name, total: { boxes: 0, units: 0 } }]));
 
-    const executedRequests = await MovementRequest.find({
-      status: 'executed',
-      executedAt: { $gte: windowStart }
-    })
-      .sort({ executedAt: 1 })
-      .select(['executedAt', 'type', 'fromList', 'toList', 'quantity']);
-
-    const trendMap = new Map();
-    for (let i = 0; i < parsedDays; i += 1) {
-      const date = new Date(windowStart);
-      date.setDate(windowStart.getDate() + i);
-      const key = date.toISOString().slice(0, 10);
-      trendMap.set(key, createEmptyTrendEntry());
-    }
-
-    executedRequests.forEach(request => {
-      if (!request.executedAt) {
-        return;
-      }
-      const dateKey = new Date(request.executedAt).toISOString().slice(0, 10);
-      if (!trendMap.has(dateKey)) {
-        trendMap.set(dateKey, createEmptyTrendEntry());
-      }
-      const entry = trendMap.get(dateKey);
-      const quantity = normalizeStoredQuantity(request.quantity);
-
-      if (request.type === 'in') {
-        const bucket = LIST_TO_BUCKET[request.toList];
-        if (bucket) {
-          addQuantity(entry[bucket], quantity, 1);
+    items.forEach(item => {
+      if (item.stock instanceof Map) {
+        for (const [depositId, quantity] of item.stock.entries()) {
+          let bucket = totals.get(depositId);
+          if (!bucket) {
+            const depositInfo = deposits.find(deposit => deposit.id === depositId);
+            bucket = { id: depositId, name: depositInfo ? depositInfo.name : '', total: { boxes: 0, units: 0 } };
+            totals.set(depositId, bucket);
+          }
+          const normalized = normalizeStoredQuantity(quantity);
+          bucket.total.boxes += normalized.boxes;
+          bucket.total.units += normalized.units;
         }
-      } else if (request.type === 'out') {
-        const bucket = LIST_TO_BUCKET[request.fromList];
-        if (bucket) {
-          addQuantity(entry[bucket], quantity, -1);
-        }
-      } else if (request.type === 'transfer') {
-        const fromBucket = LIST_TO_BUCKET[request.fromList];
-        const toBucket = LIST_TO_BUCKET[request.toList];
-        if (fromBucket) {
-          addQuantity(entry[fromBucket], quantity, -1);
-        }
-        if (toBucket) {
-          addQuantity(entry[toBucket], quantity, 1);
-        }
+      } else if (item.stock && typeof item.stock === 'object') {
+        Object.entries(item.stock).forEach(([depositId, quantity]) => {
+          let bucket = totals.get(depositId);
+          if (!bucket) {
+            const depositInfo = deposits.find(deposit => deposit.id === depositId);
+            bucket = { id: depositId, name: depositInfo ? depositInfo.name : '', total: { boxes: 0, units: 0 } };
+            totals.set(depositId, bucket);
+          }
+          const normalized = normalizeStoredQuantity(quantity);
+          bucket.total.boxes += normalized.boxes;
+          bucket.total.units += normalized.units;
+        });
       }
     });
 
-    const points = Array.from(trendMap.entries())
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([date, deltas]) => ({ date, deltas }));
+    const response = Array.from(totals.values()).map(entry => ({
+      id: entry.id,
+      name: entry.name,
+      total: entry.total
+    }));
 
-    res.json({
-      from: windowStart.toISOString(),
-      to: todayStart.toISOString(),
-      days: parsedDays,
-      points
-    });
+    res.json(response);
   })
 );
 

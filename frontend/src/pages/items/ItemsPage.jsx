@@ -3,14 +3,21 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
+import { ensureQuantity, formatQuantity, sumQuantities } from '../../utils/quantity.js';
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
 
 const ATTRIBUTE_FIELDS = [
   {
     key: 'gender',
     label: 'Género',
-    placeholder: 'Ingrese el género'
+    type: 'select',
+    placeholder: 'Seleccione género',
+    options: [
+      { value: 'Dama', label: 'Dama' },
+      { value: 'Caballero', label: 'Caballero' },
+      { value: 'Niño/a', label: 'Niño/a' },
+      { value: 'Unisex', label: 'Unisex' }
+    ]
   },
   {
     key: 'size',
@@ -39,11 +46,7 @@ const ATTRIBUTE_FIELDS = [
       { value: 'Otoño', label: 'Otoño' }
     ]
   },
-  {
-    key: 'fit',
-    label: 'Calce',
-    placeholder: 'Ingrese el calce'
-  }
+  // otros atributos adicionales pueden configurarse agregando nuevas entradas aquí
 ];
 
 const ATTRIBUTE_KEYS = ATTRIBUTE_FIELDS.map(field => field.key);
@@ -68,53 +71,6 @@ function fileToDataUrl(file) {
   });
 }
 
-const STOCK_LOCATIONS = [
-  {
-    key: 'general',
-    title: 'Stock general',
-    helper: 'Inventario disponible para la operación habitual.',
-    boxesField: 'stockGeneralBoxes',
-    unitsField: 'stockGeneralUnits',
-    labels: {
-      boxes: 'Cajas',
-      units: 'Unidades'
-    }
-  },
-  {
-    key: 'overstockGeneral',
-    title: 'Sobrestock general',
-    helper: 'Excedente disponible para reponer otras listas.',
-    boxesField: 'overstockGeneralBoxes',
-    unitsField: 'overstockGeneralUnits',
-    labels: {
-      boxes: 'Cajas',
-      units: 'Unidades'
-    }
-  },
-  {
-    key: 'overstockThibe',
-    title: 'Sobrestock Thibe',
-    helper: 'Mercadería reservada para la sucursal Thibe.',
-    boxesField: 'overstockThibeBoxes',
-    unitsField: 'overstockThibeUnits',
-    labels: {
-      boxes: 'Cajas',
-      units: 'Unidades'
-    }
-  },
-  {
-    key: 'overstockArenal',
-    title: 'Sobrestock Arenal',
-    helper: 'Stock extra asignado a Arenal.',
-    boxesField: 'overstockArenalBoxes',
-    unitsField: 'overstockArenalUnits',
-    labels: {
-      boxes: 'Cajas',
-      units: 'Unidades'
-    }
-  }
-];
-
 export default function ItemsPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -128,6 +84,7 @@ export default function ItemsPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [groups, setGroups] = useState([]);
+  const [deposits, setDeposits] = useState([]);
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
   const [formValues, setFormValues] = useState({
     code: '',
@@ -138,15 +95,7 @@ export default function ItemsPage() {
     color: '',
     material: '',
     season: '',
-    fit: '',
-    stockGeneralBoxes: '',
-    stockGeneralUnits: '',
-    overstockGeneralBoxes: '',
-    overstockGeneralUnits: '',
-    overstockThibeBoxes: '',
-    overstockThibeUnits: '',
-    overstockArenalBoxes: '',
-    overstockArenalUnits: ''
+    stockByDeposit: {}
   });
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -172,17 +121,24 @@ export default function ItemsPage() {
 
   useEffect(() => {
     let active = true;
-    const loadGroups = async () => {
+    const loadMetadata = async () => {
       try {
-        const response = await api.get('/groups');
-        if (active) {
-          setGroups(Array.isArray(response) ? sortGroupsByName(response) : []);
-        }
+        const [groupsResponse, depositsResponse] = await Promise.all([
+          api.get('/groups'),
+          api.get('/deposits')
+        ]);
+        if (!active) return;
+        setGroups(Array.isArray(groupsResponse) ? sortGroupsByName(groupsResponse) : []);
+        setDeposits(
+          Array.isArray(depositsResponse)
+            ? [...depositsResponse].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+            : []
+        );
       } catch (err) {
-        console.warn('No se pudieron cargar los grupos', err);
+        console.warn('No se pudieron cargar grupos o depósitos', err);
       }
     };
-    loadGroups();
+    loadMetadata();
     return () => {
       active = false;
     };
@@ -235,15 +191,7 @@ export default function ItemsPage() {
       color: '',
       material: '',
       season: '',
-      fit: '',
-      stockGeneralBoxes: '',
-      stockGeneralUnits: '',
-      overstockGeneralBoxes: '',
-      overstockGeneralUnits: '',
-      overstockThibeBoxes: '',
-      overstockThibeUnits: '',
-      overstockArenalBoxes: '',
-      overstockArenalUnits: ''
+      stockByDeposit: {}
     });
     clearNewImages();
     setExistingImages([]);
@@ -256,23 +204,67 @@ export default function ItemsPage() {
     setFormValues(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleStockByDepositChange = (depositId, field, rawValue) => {
+    let value = rawValue;
+    if (value !== '') {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) {
+        return;
+      }
+      value = String(Math.trunc(numeric));
+    }
+    setFormValues(prev => {
+      const current = prev.stockByDeposit || {};
+      const existing = current[depositId] || { boxes: '', units: '' };
+      return {
+        ...prev,
+        stockByDeposit: {
+          ...current,
+          [depositId]: { ...existing, [field]: value }
+        }
+      };
+    });
+  };
+
   const buildPayload = () => {
     const stock = {};
+    const previousStockRaw = editingItem?.stock;
+    const previousStock =
+      previousStockRaw instanceof Map ? Object.fromEntries(previousStockRaw.entries()) : previousStockRaw || {};
+    const processedDeposits = new Set();
 
-    STOCK_LOCATIONS.forEach(({ key, boxesField, unitsField }) => {
-      const boxesValue = formValues[boxesField];
-      const unitsValue = formValues[unitsField];
+    Object.entries(formValues.stockByDeposit || {}).forEach(([depositId, values]) => {
+      processedDeposits.add(depositId);
+      const boxesValue = values?.boxes ?? '';
+      const unitsValue = values?.units ?? '';
       if (boxesValue === '' && unitsValue === '') {
+        if (editingItem && previousStock && Object.prototype.hasOwnProperty.call(previousStock, depositId)) {
+          stock[depositId] = null;
+        }
         return;
       }
       const boxes = boxesValue === '' ? 0 : Number(boxesValue);
       const units = unitsValue === '' ? 0 : Number(unitsValue);
-      stock[key] = { boxes, units };
+      if (!Number.isFinite(boxes) || boxes < 0 || !Number.isFinite(units) || units < 0) {
+        return;
+      }
+      stock[depositId] = { boxes, units };
     });
+
+    if (editingItem && previousStock) {
+      Object.keys(previousStock).forEach(depositId => {
+        if (!processedDeposits.has(depositId) && !stock[depositId]) {
+          stock[depositId] = null;
+        }
+      });
+    }
     const attributes = {};
     ATTRIBUTE_KEYS.forEach(attribute => {
-      if (formValues[attribute]) {
-        attributes[attribute] = formValues[attribute];
+      const value = formValues[attribute];
+      if (value) {
+        attributes[attribute] = value;
+      } else if (editingItem) {
+        attributes[attribute] = null;
       }
     });
     return {
@@ -400,11 +392,15 @@ export default function ItemsPage() {
     setEditingItem(item);
     setExistingImages(Array.isArray(item.images) ? item.images : []);
     setImageError('');
-    const general = ensureQuantity(item.stock?.general);
-    const overstockGeneral = ensureQuantity(item.stock?.overstockGeneral);
-    const overstockThibe = ensureQuantity(item.stock?.overstockThibe);
-    const overstockArenal = ensureQuantity(item.stock?.overstockArenal);
     const normalizeField = value => (value === 0 ? '' : String(value));
+    const stockByDeposit = {};
+    Object.entries(item.stock || {}).forEach(([depositId, quantity]) => {
+      const normalized = ensureQuantity(quantity);
+      stockByDeposit[depositId] = {
+        boxes: normalizeField(normalized.boxes),
+        units: normalizeField(normalized.units)
+      };
+    });
 
     setFormValues({
       code: item.code,
@@ -415,15 +411,7 @@ export default function ItemsPage() {
       color: item.attributes?.color || '',
       material: item.attributes?.material || '',
       season: item.attributes?.season || '',
-      fit: item.attributes?.fit || '',
-      stockGeneralBoxes: normalizeField(general.boxes),
-      stockGeneralUnits: normalizeField(general.units),
-      overstockGeneralBoxes: normalizeField(overstockGeneral.boxes),
-      overstockGeneralUnits: normalizeField(overstockGeneral.units),
-      overstockThibeBoxes: normalizeField(overstockThibe.boxes),
-      overstockThibeUnits: normalizeField(overstockThibe.units),
-      overstockArenalBoxes: normalizeField(overstockArenal.boxes),
-      overstockArenalUnits: normalizeField(overstockArenal.units)
+      stockByDeposit
     });
   };
 
@@ -433,7 +421,7 @@ export default function ItemsPage() {
         <div>
           <h2>Gestión de artículos</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-            Administre la taxonomía, atributos y stock por lista para cada artículo.
+            Administre la taxonomía, atributos y stock distribuido por depósito para cada artículo.
           </p>
         </div>
         <div>
@@ -590,54 +578,54 @@ export default function ItemsPage() {
           <section className="form-section">
             <div className="form-section__header">
               <div>
-                <h3>Stock por lista</h3>
+                <h3>Stock por depósito</h3>
                 <p className="form-section__description">
-                  Registra las cantidades disponibles por depósito o canal para facilitar la reposición.
+                  Registra las cantidades disponibles en cada depósito (opcional). También podés dejar todo en cero y cargar los
+                  movimientos desde la bandeja de transferencias.
                 </p>
               </div>
             </div>
-            <div className="stock-grid">
-              {STOCK_LOCATIONS.map(location => (
-                <div key={location.key} className="stock-card">
-                  <div className="stock-card__header">
-                    <h4>{location.title}</h4>
-                    {location.helper && <p>{location.helper}</p>}
-                  </div>
-                  <div className="form-grid form-grid--dense">
-                    <div className="input-group">
-                      <label htmlFor={location.boxesField}>{location.labels.boxes}</label>
-                      <input
-                        id={location.boxesField}
-                        name={location.boxesField}
-                        type="number"
-                        min="0"
-                        value={formValues[location.boxesField]}
-                        onChange={handleFormChange}
-                      />
+            {deposits.length === 0 ? (
+              <p style={{ color: '#64748b' }}>
+                Aún no hay depósitos configurados. Creá al menos uno desde la sección Depósitos para distribuir stock inicial.
+              </p>
+            ) : (
+              <div className="stock-grid">
+                {deposits.map(deposit => {
+                  const entry = formValues.stockByDeposit?.[deposit.id] || { boxes: '', units: '' };
+                  return (
+                    <div key={deposit.id} className="stock-card">
+                      <div className="stock-card__header">
+                        <h4>{deposit.name}</h4>
+                        {deposit.description && <p>{deposit.description}</p>}
+                      </div>
+                      <div className="form-grid form-grid--dense">
+                        <div className="input-group">
+                          <label htmlFor={`stock-${deposit.id}-boxes`}>Cajas</label>
+                          <input
+                            id={`stock-${deposit.id}-boxes`}
+                            type="number"
+                            min="0"
+                            value={entry.boxes}
+                            onChange={event => handleStockByDepositChange(deposit.id, 'boxes', event.target.value)}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor={`stock-${deposit.id}-units`}>Unidades</label>
+                          <input
+                            id={`stock-${deposit.id}-units`}
+                            type="number"
+                            min="0"
+                            value={entry.units}
+                            onChange={event => handleStockByDepositChange(deposit.id, 'units', event.target.value)}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="input-group">
-                      <label htmlFor={location.unitsField}>{location.labels.units}</label>
-                      <input
-                        id={location.unitsField}
-                        name={location.unitsField}
-                        type="number"
-                        min="0"
-                        value={formValues[location.unitsField]}
-                        onChange={handleFormChange}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="section-hint">
-              <strong>Otras opciones para organizar el formulario:</strong>
-              <ul>
-                <li>Dividir la edición en pestañas para alternar rápidamente entre atributos y stock.</li>
-                <li>Agregar un panel lateral con un resumen de stock consolidado por depósito.</li>
-                <li>Permitir duplicar los datos desde un artículo existente como plantilla inicial.</li>
-              </ul>
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           <div className="form-section form-section--actions">
@@ -741,10 +729,8 @@ export default function ItemsPage() {
                   <th>Grupo</th>
                   <th>Atributos</th>
                   <th>Imágenes</th>
-                  <th>General</th>
-                  <th>Sobre. General</th>
-                  <th>Sobre. Thibe</th>
-                  <th>Sobre. Arenal</th>
+                  <th>Depósitos</th>
+                  <th>Total</th>
                   {canWrite && <th>Acciones</th>}
                 </tr>
               </thead>
@@ -765,10 +751,25 @@ export default function ItemsPage() {
                       </div>
                     </td>
                     <td>{Array.isArray(item.images) ? item.images.length : 0}</td>
-                    <td>{formatQuantity(item.stock?.general)}</td>
-                    <td>{formatQuantity(item.stock?.overstockGeneral)}</td>
-                    <td>{formatQuantity(item.stock?.overstockThibe)}</td>
-                    <td>{formatQuantity(item.stock?.overstockArenal)}</td>
+                    <td>
+                      <div className="chip-list">
+                        {Object.entries(item.stock || {}).map(([depositId, quantity]) => (
+                          <span key={depositId} className="badge">
+                            {deposits.find(deposit => deposit.id === depositId)?.name || 'Depósito'} ·
+                            {formatQuantity(quantity, { compact: true })}
+                          </span>
+                        ))}
+                        {(!item.stock || Object.keys(item.stock).length === 0) && <span>-</span>}
+                      </div>
+                    </td>
+                    <td>
+                      {formatQuantity(
+                        Object.values(item.stock || {}).reduce((acc, quantity) => sumQuantities(acc, ensureQuantity(quantity)), {
+                          boxes: 0,
+                          units: 0
+                        })
+                      )}
+                    </td>
                     {canWrite && (
                       <td>
                         <div className="inline-actions">

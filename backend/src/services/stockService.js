@@ -1,18 +1,10 @@
 const mongoose = require('mongoose');
 const Item = require('../models/Item');
-const Customer = require('../models/Customer');
-const CustomerStock = require('../models/CustomerStock');
+const Deposit = require('../models/Deposit');
 const MovementLog = require('../models/MovementLog');
 const { HttpError } = require('../utils/errors');
 
-const STOCK_LISTS = new Set(['general', 'overstockGeneral', 'overstockThibe', 'overstockArenal']);
 const ZERO_QUANTITY = Object.freeze({ boxes: 0, units: 0 });
-
-function validateListName(list) {
-  if (!STOCK_LISTS.has(list)) {
-    throw new HttpError(400, `Lista de stock inválida: ${list}`);
-  }
-}
 
 function parseQuantityComponent(value, label) {
   if (value === undefined || value === null || value === '') {
@@ -62,7 +54,6 @@ function normalizeStoredQuantity(value) {
   try {
     return normalizeQuantityInput(value, { allowZero: true });
   } catch (error) {
-    // Como último recurso, evita que cantidades antiguas en formato inesperado rompan la operación.
     return { ...ZERO_QUANTITY };
   }
 }
@@ -95,81 +86,39 @@ async function findItemOrThrow(itemId) {
   return item;
 }
 
-async function ensureCustomerExists(customerId) {
-  if (!mongoose.Types.ObjectId.isValid(customerId)) {
-    throw new HttpError(404, 'Cliente no encontrado');
+async function ensureDepositExists(depositId) {
+  if (!mongoose.Types.ObjectId.isValid(depositId)) {
+    throw new HttpError(404, 'Depósito no encontrado');
   }
-  const customer = await Customer.findById(customerId);
-  if (!customer) {
-    throw new HttpError(404, 'Cliente no encontrado');
+  const deposit = await Deposit.findById(depositId);
+  if (!deposit) {
+    throw new HttpError(404, 'Depósito no encontrado');
   }
-  if (customer.status === 'inactive') {
-    throw new HttpError(400, 'El cliente está inactivo');
+  if (deposit.status === 'inactive') {
+    throw new HttpError(400, 'El depósito está inactivo');
   }
-  return customer;
+  return deposit;
 }
 
-function adjustItemStock(item, list, delta) {
-  validateListName(list);
-  if (!item.stock || typeof item.stock !== 'object') {
+function adjustItemStock(item, depositId, delta) {
+  if (!item.stock) {
     item.stock = {};
   }
-  const current = normalizeStoredQuantity(item.stock[list]);
-  const updated = combineQuantities(current, delta, 'Stock insuficiente');
-  item.stock[list] = updated;
-}
-
-function normalizeBoxLabel(boxLabel) {
-  if (boxLabel === undefined || boxLabel === null) {
-    return null;
-  }
-  const normalized = String(boxLabel).trim();
-  return normalized.length > 0 ? normalized : null;
-}
-
-async function getOrCreateReservation(customerId, itemId, boxLabel) {
-  const normalizedBox = normalizeBoxLabel(boxLabel);
-  let reservation = await CustomerStock.findOne({
-    customer: customerId,
-    item: itemId,
-    status: 'reserved',
-    boxLabel: normalizedBox
-  });
-  if (!reservation) {
-    reservation = new CustomerStock({
-      customer: customerId,
-      item: itemId,
-      quantity: { ...ZERO_QUANTITY },
-      status: 'reserved',
-      dateCreated: new Date(),
-      dateDelivered: null,
-      boxLabel: normalizedBox
-    });
+  let stockMap;
+  if (item.stock instanceof Map) {
+    stockMap = item.stock;
   } else {
-    reservation.quantity = normalizeStoredQuantity(reservation.quantity);
-    if (reservation.boxLabel !== normalizedBox) {
-      reservation.boxLabel = normalizedBox;
-    }
+    stockMap = new Map(Object.entries(item.stock || {}));
+    item.stock = stockMap;
   }
-  return reservation;
-}
-
-async function findReservationOrThrow(customerId, itemId, boxLabel) {
-  const normalizedBox = normalizeBoxLabel(boxLabel);
-  const reservation = await CustomerStock.findOne({
-    customer: customerId,
-    item: itemId,
-    status: 'reserved',
-    boxLabel: normalizedBox
-  });
-  if (!reservation) {
-    if (normalizedBox) {
-      throw new HttpError(400, `No hay stock reservado para la caja ${normalizedBox}.`);
-    }
-    throw new HttpError(400, 'Stock reservado insuficiente para el cliente');
+  const current = normalizeStoredQuantity(stockMap.get(depositId));
+  const updated = combineQuantities(current, delta, 'Stock insuficiente en el depósito seleccionado');
+  if (isZeroQuantity(updated)) {
+    stockMap.delete(depositId);
+  } else {
+    stockMap.set(depositId, updated);
   }
-  reservation.quantity = normalizeStoredQuantity(reservation.quantity);
-  return reservation;
+  item.markModified('stock');
 }
 
 function sanitizeMetadata(metadata = {}) {
@@ -196,102 +145,15 @@ async function executeMovement(request, actorUserId, metadata = {}) {
   const item = await findItemOrThrow(request.item);
   const quantity = normalizeStoredQuantity(request.quantity);
 
-  if (request.type === 'in') {
-    if (request.toList === 'customer') {
-      if (!request.customer) {
-        throw new HttpError(400, 'Debe indicarse el cliente');
-      }
-      await ensureCustomerExists(request.customer);
-      const reservation = await getOrCreateReservation(request.customer, item.id, request.boxLabel);
-      reservation.quantity = combineQuantities(reservation.quantity, quantity);
-      reservation.status = 'reserved';
-      reservation.dateCreated = new Date();
-      reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
-      await reservation.save();
-    } else {
-      if (!request.toList) {
-        throw new HttpError(400, 'Los ingresos requieren lista destino');
-      }
-      adjustItemStock(item, request.toList, quantity);
-      await item.save();
-    }
-  } else if (request.type === 'out') {
-    if (!request.fromList) {
-      throw new HttpError(400, 'Las salidas requieren lista origen');
-    }
-    if (request.fromList === 'customer') {
-      if (!request.customer) {
-        throw new HttpError(400, 'Debe indicarse el cliente');
-      }
-      await ensureCustomerExists(request.customer);
-      const reservation = await findReservationOrThrow(request.customer, item.id, request.boxLabel);
-      reservation.quantity = combineQuantities(
-        reservation.quantity,
-        negateQuantity(quantity),
-        'Stock reservado insuficiente para el cliente'
-      );
-      if (isZeroQuantity(reservation.quantity)) {
-        reservation.status = 'delivered';
-        reservation.dateDelivered = new Date();
-      }
-      reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
-      await reservation.save();
-    } else {
-      adjustItemStock(item, request.fromList, negateQuantity(quantity));
-      await item.save();
-    }
-  } else if (request.type === 'transfer') {
-    if (!request.fromList || !request.toList) {
-      throw new HttpError(400, 'Las transferencias requieren listas origen y destino');
-    }
-    if (request.fromList === 'customer') {
-      if (!request.customer) {
-        throw new HttpError(400, 'Debe indicarse el cliente');
-      }
-      await ensureCustomerExists(request.customer);
-      const reservation = await findReservationOrThrow(request.customer, item.id, request.boxLabel);
-      reservation.quantity = combineQuantities(
-        reservation.quantity,
-        negateQuantity(quantity),
-        'Stock reservado insuficiente'
-      );
-      if (request.toList === 'customer') {
-        reservation.status = 'delivered';
-        reservation.dateDelivered = new Date();
-        reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
-        await reservation.save();
-      } else {
-        if (isZeroQuantity(reservation.quantity)) {
-          await reservation.deleteOne();
-        } else {
-          reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
-          await reservation.save();
-        }
-        adjustItemStock(item, request.toList, quantity);
-        await item.save();
-      }
-    } else {
-      adjustItemStock(item, request.fromList, negateQuantity(quantity));
-      await item.save();
-      if (request.toList === 'customer') {
-        if (!request.customer) {
-          throw new HttpError(400, 'Debe indicarse el cliente');
-        }
-        await ensureCustomerExists(request.customer);
-        const reservation = await getOrCreateReservation(request.customer, item.id, request.boxLabel);
-        reservation.quantity = combineQuantities(reservation.quantity, quantity);
-        reservation.status = 'reserved';
-        reservation.dateCreated = new Date();
-        reservation.boxLabel = normalizeBoxLabel(request.boxLabel);
-        await reservation.save();
-      } else {
-        adjustItemStock(item, request.toList, quantity);
-        await item.save();
-      }
-    }
-  } else {
-    throw new HttpError(400, `Tipo de movimiento no soportado: ${request.type}`);
+  const fromDepositId = request.fromDeposit?.toString();
+  const toDepositId = request.toDeposit?.toString();
+  if (!fromDepositId || !toDepositId) {
+    throw new HttpError(400, 'Los movimientos requieren depósitos de origen y destino válidos');
   }
+
+  adjustItemStock(item, fromDepositId, negateQuantity(quantity));
+  adjustItemStock(item, toDepositId, quantity);
+  await item.save();
 
   request.status = 'executed';
   if (!request.approvedBy) {
@@ -305,52 +167,41 @@ async function executeMovement(request, actorUserId, metadata = {}) {
   await addMovementLog(request.id, 'executed', actorUserId, metadata);
 }
 
-function validateMovementPayload(payload) {
+async function validateMovementPayload(payload) {
   if (!payload.itemId) {
     throw new HttpError(400, 'Debe indicarse itemId');
   }
-  if (!payload.type) {
-    throw new HttpError(400, 'Debe indicarse type');
-  }
-  const quantity = normalizeQuantityInput(payload.quantity, { fieldName: 'Cantidad' });
-  if (payload.fromList && payload.fromList !== 'customer') {
-    validateListName(payload.fromList);
-  }
-  if (payload.toList && payload.toList !== 'customer') {
-    validateListName(payload.toList);
-  }
-  if (payload.type === 'in' && !payload.toList) {
-    throw new HttpError(400, 'Los ingresos requieren lista destino');
-  }
-  if (payload.type === 'out' && !payload.fromList) {
-    throw new HttpError(400, 'Las salidas requieren lista origen');
-  }
-  if (payload.type === 'transfer' && (!payload.fromList || !payload.toList)) {
-    throw new HttpError(400, 'Las transferencias requieren listas origen y destino');
-  }
-  const customerInteraction = payload.fromList === 'customer' || payload.toList === 'customer';
-  if (customerInteraction && !payload.customerId) {
-    throw new HttpError(400, 'Debe indicarse customerId para operar con reservas');
-  }
-  if (payload.boxLabel !== undefined && payload.boxLabel !== null) {
-    if (typeof payload.boxLabel !== 'string') {
-      throw new HttpError(400, 'La etiqueta de caja debe ser texto');
-    }
-    if (payload.boxLabel.trim().length > 100) {
-      throw new HttpError(400, 'La etiqueta de caja no puede superar los 100 caracteres');
-    }
+
+  if (payload.type && payload.type !== 'transfer') {
+    throw new HttpError(400, 'Solo se admiten transferencias entre depósitos');
   }
 
-  return { quantity };
+  const quantity = normalizeQuantityInput(payload.quantity, { fieldName: 'Cantidad' });
+
+  if (!payload.fromDeposit) {
+    throw new HttpError(400, 'Debe indicarse el depósito de origen');
+  }
+  if (!payload.toDeposit) {
+    throw new HttpError(400, 'Debe indicarse el depósito de destino');
+  }
+  if (payload.fromDeposit === payload.toDeposit) {
+    throw new HttpError(400, 'El depósito de origen y destino no pueden ser el mismo');
+  }
+
+  const [fromDeposit, toDeposit] = await Promise.all([
+    ensureDepositExists(payload.fromDeposit),
+    ensureDepositExists(payload.toDeposit)
+  ]);
+
+  return { quantity, fromDeposit, toDeposit };
 }
 
 module.exports = {
   validateMovementPayload,
   executeMovement,
   addMovementLog,
-  ensureCustomerExists,
   findItemOrThrow,
-  STOCK_LISTS,
+  ensureDepositExists,
   normalizeQuantityInput,
   normalizeStoredQuantity
 };
