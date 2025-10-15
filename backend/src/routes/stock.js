@@ -11,6 +11,7 @@ const {
   findItemOrThrow,
   normalizeStoredQuantity
 } = require('../services/stockService');
+const { parseDateBoundary } = require('../utils/dateRange');
 
 function serializeUserSummary(user) {
   if (!user) return null;
@@ -151,10 +152,25 @@ router.get(
     if (!permissions.includes('stock.request') && !permissions.includes('stock.approve')) {
       throw new HttpError(403, 'Permiso denegado');
     }
-    const { status } = req.query || {};
+    const { status, type, from, to } = req.query || {};
     const filter = {};
     if (status) {
       filter.status = status;
+    }
+    if (type) {
+      filter.type = type;
+    }
+    const range = {};
+    const fromDate = parseDateBoundary(from);
+    const toDate = parseDateBoundary(to, { endOfDay: true });
+    if (fromDate) {
+      range.$gte = fromDate;
+    }
+    if (toDate) {
+      range.$lte = toDate;
+    }
+    if (Object.keys(range).length > 0) {
+      filter.requestedAt = range;
     }
     const requests = await MovementRequest.find(filter)
       .populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation'])

@@ -3,7 +3,9 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-import { ensureQuantity, formatQuantity, sumQuantities } from '../../utils/quantity.js';
+import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
+import StockStatusBadge from '../../components/StockStatusBadge.jsx';
+import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
 
 const ATTRIBUTE_FIELDS = [
@@ -76,6 +78,7 @@ export default function ItemsPage() {
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canWrite = permissions.includes('items.write');
+  const canViewRequests = permissions.includes('stock.request') || permissions.includes('stock.approve');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -85,6 +88,7 @@ export default function ItemsPage() {
   const [pageSize] = useState(20);
   const [groups, setGroups] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [pendingSnapshot, setPendingSnapshot] = useState([]);
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
   const [formValues, setFormValues] = useState({
     code: '',
@@ -148,6 +152,31 @@ export default function ItemsPage() {
 
   useEffect(() => {
     let active = true;
+    if (!canViewRequests) {
+      setPendingSnapshot([]);
+      return () => {
+        active = false;
+      };
+    }
+    const loadPending = async () => {
+      try {
+        const response = await api.get('/stock/requests', { query: { status: 'pending' } });
+        if (!active) return;
+        setPendingSnapshot(Array.isArray(response) ? response : []);
+      } catch (err) {
+        if (!active) return;
+        console.warn('No se pudieron cargar solicitudes pendientes', err);
+        setPendingSnapshot([]);
+      }
+    };
+    loadPending();
+    return () => {
+      active = false;
+    };
+  }, [api, canViewRequests]);
+
+  useEffect(() => {
+    let active = true;
     const loadItems = async () => {
       setLoading(true);
       setError(null);
@@ -180,6 +209,25 @@ export default function ItemsPage() {
       active = false;
     };
   }, [api, filters.color, filters.gender, filters.groupId, filters.search, filters.size, page, pageSize]);
+
+  const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
+
+  const itemTotals = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(items) ? items : []).forEach(item => {
+      map.set(item.id, computeTotalStockFromMap(item.stock));
+    });
+    return map;
+  }, [items]);
+
+  const itemStatusMap = useMemo(() => {
+    const map = new Map();
+    itemTotals.forEach((total, itemId) => {
+      const pendingInfo = pendingMap.get(itemId);
+      map.set(itemId, deriveStockStatus(total, pendingInfo));
+    });
+    return map;
+  }, [itemTotals, pendingMap]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -734,12 +782,16 @@ export default function ItemsPage() {
                   <th>Imágenes</th>
                   <th>Ubicaciones</th>
                   <th>Total</th>
+                  <th>Disponibilidad</th>
                   {canWrite && <th>Acciones</th>}
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => (
-                  <tr key={item.id}>
+                {items.map(item => {
+                  const totalQuantity = itemTotals.get(item.id) || { boxes: 0, units: 0 };
+                  const stockStatus = itemStatusMap.get(item.id);
+                  return (
+                    <tr key={item.id}>
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{item.group?.name || 'Sin grupo'}</td>
@@ -765,12 +817,21 @@ export default function ItemsPage() {
                         {(!item.stock || Object.keys(item.stock).length === 0) && <span>-</span>}
                       </div>
                     </td>
+                    <td>{formatQuantity(totalQuantity)}</td>
                     <td>
-                      {formatQuantity(
-                        Object.values(item.stock || {}).reduce((acc, quantity) => sumQuantities(acc, ensureQuantity(quantity)), {
-                          boxes: 0,
-                          units: 0
-                        })
+                      {stockStatus ? (
+                        <div className="stock-status-cell">
+                          <StockStatusBadge status={stockStatus} />
+                          {stockStatus.pendingCount > 0 && (
+                            <span className="stock-status-note">
+                              {stockStatus.pendingCount === 1
+                                ? '1 solicitud pendiente'
+                                : `${stockStatus.pendingCount} solicitudes pendientes`}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        '-'
                       )}
                     </td>
                     {canWrite && (
@@ -783,10 +844,11 @@ export default function ItemsPage() {
                       </td>
                     )}
                   </tr>
-                ))}
+                );
+              })}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={canWrite ? 10 : 9} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={canWrite ? 11 : 10} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron artículos para los filtros seleccionados.
                     </td>
                   </tr>

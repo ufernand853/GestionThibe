@@ -4,6 +4,15 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 
+const AUDIT_ACTIONS = ['requested', 'approved', 'executed', 'rejected', 'resubmitted'];
+const ACTION_LABELS = {
+  requested: 'Solicitada',
+  approved: 'Aprobada',
+  executed: 'Ejecutada',
+  rejected: 'Rechazada',
+  resubmitted: 'Reenviada'
+};
+
 export default function AuditLogsPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -13,7 +22,7 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [logs, setLogs] = useState([]);
-  const [filters, setFilters] = useState({ requestId: '', limit: 100 });
+  const [filters, setFilters] = useState({ requestId: '', limit: 100, action: '', from: '', to: '' });
 
   useEffect(() => {
     let active = true;
@@ -21,12 +30,22 @@ export default function AuditLogsPage() {
       setLoading(true);
       setError(null);
       try {
-        const response = await api.get('/logs/movements', {
-          query: {
-            requestId: filters.requestId || undefined,
-            limit: filters.limit
-          }
-        });
+        const query = {
+          limit: filters.limit
+        };
+        if (filters.requestId) {
+          query.requestId = filters.requestId;
+        }
+        if (filters.action) {
+          query.action = filters.action;
+        }
+        if (filters.from) {
+          query.from = filters.from;
+        }
+        if (filters.to) {
+          query.to = filters.to;
+        }
+        const response = await api.get('/logs/movements', { query });
         if (!active) return;
         setLogs(Array.isArray(response) ? response : []);
       } catch (err) {
@@ -44,7 +63,7 @@ export default function AuditLogsPage() {
     return () => {
       active = false;
     };
-  }, [api, canViewLogs, filters.limit, filters.requestId]);
+  }, [api, canViewLogs, filters.action, filters.from, filters.limit, filters.requestId, filters.to]);
 
   if (!canViewLogs) {
     return <ErrorMessage error="No tiene permisos para acceder a la auditoría." />;
@@ -81,6 +100,39 @@ export default function AuditLogsPage() {
               onChange={event => setFilters(prev => ({ ...prev, limit: Number(event.target.value) }))}
             />
           </div>
+          <div className="input-group">
+            <label htmlFor="actionFilter">Acción</label>
+            <select
+              id="actionFilter"
+              value={filters.action}
+              onChange={event => setFilters(prev => ({ ...prev, action: event.target.value }))}
+            >
+              <option value="">Todas</option>
+              {AUDIT_ACTIONS.map(action => (
+                <option key={action} value={action}>
+                  {ACTION_LABELS[action] || action}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="input-group">
+            <label htmlFor="fromDate">Desde</label>
+            <input
+              id="fromDate"
+              type="date"
+              value={filters.from}
+              onChange={event => setFilters(prev => ({ ...prev, from: event.target.value }))}
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="toDate">Hasta</label>
+            <input
+              id="toDate"
+              type="date"
+              value={filters.to}
+              onChange={event => setFilters(prev => ({ ...prev, to: event.target.value }))}
+            />
+          </div>
         </form>
       </div>
 
@@ -105,7 +157,7 @@ export default function AuditLogsPage() {
                 {logs.map(log => (
                   <tr key={log.id}>
                     <td>{new Date(log.timestamp).toLocaleString('es-AR')}</td>
-                    <td>{log.action}</td>
+                    <td>{ACTION_LABELS[log.action] || log.action}</td>
                     <td>{log.movementRequestId || '-'}</td>
                     <td>{log.actor?.username || log.actor?.email || '-'}</td>
                     <td>{log.metadata?.ip || '-'}</td>

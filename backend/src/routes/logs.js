@@ -2,6 +2,7 @@ const express = require('express');
 const asyncHandler = require('../utils/asyncHandler');
 const { requirePermission } = require('../middlewares/auth');
 const MovementLog = require('../models/MovementLog');
+const { parseDateBoundary } = require('../utils/dateRange');
 
 const router = express.Router();
 
@@ -9,10 +10,25 @@ router.get(
   '/movements',
   requirePermission('stock.logs.read'),
   asyncHandler(async (req, res) => {
-    const { requestId, limit = '100' } = req.query || {};
+    const { requestId, limit = '100', action, from, to } = req.query || {};
     const query = {};
     if (requestId) {
       query.movementRequest = requestId;
+    }
+    if (action) {
+      query.action = action;
+    }
+    const range = {};
+    const fromDate = parseDateBoundary(from);
+    const toDate = parseDateBoundary(to, { endOfDay: true });
+    if (fromDate) {
+      range.$gte = fromDate;
+    }
+    if (toDate) {
+      range.$lte = toDate;
+    }
+    if (Object.keys(range).length > 0) {
+      query.timestamp = range;
     }
     const results = await MovementLog.find(query)
       .sort({ timestamp: -1 })

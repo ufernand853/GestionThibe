@@ -5,7 +5,7 @@ export default function Header() {
 
   return (
     <header className="app-header">
-      <h1>Gestión de Stock</h1>
+      <h1>Stock</h1>
       <div className="header-user">
         {user ? (
           <>
