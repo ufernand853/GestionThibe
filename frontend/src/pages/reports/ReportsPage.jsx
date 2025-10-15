@@ -75,6 +75,16 @@ export default function ReportsPage() {
     return options;
   }, [groupData]);
 
+  const consolidatedGroups = useMemo(() => {
+    return groupData
+      .map(group => ({
+        id: group.id || group.name || 'sin-grupo',
+        name: group.name || 'Sin grupo',
+        total: ensureQuantity(group.total)
+      }))
+      .filter(group => !group.total ? false : group.total.boxes > 0 || group.total.units > 0);
+  }, [groupData]);
+
   const filteredItems = useMemo(() => {
     return flattenedItems.filter(item => {
       const matchesGroup = !filters.groupId || item.groupId === filters.groupId;
@@ -192,6 +202,35 @@ export default function ReportsPage() {
                 <tr>
                   <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay artículos que coincidan con los filtros seleccionados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="section-card">
+        <h3>Stock consolidado por grupo</h3>
+        <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Grupo</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {consolidatedGroups.map(group => (
+                <tr key={group.id}>
+                  <td>{group.name}</td>
+                  <td>{formatQuantity(group.total)}</td>
+                </tr>
+              ))}
+              {consolidatedGroups.length === 0 && (
+                <tr>
+                  <td colSpan={2} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    No hay información consolidada por grupo disponible.
                   </td>
                 </tr>
               )}
