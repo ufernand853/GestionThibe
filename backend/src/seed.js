@@ -91,6 +91,11 @@ const defaultLocations = [
   { name: 'Sobrestock General', type: 'warehouse' },
   { name: 'Sobrestock Thibe', type: 'warehouse' },
   { name: 'Sobrestock Arenal', type: 'warehouse' },
+  { name: 'Sobrestock Arenal Import', type: 'warehouse' },
+  { name: 'Guadalupe', type: 'warehouse' },
+  { name: 'Justicia', type: 'warehouse' },
+  { name: 'Arnavia', type: 'warehouse' },
+  { name: 'Flex', type: 'warehouse' },
   { name: 'Destino Comercial', type: 'external' }
 ];
 
