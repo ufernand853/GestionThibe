@@ -3,7 +3,6 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-import { exportToCsv } from '../../utils/export.js';
 import { ensureQuantity, formatQuantity, sumQuantities } from '../../utils/quantity.js';
 
 export default function ReportsPage() {
@@ -16,7 +15,14 @@ export default function ReportsPage() {
   const [error, setError] = useState(null);
   const [groupData, setGroupData] = useState([]);
   const [depositData, setDepositData] = useState([]);
-  const [filters, setFilters] = useState({ groupId: '', search: '' });
+  const [groupDetailState, setGroupDetailState] = useState({
+    groupKey: null,
+    groupName: '',
+    items: [],
+    total: { boxes: 0, units: 0 }
+  });
+  const [groupDetailLoading, setGroupDetailLoading] = useState(false);
+  const [groupDetailError, setGroupDetailError] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -51,66 +57,60 @@ export default function ReportsPage() {
     };
   }, [api, canViewReports]);
 
-  const flattenedItems = useMemo(() => {
-    const items = [];
-    groupData.forEach(group => {
-      (group.items || []).forEach(item => {
-        items.push({
-          ...item,
-          groupId: group.id,
-          groupName: group.name || 'Sin grupo',
-          stockByDeposit: Array.isArray(item.stockByDeposit) ? item.stockByDeposit : [],
-          code: item.code ?? '',
-          description: item.description ?? ''
-        });
-      });
-    });
-    return items;
-  }, [groupData]);
-
-  const uniqueGroups = useMemo(() => {
-    const options = groupData
-      .map(group => ({ id: group.id || '', name: group.name || 'Sin grupo' }))
-      .filter((value, index, self) => index === self.findIndex(entry => entry.id === value.id && entry.name === value.name));
-    return options;
-  }, [groupData]);
-
   const consolidatedGroups = useMemo(() => {
-    return groupData
-      .map(group => ({
-        id: group.id || group.name || 'sin-grupo',
-        name: group.name || 'Sin grupo',
-        total: ensureQuantity(group.total)
-      }))
-      .filter(group => !group.total ? false : group.total.boxes > 0 || group.total.units > 0);
-  }, [groupData]);
-
-  const filteredItems = useMemo(() => {
-    return flattenedItems.filter(item => {
-      const matchesGroup = !filters.groupId || item.groupId === filters.groupId;
-      const matchesSearch =
-        !filters.search ||
-        item.code.toLowerCase().includes(filters.search.toLowerCase()) ||
-        item.description.toLowerCase().includes(filters.search.toLowerCase());
-      return matchesGroup && matchesSearch;
-    });
-  }, [filters.groupId, filters.search, flattenedItems]);
-
-  const handleExport = () => {
-    const rows = filteredItems.map(item => {
-      const totals = (item.stockByDeposit || []).reduce(
-        (acc, entry) => sumQuantities(acc, ensureQuantity(entry.quantity)),
-        { boxes: 0, units: 0 }
-      );
+    return groupData.map(group => {
+      const normalizedTotal = ensureQuantity(group.total);
+      const hasIdentifier = typeof group.id === 'string' && group.id.length > 0;
+      const queryKey = hasIdentifier ? String(group.id) : 'ungrouped';
       return {
-        codigo: item.code,
-        descripcion: item.description,
-        grupo: item.groupName,
-        stock_total_cajas: totals.boxes,
-        stock_total_unidades: totals.units
+        id: hasIdentifier ? String(group.id) : null,
+        key: hasIdentifier ? String(group.id) : 'ungrouped',
+        queryKey,
+        name: group.name || 'Sin grupo',
+        total: normalizedTotal
       };
     });
-    exportToCsv('reporte_stock.csv', rows);
+  }, [groupData]);
+
+  const handleViewGroupDetail = async group => {
+    const selected = {
+      groupKey: group.queryKey,
+      groupName: group.name || 'Sin grupo',
+      items: [],
+      total: ensureQuantity(group.total)
+    };
+    setGroupDetailState(selected);
+    setGroupDetailError(null);
+    setGroupDetailLoading(true);
+    try {
+      const queryParam = encodeURIComponent(group.queryKey);
+      const detailResponse = await api.get(`/reports/stock/by-group?includeItems=true&groupId=${queryParam}`);
+      const matchKey = group.id ? String(group.id) : 'ungrouped';
+      const detailGroup = Array.isArray(detailResponse)
+        ? detailResponse.find(entry => (entry.id ? String(entry.id) : 'ungrouped') === matchKey)
+        : null;
+      setGroupDetailState({
+        groupKey: group.queryKey,
+        groupName: group.name || 'Sin grupo',
+        items: Array.isArray(detailGroup?.items) ? detailGroup.items : [],
+        total: ensureQuantity(detailGroup?.total ?? group.total)
+      });
+    } catch (err) {
+      setGroupDetailError(err);
+    } finally {
+      setGroupDetailLoading(false);
+    }
+  };
+
+  const handleCloseGroupDetail = () => {
+    setGroupDetailState({
+      groupKey: null,
+      groupName: '',
+      items: [],
+      total: { boxes: 0, units: 0 }
+    });
+    setGroupDetailError(null);
+    setGroupDetailLoading(false);
   };
 
   if (!canViewReports) {
@@ -131,86 +131,6 @@ export default function ReportsPage() {
       {error && <ErrorMessage error={error} />}
 
       <div className="section-card">
-        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-          <div className="input-group">
-            <label htmlFor="search">Buscar</label>
-            <input
-              id="search"
-              value={filters.search}
-              onChange={event => setFilters(prev => ({ ...prev, search: event.target.value }))}
-              placeholder="Código o descripción"
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="group">Grupo</label>
-            <select id="group" value={filters.groupId} onChange={event => setFilters(prev => ({ ...prev, groupId: event.target.value }))}>
-              <option value="">Todos</option>
-              {uniqueGroups.map(group => (
-                <option key={group.id || group.name} value={group.id || ''}>
-                  {group.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button type="button" onClick={handleExport} disabled={filteredItems.length === 0}>
-              Exportar CSV
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="section-card">
-        <h3>Detalle por artículo</h3>
-        <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Descripción</th>
-                <th>Grupo</th>
-                <th>Depósitos</th>
-                <th>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredItems.map(item => {
-                const deposits = item.stockByDeposit || [];
-                const total = deposits.reduce(
-                  (acc, entry) => sumQuantities(acc, ensureQuantity(entry.quantity)),
-                  { boxes: 0, units: 0 }
-                );
-                return (
-                  <tr key={item.id}>
-                    <td>{item.code}</td>
-                    <td>{item.description}</td>
-                    <td>{item.groupName}</td>
-                    <td>
-                      <div className="chip-list">
-                        {deposits.map(entry => (
-                          <span key={entry.depositId || entry.deposit?.id || Math.random()} className="badge">
-                            {entry.deposit?.name || 'Depósito'} · {formatQuantity(entry.quantity, { compact: true })}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>{formatQuantity(total)}</td>
-                  </tr>
-                );
-              })}
-              {filteredItems.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-                    No hay artículos que coincidan con los filtros seleccionados.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="section-card">
         <h3>Stock consolidado por grupo</h3>
         <div className="table-wrapper" style={{ marginTop: '1rem' }}>
           <table>
@@ -218,18 +138,28 @@ export default function ReportsPage() {
               <tr>
                 <th>Grupo</th>
                 <th>Total</th>
+                <th style={{ width: '1%', textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {consolidatedGroups.map(group => (
-                <tr key={group.id}>
+                <tr key={group.key}>
                   <td>{group.name}</td>
                   <td>{formatQuantity(group.total)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleViewGroupDetail(group)}
+                      disabled={groupDetailLoading && groupDetailState.groupKey === group.queryKey}
+                    >
+                      Ver detalle
+                    </button>
+                  </td>
                 </tr>
               ))}
               {consolidatedGroups.length === 0 && (
                 <tr>
-                  <td colSpan={2} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <td colSpan={3} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay información consolidada por grupo disponible.
                   </td>
                 </tr>
@@ -238,6 +168,92 @@ export default function ReportsPage() {
           </table>
         </div>
       </div>
+
+      {(groupDetailState.groupKey || groupDetailLoading || groupDetailError) && (
+        <div className="section-card">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '1rem',
+              marginBottom: '0.75rem'
+            }}
+          >
+            <div>
+              <h3 style={{ marginBottom: '0.25rem' }}>Desglose por producto</h3>
+              <p style={{ margin: 0, color: '#475569' }}>
+                {groupDetailState.groupName
+                  ? `Grupo seleccionado: ${groupDetailState.groupName}`
+                  : 'Seleccione un grupo para ver el detalle por producto.'}
+              </p>
+            </div>
+            {groupDetailState.groupKey && (
+              <button type="button" onClick={handleCloseGroupDetail}>
+                Cerrar
+              </button>
+            )}
+          </div>
+
+          {groupDetailError && <ErrorMessage error={groupDetailError} />}
+
+          {groupDetailLoading && (
+            <p style={{ margin: '1rem 0', color: '#475569' }}>Cargando desglose del grupo seleccionado...</p>
+          )}
+
+          {!groupDetailLoading && !groupDetailError && groupDetailState.groupKey && (
+            <>
+              <p style={{ marginBottom: '0.75rem', color: '#1f2937' }}>
+                Stock total del grupo: {formatQuantity(groupDetailState.total)}
+              </p>
+              <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Descripción</th>
+                      <th>Depósitos</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groupDetailState.items.map(item => {
+                      const locations = Array.isArray(item.stockByLocation) ? item.stockByLocation : [];
+                      const total = locations.reduce(
+                        (acc, entry) => sumQuantities(acc, ensureQuantity(entry.quantity)),
+                        { boxes: 0, units: 0 }
+                      );
+                      return (
+                        <tr key={item.id}>
+                          <td>{item.code}</td>
+                          <td>{item.description}</td>
+                          <td>
+                            <div className="chip-list">
+                              {locations.map(location => (
+                                <span key={location.locationId || location.location?.id || Math.random()} className="badge">
+                                  {location.location?.name || 'Depósito'} · {formatQuantity(location.quantity, { compact: true })}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td>{formatQuantity(total)}</td>
+                        </tr>
+                      );
+                    })}
+                    {groupDetailState.items.length === 0 && (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                          No hay productos asociados al grupo seleccionado.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="section-card">
         <h3>Stock consolidado por depósito</h3>
