@@ -6,8 +6,8 @@ const movementRequestSchema = new Schema(
   {
     item: { type: Types.ObjectId, ref: 'Item', required: true },
     type: { type: String, enum: ['transfer'], default: 'transfer' },
-    fromDeposit: { type: Types.ObjectId, ref: 'Deposit', required: true },
-    toDeposit: { type: Types.ObjectId, ref: 'Deposit', required: true },
+    fromLocation: { type: Types.ObjectId, ref: 'Location', required: true },
+    toLocation: { type: Types.ObjectId, ref: 'Location', required: true },
     quantity: { type: quantitySubSchema, required: true, default: () => coerceQuantity() },
     reason: { type: String, default: '' },
     requestedBy: { type: Types.ObjectId, ref: 'User', required: true },

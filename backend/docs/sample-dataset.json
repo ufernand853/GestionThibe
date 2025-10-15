@@ -1,7 +1,7 @@
 {
     "generatedAt": "2024-06-01T00:00:00.000Z",
     "metadata": {
-        "description": "Conjunto de datos genérico de ejemplo para la solución de gestión de stock y reservas.",
+        "description": "Conjunto de datos gen\u00e9rico de ejemplo para la soluci\u00f3n de gesti\u00f3n de stock y reservas.",
         "notes": "Los identificadores y referencias se expresan en Extended JSON para conservar los ObjectId al importar."
     },
     "groups": [
@@ -45,7 +45,7 @@
             "_id": {
                 "$oid": "d3c1d53a576c32323865a33f"
             },
-            "name": "JEAN NIÑO"
+            "name": "JEAN NI\u00d1O"
         },
         {
             "_id": {
@@ -63,7 +63,7 @@
             "_id": {
                 "$oid": "75daee160f9ebbc44b751a56"
             },
-            "name": "ROPA NIÑO"
+            "name": "ROPA NI\u00d1O"
         },
         {
             "_id": {
@@ -75,7 +75,7 @@
             "_id": {
                 "$oid": "764d8e15cbb1e65a974554c6"
             },
-            "name": "ELECTRÓNICOS"
+            "name": "ELECTR\u00d3NICOS"
         },
         {
             "_id": {
@@ -188,7 +188,7 @@
                 "gender": "Unisex",
                 "size": "35-45",
                 "color": "Surtido",
-                "material": "Algodón con spandex"
+                "material": "Algod\u00f3n con spandex"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -246,14 +246,14 @@
                 "$oid": "d66fe23041ad5db74bef50c6"
             },
             "code": "BLA-104",
-            "description": "Juego de sábanas 2 plazas 400 hilos",
+            "description": "Juego de s\u00e1banas 2 plazas 400 hilos",
             "group": {
                 "$oid": "f53f2ef3d466b8610490efa8"
             },
             "attributes": {
                 "size": "2 plazas",
                 "color": "Blanco",
-                "material": "Algodón percal",
+                "material": "Algod\u00f3n percal",
                 "threadCount": 400
             },
             "stock": {
@@ -281,14 +281,14 @@
                 "$oid": "e1d280fee853df2342f86a2e"
             },
             "code": "ACC-220",
-            "description": "Cinturón cuero trenzado",
+            "description": "Cintur\u00f3n cuero trenzado",
             "group": {
                 "$oid": "3411c2f0e9d92a111780f97f"
             },
             "attributes": {
                 "gender": "Caballero",
                 "size": "90-110",
-                "color": "Marrón",
+                "color": "Marr\u00f3n",
                 "material": "Cuero vacuno"
             },
             "stock": {
@@ -316,14 +316,14 @@
                 "$oid": "93d07de07c4dcb8912ca955a"
             },
             "code": "JHN-301",
-            "description": "Jean clásico straight fit",
+            "description": "Jean cl\u00e1sico straight fit",
             "group": {
                 "$oid": "13e807b60c8f77271ee23b5d"
             },
             "attributes": {
                 "gender": "Caballero",
                 "size": "30-44",
-                "color": "Azul índigo",
+                "color": "Azul \u00edndigo",
                 "material": "Denim 13oz"
             },
             "stock": {
@@ -351,7 +351,7 @@
                 "$oid": "4a0db883302fb57a1e3bc689"
             },
             "code": "JDN-115",
-            "description": "Jean chupín tiro alto",
+            "description": "Jean chup\u00edn tiro alto",
             "group": {
                 "$oid": "b91c8dcee40f03083d0e2ad2"
             },
@@ -359,7 +359,7 @@
                 "gender": "Dama",
                 "size": "24-34",
                 "color": "Azul oscuro",
-                "material": "Denim elástico"
+                "material": "Denim el\u00e1stico"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -386,12 +386,12 @@
                 "$oid": "93dfc5c01ac997decec2492a"
             },
             "code": "JNN-050",
-            "description": "Jean regular fit niño",
+            "description": "Jean regular fit ni\u00f1o",
             "group": {
                 "$oid": "d3c1d53a576c32323865a33f"
             },
             "attributes": {
-                "gender": "Niños",
+                "gender": "Ni\u00f1os",
                 "size": "6-14",
                 "color": "Celeste",
                 "material": "Denim 10oz"
@@ -468,7 +468,7 @@
                 "gender": "Dama",
                 "size": "S-XL",
                 "color": "Verde jade",
-                "material": "Satén"
+                "material": "Sat\u00e9n"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -499,15 +499,15 @@
                 "$oid": "a9ba2f509b29c1dad3988503"
             },
             "code": "RNI-125",
-            "description": "Buzo frisa estampado niño",
+            "description": "Buzo frisa estampado ni\u00f1o",
             "group": {
                 "$oid": "75daee160f9ebbc44b751a56"
             },
             "attributes": {
-                "gender": "Niños",
+                "gender": "Ni\u00f1os",
                 "size": "6-16",
-                "color": "Gris vigoré",
-                "material": "Algodón y poliéster"
+                "color": "Gris vigor\u00e9",
+                "material": "Algod\u00f3n y poli\u00e9ster"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -573,7 +573,7 @@
                 "$oid": "81437fc495129783221b2488"
             },
             "code": "ELE-015",
-            "description": "Auriculares inalámbricos ANC",
+            "description": "Auriculares inal\u00e1mbricos ANC",
             "group": {
                 "$oid": "764d8e15cbb1e65a974554c6"
             },
@@ -607,7 +607,7 @@
                 "$oid": "d0161696211c8030ce522b78"
             },
             "code": "JUG-412",
-            "description": "Set construcción magnética 60 piezas",
+            "description": "Set construcci\u00f3n magn\u00e9tica 60 piezas",
             "group": {
                 "$oid": "3fb084ad4ffee6e5887c078a"
             },
@@ -648,7 +648,7 @@
             "attributes": {
                 "size": "35L",
                 "color": "Azul marino",
-                "material": "Poliéster 600D"
+                "material": "Poli\u00e9ster 600D"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -685,9 +685,9 @@
             },
             "attributes": {
                 "gender": "Unisex",
-                "size": "Único",
+                "size": "\u00danico",
                 "color": "Negro",
-                "material": "Poliéster"
+                "material": "Poli\u00e9ster"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -714,7 +714,7 @@
                 "$oid": "19ed83cf827f403d8b1ac804"
             },
             "code": "RIN-022",
-            "description": "Pack bóxer algodón premium",
+            "description": "Pack b\u00f3xer algod\u00f3n premium",
             "group": {
                 "$oid": "ebeec87c08b6773bd616ae5a"
             },
@@ -722,7 +722,7 @@
                 "gender": "Caballero",
                 "size": "S-XXL",
                 "color": "Surtido",
-                "material": "Algodón peinado"
+                "material": "Algod\u00f3n peinado"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -749,7 +749,7 @@
                 "$oid": "7d3d03a08c51d6a0760f86c7"
             },
             "code": "MED-014",
-            "description": "Medias térmicas trekking",
+            "description": "Medias t\u00e9rmicas trekking",
             "group": {
                 "$oid": "4879825bcf89ef737dc7bb6e"
             },
@@ -861,7 +861,7 @@
                 "gender": "Caballero",
                 "size": "38-48",
                 "color": "Azul marino",
-                "material": "Poliéster viscosa"
+                "material": "Poli\u00e9ster viscosa"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -888,12 +888,12 @@
                 "$oid": "691eb54a0838115a28755165"
             },
             "code": "RNI-210",
-            "description": "Campera rompeviento niño",
+            "description": "Campera rompeviento ni\u00f1o",
             "group": {
                 "$oid": "75daee160f9ebbc44b751a56"
             },
             "attributes": {
-                "gender": "Niños",
+                "gender": "Ni\u00f1os",
                 "size": "4-16",
                 "color": "Azul cielo",
                 "material": "Ripstop"
@@ -930,7 +930,7 @@
             "attributes": {
                 "gender": "Unisex",
                 "size": "36-45",
-                "color": "Marrón",
+                "color": "Marr\u00f3n",
                 "material": "Cuero y membrana"
             },
             "stock": {
@@ -965,7 +965,7 @@
             "attributes": {
                 "category": "Wearables",
                 "color": "Negro",
-                "battery": "7 días"
+                "battery": "7 d\u00edas"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -1033,7 +1033,7 @@
             "attributes": {
                 "size": "Mediana",
                 "color": "Lila",
-                "material": "Poliéster"
+                "material": "Poli\u00e9ster"
             },
             "stock": {
                 "64b3e2d5a6f0c8b1a1a1a1a1": {
@@ -1067,7 +1067,7 @@
             "attributes": {
                 "gender": "Unisex",
                 "size": "180x30 cm",
-                "color": "Bordó",
+                "color": "Bord\u00f3",
                 "material": "Lana merino"
             },
             "stock": {
@@ -1118,10 +1118,10 @@
             "rejectedReason": null,
             "createdAt": "2024-05-12T13:15:00.000Z",
             "updatedAt": "2024-05-12T13:40:00.000Z",
-            "fromDeposit": {
+            "fromLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
             },
-            "toDeposit": {
+            "toLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
             }
         },
@@ -1151,10 +1151,10 @@
             "rejectedReason": null,
             "createdAt": "2024-05-18T10:05:00.000Z",
             "updatedAt": "2024-05-18T10:20:00.000Z",
-            "fromDeposit": {
+            "fromLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
             },
-            "toDeposit": {
+            "toLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
             }
         },
@@ -1182,10 +1182,10 @@
             "rejectedReason": null,
             "createdAt": "2024-05-05T08:35:00.000Z",
             "updatedAt": "2024-05-05T09:00:00.000Z",
-            "fromDeposit": {
+            "fromLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a2"
             },
-            "toDeposit": {
+            "toLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
             }
         },
@@ -1201,7 +1201,7 @@
                 "boxes": 2,
                 "units": 0
             },
-            "reason": "Reforzar exhibición local norte",
+            "reason": "Reforzar exhibici\u00f3n local norte",
             "requestedBy": {
                 "$oid": "f61afdbec55ee16412b6374d"
             },
@@ -1213,10 +1213,10 @@
             "rejectedReason": null,
             "createdAt": "2024-05-14T08:40:00.000Z",
             "updatedAt": "2024-05-14T09:05:00.000Z",
-            "fromDeposit": {
+            "fromLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a3"
             },
-            "toDeposit": {
+            "toLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
             }
         },
@@ -1232,7 +1232,7 @@
                 "boxes": 12,
                 "units": 0
             },
-            "reason": "Reserva especial para campaña escolar",
+            "reason": "Reserva especial para campa\u00f1a escolar",
             "requestedBy": {
                 "$oid": "f61afdbec55ee16412b6374d"
             },
@@ -1246,10 +1246,10 @@
             "rejectedReason": null,
             "createdAt": "2024-05-20T11:10:00.000Z",
             "updatedAt": "2024-05-20T11:25:00.000Z",
-            "fromDeposit": {
+            "fromLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
             },
-            "toDeposit": {
+            "toLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
             }
         },
@@ -1277,10 +1277,10 @@
             "rejectedReason": null,
             "createdAt": "2024-05-22T09:15:00.000Z",
             "updatedAt": "2024-05-22T09:15:00.000Z",
-            "fromDeposit": {
+            "fromLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
             },
-            "toDeposit": {
+            "toLocation": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
             }
         }
@@ -1423,7 +1423,7 @@
             "metadata": {
                 "ip": "192.168.10.12",
                 "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                "notes": "Reforzar exhibición local norte"
+                "notes": "Reforzar exhibici\u00f3n local norte"
             }
         },
         {
@@ -1458,7 +1458,7 @@
             "metadata": {
                 "ip": "192.168.10.12",
                 "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                "notes": "Reserva especial para campaña escolar"
+                "notes": "Reserva especial para campa\u00f1a escolar"
             }
         },
         {
@@ -1497,78 +1497,90 @@
             }
         }
     ],
-    "deposits": [
+    "locations": [
         {
             "_id": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a1"
             },
-            "name": "Depósito General",
+            "name": "Dep\u00f3sito General",
             "description": "Stock disponible para despacho principal",
             "status": "active",
             "createdAt": "2024-03-01T10:00:00.000Z",
-            "updatedAt": "2024-05-20T15:00:00.000Z"
+            "updatedAt": "2024-05-20T15:00:00.000Z",
+            "type": "warehouse",
+            "contactInfo": ""
         },
         {
             "_id": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a2"
             },
             "name": "Sobrestock General",
-            "description": "Excedentes almacenados en depósito secundario",
+            "description": "Excedentes almacenados en dep\u00f3sito secundario",
             "status": "active",
             "createdAt": "2024-03-01T10:00:00.000Z",
-            "updatedAt": "2024-05-20T15:00:00.000Z"
+            "updatedAt": "2024-05-20T15:00:00.000Z",
+            "type": "warehouse",
+            "contactInfo": ""
         },
         {
             "_id": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a3"
             },
             "name": "Sobrestock Thibe",
-            "description": "Mercadería consignada por Thibe",
+            "description": "Mercader\u00eda consignada por Thibe",
             "status": "active",
             "createdAt": "2024-03-01T10:00:00.000Z",
-            "updatedAt": "2024-05-20T15:00:00.000Z"
+            "updatedAt": "2024-05-20T15:00:00.000Z",
+            "type": "warehouse",
+            "contactInfo": ""
         },
         {
             "_id": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a4"
             },
             "name": "Sobrestock Arenal",
-            "description": "Mercadería consignada por Arenal Import",
+            "description": "Mercader\u00eda consignada por Arenal Import",
             "status": "active",
             "createdAt": "2024-03-01T10:00:00.000Z",
-            "updatedAt": "2024-05-20T15:00:00.000Z"
+            "updatedAt": "2024-05-20T15:00:00.000Z",
+            "type": "warehouse",
+            "contactInfo": ""
         },
         {
             "_id": {
                 "$oid": "64b3e2d5a6f0c8b1a1a1a1a5"
             },
-            "name": "Preparación de despachos",
-            "description": "Mercadería separada para envíos a destinos",
+            "name": "Preparaci\u00f3n de despachos",
+            "description": "Mercader\u00eda separada para env\u00edos a destinos",
             "status": "active",
             "createdAt": "2024-03-01T10:00:00.000Z",
-            "updatedAt": "2024-05-20T15:00:00.000Z"
-        }
-    ],
-    "destinations": [
+            "updatedAt": "2024-05-20T15:00:00.000Z",
+            "type": "warehouse",
+            "contactInfo": ""
+        },
         {
             "_id": {
                 "$oid": "b9a7d24a650795fb89b8fc67"
             },
             "name": "Boutique Central",
-            "contactInfo": "Lucía Nóbile - lnobile@boutiquecentral.com - +54 11 4444-8899",
+            "contactInfo": "Luc\u00eda N\u00f3bile - lnobile@boutiquecentral.com - +54 11 4444-8899",
             "createdAt": "2024-02-01T11:00:00.000Z",
             "updatedAt": "2024-05-15T16:30:00.000Z",
-            "status": "active"
+            "status": "active",
+            "type": "external",
+            "description": ""
         },
         {
             "_id": {
                 "$oid": "3c20796c8ef9e72714855520"
             },
-            "name": "Tiendas Atlántico",
-            "contactInfo": "Rodrigo Méndez - rmendez@atlanticotiendas.com - +54 223 555-7711",
+            "name": "Tiendas Atl\u00e1ntico",
+            "contactInfo": "Rodrigo M\u00e9ndez - rmendez@atlanticotiendas.com - +54 223 555-7711",
             "createdAt": "2024-02-12T09:45:00.000Z",
             "updatedAt": "2024-05-18T12:15:00.000Z",
-            "status": "active"
+            "status": "active",
+            "type": "external",
+            "description": ""
         },
         {
             "_id": {
@@ -1578,18 +1590,21 @@
             "contactInfo": "Paula Figueroa - pfigueroa@mercadelsur.com - +54 261 455-3200",
             "createdAt": "2024-03-04T14:05:00.000Z",
             "updatedAt": "2024-05-19T18:10:00.000Z",
-            "status": "active"
+            "status": "active",
+            "type": "external",
+            "description": ""
         },
         {
             "_id": {
                 "$oid": "31afe13cf0c248dcb63eebaa"
             },
-            "name": "Distribuidora Patagónica",
-            "contactInfo": "María Paredes - mp@distribuidorapata.com - +54 9 299 455-8899",
+            "name": "Distribuidora Patag\u00f3nica",
+            "contactInfo": "Mar\u00eda Paredes - mp@distribuidorapata.com - +54 9 299 455-8899",
             "createdAt": "2024-02-10T14:20:00.000Z",
             "updatedAt": "2024-05-05T19:05:00.000Z",
-            "status": "active"
+            "status": "active",
+            "type": "external",
+            "description": ""
         }
     ]
 }
-

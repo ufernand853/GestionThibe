@@ -21,14 +21,10 @@ Desarrollar un sistema de gestión de inventario enfocado en depósitos configur
   - **Material**.
   - **Temporada**.
   - Otros campos libres según la categoría.
-- **Depósitos**:
-  - Depósito General.
-  - Sobrestock General.
-  - Sobrestock Thibe.
-  - Sobrestock Arenal.
-  - Preparación de despachos (mercadería asignada a envíos).
-  - Alta/Baja/Edición de depósitos adicionales según la operación.
-- **Destinos**: listado configurable de puntos de entrega y clientes corporativos con contacto.
+- **Ubicaciones**:
+  - Depósitos internos (General, Sobrestock General, Sobrestock Thibe, Sobrestock Arenal, Preparación de despachos).
+  - Destinos externos configurables con información de contacto.
+  - Alta/Baja/Edición de ubicaciones adicionales según la operación.
 - **Operaciones**:
   - Alta y edición de artículos con stock distribuido por depósito.
   - Solicitud de transferencias entre depósitos (origen ≠ destino).
@@ -58,8 +54,7 @@ Desarrollar un sistema de gestión de inventario enfocado en depósitos configur
 - **API REST** (principales):
   - `POST /api/items`, `GET /api/items`, `PUT /api/items/:id`.
   - `GET /api/groups`, `POST /api/groups`, `PUT /api/groups/:id`.
-  - `GET /api/deposits`, `POST /api/deposits`, `PUT /api/deposits/:id`, `DELETE /api/deposits/:id`.
-  - `GET /api/destinations`, `POST /api/destinations`, `PUT /api/destinations/:id`, `DELETE /api/destinations/:id`.
+  - `GET /api/locations`, `POST /api/locations`, `PUT /api/locations/:id`, `DELETE /api/locations/:id`.
   - `POST /api/stock/request`, `POST /api/stock/approve/:id`, `POST /api/stock/reject/:id`, `GET /api/stock/requests`.
   - `GET /api/reports/stock/by-group`, `GET /api/reports/stock/by-deposit`.
   - `GET /api/logs/movements`.
@@ -91,14 +86,16 @@ Desarrollar un sistema de gestión de inventario enfocado en depósitos configur
 { "id": "ObjectId", "name": "string", "parentId": "ObjectId|null" }
 ```
 
-### Deposits
+### Locations
 ```json
-{ "id": "ObjectId", "name": "string", "description": "string", "status": "active|inactive" }
-```
-
-### Destinations
-```json
-{ "id": "ObjectId", "name": "string", "contactInfo": "string", "status": "active|inactive" }
+{
+  "id": "ObjectId",
+  "name": "string",
+  "type": "warehouse|external",
+  "description": "string",
+  "contactInfo": "string",
+  "status": "active|inactive"
+}
 ```
 
 ### Items
@@ -131,8 +128,8 @@ Desarrollar un sistema de gestión de inventario enfocado en depósitos configur
   "id": "ObjectId",
   "itemId": "ObjectId",
   "type": "transfer",
-  "fromDeposit": "ObjectId",
-  "toDeposit": "ObjectId",
+  "fromLocation": "ObjectId",
+  "toLocation": "ObjectId",
   "quantity": { "boxes": "int", "units": "int" },
   "reason": "string",
   "requestedBy": "ObjectId",

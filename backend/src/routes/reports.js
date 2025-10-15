@@ -3,29 +3,29 @@ const asyncHandler = require('../utils/asyncHandler');
 const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
-const Deposit = require('../models/Deposit');
+const Location = require('../models/Location');
 const { normalizeStoredQuantity } = require('../services/stockService');
 
 const router = express.Router();
 
-function mapStockToArray(stock, depositsById) {
+function mapStockToArray(stock, locationsById) {
   const entries = [];
   if (stock instanceof Map) {
-    for (const [depositId, quantity] of stock.entries()) {
-      const key = String(depositId);
+    for (const [locationId, quantity] of stock.entries()) {
+      const key = String(locationId);
       entries.push({
-        depositId: key,
+        locationId: key,
         quantity: normalizeStoredQuantity(quantity),
-        deposit: depositsById.get(key) || null
+        location: locationsById.get(key) || null
       });
     }
   } else if (stock && typeof stock === 'object') {
-    Object.entries(stock).forEach(([depositId, quantity]) => {
-      const key = String(depositId);
+    Object.entries(stock).forEach(([locationId, quantity]) => {
+      const key = String(locationId);
       entries.push({
-        depositId: key,
+        locationId: key,
         quantity: normalizeStoredQuantity(quantity),
-        deposit: depositsById.get(key) || null
+        location: locationsById.get(key) || null
       });
     });
   }
@@ -36,12 +36,14 @@ router.get(
   '/stock/by-group',
   requirePermission('reports.read'),
   asyncHandler(async (req, res) => {
-    const [items, groups, deposits] = await Promise.all([
+    const [items, groups, locations] = await Promise.all([
       Item.find().populate('group'),
       Group.find(),
-      Deposit.find()
+      Location.find()
     ]);
-    const depositsById = new Map(deposits.map(deposit => [deposit.id, { id: deposit.id, name: deposit.name, status: deposit.status }]));
+    const locationsById = new Map(
+      locations.map(location => [location.id, { id: location.id, name: location.name, status: location.status, type: location.type }])
+    );
     const groupIndex = new Map();
     groups.forEach(group => {
       groupIndex.set(group.id, { id: group.id, name: group.name, items: [] });
@@ -50,13 +52,13 @@ router.get(
     const ungrouped = { id: null, name: 'Sin grupo', items: [] };
 
     items.forEach(item => {
-      const stockEntries = mapStockToArray(item.stock, depositsById);
+      const stockEntries = mapStockToArray(item.stock, locationsById);
       const targetGroup = item.group ? groupIndex.get(item.group.id) : ungrouped;
       targetGroup.items.push({
         id: item.id,
         code: item.code,
         description: item.description,
-        stockByDeposit: stockEntries
+        stockByLocation: stockEntries
       });
     });
 
@@ -69,49 +71,61 @@ router.get(
   })
 );
 
-router.get(
-  '/stock/by-deposit',
-  requirePermission('reports.read'),
-  asyncHandler(async (req, res) => {
-    const [items, deposits] = await Promise.all([Item.find(), Deposit.find()]);
-    const totals = new Map(deposits.map(deposit => [deposit.id, { id: deposit.id, name: deposit.name, total: { boxes: 0, units: 0 } }]));
+async function respondStockByLocation(req, res) {
+  const [items, locations] = await Promise.all([Item.find(), Location.find()]);
+  const totals = new Map(
+    locations.map(location => [location.id, { id: location.id, name: location.name, type: location.type, total: { boxes: 0, units: 0 } }])
+  );
 
-    items.forEach(item => {
-      if (item.stock instanceof Map) {
-        for (const [depositId, quantity] of item.stock.entries()) {
-          let bucket = totals.get(depositId);
-          if (!bucket) {
-            const depositInfo = deposits.find(deposit => deposit.id === depositId);
-            bucket = { id: depositId, name: depositInfo ? depositInfo.name : '', total: { boxes: 0, units: 0 } };
-            totals.set(depositId, bucket);
-          }
-          const normalized = normalizeStoredQuantity(quantity);
-          bucket.total.boxes += normalized.boxes;
-          bucket.total.units += normalized.units;
+  items.forEach(item => {
+    if (item.stock instanceof Map) {
+      for (const [locationId, quantity] of item.stock.entries()) {
+        let bucket = totals.get(locationId);
+        if (!bucket) {
+          const locationInfo = locations.find(location => location.id === locationId);
+          bucket = {
+            id: locationId,
+            name: locationInfo ? locationInfo.name : '',
+            type: locationInfo ? locationInfo.type : undefined,
+            total: { boxes: 0, units: 0 }
+          };
+          totals.set(locationId, bucket);
         }
-      } else if (item.stock && typeof item.stock === 'object') {
-        Object.entries(item.stock).forEach(([depositId, quantity]) => {
-          let bucket = totals.get(depositId);
-          if (!bucket) {
-            const depositInfo = deposits.find(deposit => deposit.id === depositId);
-            bucket = { id: depositId, name: depositInfo ? depositInfo.name : '', total: { boxes: 0, units: 0 } };
-            totals.set(depositId, bucket);
-          }
-          const normalized = normalizeStoredQuantity(quantity);
-          bucket.total.boxes += normalized.boxes;
-          bucket.total.units += normalized.units;
-        });
+        const normalized = normalizeStoredQuantity(quantity);
+        bucket.total.boxes += normalized.boxes;
+        bucket.total.units += normalized.units;
       }
-    });
+    } else if (item.stock && typeof item.stock === 'object') {
+      Object.entries(item.stock).forEach(([locationId, quantity]) => {
+        let bucket = totals.get(locationId);
+        if (!bucket) {
+          const locationInfo = locations.find(location => location.id === locationId);
+          bucket = {
+            id: locationId,
+            name: locationInfo ? locationInfo.name : '',
+            type: locationInfo ? locationInfo.type : undefined,
+            total: { boxes: 0, units: 0 }
+          };
+          totals.set(locationId, bucket);
+        }
+        const normalized = normalizeStoredQuantity(quantity);
+        bucket.total.boxes += normalized.boxes;
+        bucket.total.units += normalized.units;
+      });
+    }
+  });
 
-    const response = Array.from(totals.values()).map(entry => ({
-      id: entry.id,
-      name: entry.name,
-      total: entry.total
-    }));
+  const response = Array.from(totals.values()).map(entry => ({
+    id: entry.id,
+    name: entry.name,
+    type: entry.type,
+    total: entry.total
+  }));
 
-    res.json(response);
-  })
-);
+  res.json(response);
+}
+
+router.get('/stock/by-location', requirePermission('reports.read'), asyncHandler(respondStockByLocation));
+router.get('/stock/by-deposit', requirePermission('reports.read'), asyncHandler(respondStockByLocation));
 
 module.exports = router;

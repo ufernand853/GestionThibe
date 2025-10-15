@@ -104,8 +104,8 @@ export default function ApprovalsPage() {
                 {requests.map(request => (
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
-                    <td>{request.fromDeposit?.name || '-'}</td>
-                    <td>{request.toDeposit?.name || '-'}</td>
+                    <td>{request.fromLocation?.name || '-'}</td>
+                    <td>{request.toLocation?.name || '-'}</td>
                     <td>{formatQuantity(request.quantity)}</td>
                     <td>{request.requestedBy?.username || 'N/D'}</td>
                     <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>

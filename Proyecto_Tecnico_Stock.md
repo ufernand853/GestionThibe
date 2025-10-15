@@ -20,21 +20,21 @@ Diseñar un sistema que permita administrar inventario en una red de depósitos,
 
 ### 3.1 Backend
 - Node.js + Express.
-- MongoDB como base de datos (colecciones: users, roles, groups, items, deposits, destinations, movementrequests, movementlogs, refreshtokens).
+- MongoDB como base de datos (colecciones: users, roles, groups, items, locations, movementrequests, movementlogs, refreshtokens).
 - Autenticación JWT (access + refresh) y passwords hasheadas.
 - Middleware `requirePermission` para RBAC.
-- Validación de transferencias: depósitos activos, existencia de stock, origen ≠ destino.
+- Validación de transferencias: ubicaciones activas, existencia de stock, origen ≠ destino.
 - Endpoints principales:
   - `/api/items` (CRUD), `/api/groups` (CRUD jerárquico).
-  - `/api/deposits` y `/api/destinations` (ABM).
+  - `/api/locations` (ABM unificado de depósitos y destinos).
   - `/api/stock/request`, `/api/stock/approve/:id`, `/api/stock/reject/:id`, `/api/stock/requests`.
-  - `/api/reports/stock/by-group`, `/api/reports/stock/by-deposit`.
+  - `/api/reports/stock/by-group`, `/api/reports/stock/by-location`.
   - `/api/logs/movements`.
   - `/api/auth/*`, `/api/users`, `/api/roles`.
 
 ### 3.2 Frontend
 - React + hooks.
-- Módulos: artículos (ABM + imágenes), depósitos, destinos, solicitudes de transferencia, aprobaciones, reportes, auditoría, usuarios.
+- Módulos: artículos (ABM + imágenes), ubicaciones, solicitudes de transferencia, aprobaciones, reportes, auditoría, usuarios.
 - Navegación lateral con accesos según permisos.
 
 ### 3.3 Infraestructura
@@ -51,14 +51,16 @@ Diseñar un sistema que permita administrar inventario en una red de depósitos,
 { "id": "ObjectId", "name": "string", "parentId": "ObjectId|null" }
 ```
 
-### Deposits
+### Locations
 ```json
-{ "id": "ObjectId", "name": "string", "description": "string", "status": "active|inactive" }
-```
-
-### Destinations
-```json
-{ "id": "ObjectId", "name": "string", "contactInfo": "string", "status": "active|inactive" }
+{
+  "id": "ObjectId",
+  "name": "string",
+  "type": "warehouse|external",
+  "description": "string",
+  "contactInfo": "string",
+  "status": "active|inactive"
+}
 ```
 
 ### Items
@@ -76,7 +78,7 @@ Diseñar un sistema que permita administrar inventario en una red de depósitos,
     "season": "string|null"
   },
   "stock": {
-    "<depositId>": { "boxes": "int", "units": "int" }
+    "<locationId>": { "boxes": "int", "units": "int" }
   },
   "images": ["string"],
   "createdAt": "datetime",
@@ -90,8 +92,8 @@ Diseñar un sistema que permita administrar inventario en una red de depósitos,
   "id": "ObjectId",
   "itemId": "ObjectId",
   "type": "transfer",
-  "fromDeposit": "ObjectId",
-  "toDeposit": "ObjectId",
+  "fromLocation": "ObjectId",
+  "toLocation": "ObjectId",
   "quantity": { "boxes": "int", "units": "int" },
   "reason": "string",
   "requestedBy": "ObjectId",

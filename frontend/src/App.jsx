@@ -7,8 +7,7 @@ import ItemsPage from './pages/items/ItemsPage.jsx';
 import GroupsPage from './pages/groups/GroupsPage.jsx';
 import MovementRequestsPage from './pages/movements/MovementRequestsPage.jsx';
 import ApprovalsPage from './pages/movements/ApprovalsPage.jsx';
-import DestinationsPage from './pages/destinations/DestinationsPage.jsx';
-import DepositsPage from './pages/deposits/DepositsPage.jsx';
+import LocationsPage from './pages/locations/LocationsPage.jsx';
 import ReportsPage from './pages/reports/ReportsPage.jsx';
 import AuditLogsPage from './pages/audit/AuditLogsPage.jsx';
 import UsersPage from './pages/users/UsersPage.jsx';
@@ -30,8 +29,7 @@ export default function App() {
         <Route path="groups" element={<GroupsPage />} />
         <Route path="requests" element={<MovementRequestsPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
-        <Route path="destinations" element={<DestinationsPage />} />
-        <Route path="deposits" element={<DepositsPage />} />
+        <Route path="locations" element={<LocationsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="audit" element={<AuditLogsPage />} />
         <Route path="users" element={<UsersPage />} />

@@ -84,7 +84,7 @@ export default function ItemsPage() {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [groups, setGroups] = useState([]);
-  const [deposits, setDeposits] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
   const [formValues, setFormValues] = useState({
     code: '',
@@ -95,7 +95,7 @@ export default function ItemsPage() {
     color: '',
     material: '',
     season: '',
-    stockByDeposit: {}
+    stockByLocation: {}
   });
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -123,19 +123,21 @@ export default function ItemsPage() {
     let active = true;
     const loadMetadata = async () => {
       try {
-        const [groupsResponse, depositsResponse] = await Promise.all([
+        const [groupsResponse, locationsResponse] = await Promise.all([
           api.get('/groups'),
-          api.get('/deposits')
+          api.get('/locations')
         ]);
         if (!active) return;
         setGroups(Array.isArray(groupsResponse) ? sortGroupsByName(groupsResponse) : []);
-        setDeposits(
-          Array.isArray(depositsResponse)
-            ? [...depositsResponse].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+        setLocations(
+          Array.isArray(locationsResponse)
+            ? [...locationsResponse]
+                .filter(location => location.type === 'warehouse')
+                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
             : []
         );
       } catch (err) {
-        console.warn('No se pudieron cargar grupos o depósitos', err);
+        console.warn('No se pudieron cargar grupos o ubicaciones', err);
       }
     };
     loadMetadata();
@@ -191,7 +193,7 @@ export default function ItemsPage() {
       color: '',
       material: '',
       season: '',
-      stockByDeposit: {}
+      stockByLocation: {}
     });
     clearNewImages();
     setExistingImages([]);
@@ -204,7 +206,7 @@ export default function ItemsPage() {
     setFormValues(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleStockByDepositChange = (depositId, field, rawValue) => {
+  const handleStockByLocationChange = (locationId, field, rawValue) => {
     let value = rawValue;
     if (value !== '') {
       const numeric = Number(value);
@@ -214,13 +216,13 @@ export default function ItemsPage() {
       value = String(Math.trunc(numeric));
     }
     setFormValues(prev => {
-      const current = prev.stockByDeposit || {};
-      const existing = current[depositId] || { boxes: '', units: '' };
+      const current = prev.stockByLocation || {};
+      const existing = current[locationId] || { boxes: '', units: '' };
       return {
         ...prev,
-        stockByDeposit: {
+        stockByLocation: {
           ...current,
-          [depositId]: { ...existing, [field]: value }
+          [locationId]: { ...existing, [field]: value }
         }
       };
     });
@@ -231,15 +233,15 @@ export default function ItemsPage() {
     const previousStockRaw = editingItem?.stock;
     const previousStock =
       previousStockRaw instanceof Map ? Object.fromEntries(previousStockRaw.entries()) : previousStockRaw || {};
-    const processedDeposits = new Set();
+    const processedLocations = new Set();
 
-    Object.entries(formValues.stockByDeposit || {}).forEach(([depositId, values]) => {
-      processedDeposits.add(depositId);
+    Object.entries(formValues.stockByLocation || {}).forEach(([locationId, values]) => {
+      processedLocations.add(locationId);
       const boxesValue = values?.boxes ?? '';
       const unitsValue = values?.units ?? '';
       if (boxesValue === '' && unitsValue === '') {
-        if (editingItem && previousStock && Object.prototype.hasOwnProperty.call(previousStock, depositId)) {
-          stock[depositId] = null;
+        if (editingItem && previousStock && Object.prototype.hasOwnProperty.call(previousStock, locationId)) {
+          stock[locationId] = null;
         }
         return;
       }
@@ -248,13 +250,13 @@ export default function ItemsPage() {
       if (!Number.isFinite(boxes) || boxes < 0 || !Number.isFinite(units) || units < 0) {
         return;
       }
-      stock[depositId] = { boxes, units };
+      stock[locationId] = { boxes, units };
     });
 
     if (editingItem && previousStock) {
-      Object.keys(previousStock).forEach(depositId => {
-        if (!processedDeposits.has(depositId) && !stock[depositId]) {
-          stock[depositId] = null;
+      Object.keys(previousStock).forEach(locationId => {
+        if (!processedLocations.has(locationId) && !stock[locationId]) {
+          stock[locationId] = null;
         }
       });
     }
@@ -393,10 +395,10 @@ export default function ItemsPage() {
     setExistingImages(Array.isArray(item.images) ? item.images : []);
     setImageError('');
     const normalizeField = value => (value === 0 ? '' : String(value));
-    const stockByDeposit = {};
-    Object.entries(item.stock || {}).forEach(([depositId, quantity]) => {
+    const stockByLocation = {};
+    Object.entries(item.stock || {}).forEach(([locationId, quantity]) => {
       const normalized = ensureQuantity(quantity);
-      stockByDeposit[depositId] = {
+      stockByLocation[locationId] = {
         boxes: normalizeField(normalized.boxes),
         units: normalizeField(normalized.units)
       };
@@ -411,7 +413,7 @@ export default function ItemsPage() {
       color: item.attributes?.color || '',
       material: item.attributes?.material || '',
       season: item.attributes?.season || '',
-      stockByDeposit
+      stockByLocation
     });
   };
 
@@ -421,7 +423,7 @@ export default function ItemsPage() {
         <div>
           <h2>Gestión de artículos</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-            Administre la taxonomía, atributos y stock distribuido por depósito para cada artículo.
+            Administre la taxonomía, atributos y stock distribuido por ubicación para cada artículo.
           </p>
         </div>
         <div>
@@ -578,46 +580,47 @@ export default function ItemsPage() {
           <section className="form-section">
             <div className="form-section__header">
               <div>
-                <h3>Stock por depósito</h3>
+                <h3>Stock por ubicación</h3>
                 <p className="form-section__description">
-                  Registra las cantidades disponibles en cada depósito (opcional). También podés dejar todo en cero y cargar los
-                  movimientos desde la bandeja de transferencias.
+                  Registra las cantidades disponibles en cada depósito interno (opcional). También podés dejar todo en cero y
+                  cargar los movimientos desde la bandeja de transferencias.
                 </p>
               </div>
             </div>
-            {deposits.length === 0 ? (
+            {locations.length === 0 ? (
               <p style={{ color: '#64748b' }}>
-                Aún no hay depósitos configurados. Creá al menos uno desde la sección Depósitos para distribuir stock inicial.
+                Aún no hay ubicaciones internas configuradas. Creá al menos una desde la sección Ubicaciones para distribuir
+                stock inicial.
               </p>
             ) : (
               <div className="stock-grid">
-                {deposits.map(deposit => {
-                  const entry = formValues.stockByDeposit?.[deposit.id] || { boxes: '', units: '' };
+                {locations.map(location => {
+                  const entry = formValues.stockByLocation?.[location.id] || { boxes: '', units: '' };
                   return (
-                    <div key={deposit.id} className="stock-card">
+                    <div key={location.id} className="stock-card">
                       <div className="stock-card__header">
-                        <h4>{deposit.name}</h4>
-                        {deposit.description && <p>{deposit.description}</p>}
+                        <h4>{location.name}</h4>
+                        {location.description && <p>{location.description}</p>}
                       </div>
                       <div className="form-grid form-grid--dense">
                         <div className="input-group">
-                          <label htmlFor={`stock-${deposit.id}-boxes`}>Cajas</label>
+                          <label htmlFor={`stock-${location.id}-boxes`}>Cajas</label>
                           <input
-                            id={`stock-${deposit.id}-boxes`}
+                            id={`stock-${location.id}-boxes`}
                             type="number"
                             min="0"
                             value={entry.boxes}
-                            onChange={event => handleStockByDepositChange(deposit.id, 'boxes', event.target.value)}
+                            onChange={event => handleStockByLocationChange(location.id, 'boxes', event.target.value)}
                           />
                         </div>
                         <div className="input-group">
-                          <label htmlFor={`stock-${deposit.id}-units`}>Unidades</label>
+                          <label htmlFor={`stock-${location.id}-units`}>Unidades</label>
                           <input
-                            id={`stock-${deposit.id}-units`}
+                            id={`stock-${location.id}-units`}
                             type="number"
                             min="0"
                             value={entry.units}
-                            onChange={event => handleStockByDepositChange(deposit.id, 'units', event.target.value)}
+                            onChange={event => handleStockByLocationChange(location.id, 'units', event.target.value)}
                           />
                         </div>
                       </div>
@@ -729,7 +732,7 @@ export default function ItemsPage() {
                   <th>Grupo</th>
                   <th>Atributos</th>
                   <th>Imágenes</th>
-                  <th>Depósitos</th>
+                  <th>Ubicaciones</th>
                   <th>Total</th>
                   {canWrite && <th>Acciones</th>}
                 </tr>
@@ -753,9 +756,9 @@ export default function ItemsPage() {
                     <td>{Array.isArray(item.images) ? item.images.length : 0}</td>
                     <td>
                       <div className="chip-list">
-                        {Object.entries(item.stock || {}).map(([depositId, quantity]) => (
-                          <span key={depositId} className="badge">
-                            {deposits.find(deposit => deposit.id === depositId)?.name || 'Depósito'} ·
+                        {Object.entries(item.stock || {}).map(([locationId, quantity]) => (
+                          <span key={locationId} className="badge">
+                            {locations.find(location => location.id === locationId)?.name || 'Ubicación'} ·
                             {formatQuantity(quantity, { compact: true })}
                           </span>
                         ))}
