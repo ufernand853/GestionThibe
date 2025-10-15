@@ -84,53 +84,31 @@ paths:
       responses:
         '200':
           description: OK
-  /api/deposits:
+  /api/locations:
     get:
-      summary: List deposits
+      summary: List locations
       responses:
         '200':
           description: OK
     post:
-      summary: Create deposit
+      summary: Create location
       responses:
         '201':
           description: Created
-  /api/deposits/{id}:
+  /api/locations/{id}:
     put:
-      summary: Update deposit
+      summary: Update location
       responses:
         '200':
           description: OK
     delete:
-      summary: Delete deposit
-      responses:
-        '200':
-          description: Deleted
-  /api/destinations:
-    get:
-      summary: List destinations
-      responses:
-        '200':
-          description: OK
-    post:
-      summary: Create destination
-      responses:
-        '201':
-          description: Created
-  /api/destinations/{id}:
-    put:
-      summary: Update destination
-      responses:
-        '200':
-          description: OK
-    delete:
-      summary: Delete destination
+      summary: Delete location
       responses:
         '200':
           description: Deleted
   /api/stock/request:
     post:
-      summary: Request a deposit-to-deposit transfer
+      summary: Request a transfer between locations
       responses:
         '201':
           description: Created
@@ -158,9 +136,9 @@ paths:
       responses:
         '200':
           description: OK
-  /api/stock/deposits:
+  /api/stock/locations:
     get:
-      summary: List deposits with minimal metadata for stock workflows
+      summary: List locations with minimal metadata for stock workflows
       responses:
         '200':
           description: OK
@@ -178,7 +156,13 @@ paths:
           description: OK
   /api/reports/stock/by-deposit:
     get:
-      summary: Stock report aggregated by deposit
+      summary: Stock report aggregated by location (deprecated alias)
+      responses:
+        '200':
+          description: OK
+  /api/reports/stock/by-location:
+    get:
+      summary: Stock report aggregated by location
       responses:
         '200':
           description: OK

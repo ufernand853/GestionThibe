@@ -3,7 +3,7 @@ const Role = require('./models/Role');
 const User = require('./models/User');
 const Group = require('./models/Group');
 const config = require('./config');
-const Deposit = require('./models/Deposit');
+const Location = require('./models/Location');
 
 const defaultRoles = [
   {
@@ -86,18 +86,19 @@ async function seedAdminUser() {
   }
 }
 
-const defaultDeposits = [
-  'Depósito General',
-  'Sobrestock General',
-  'Sobrestock Thibe',
-  'Sobrestock Arenal'
+const defaultLocations = [
+  { name: 'Depósito General', type: 'warehouse' },
+  { name: 'Sobrestock General', type: 'warehouse' },
+  { name: 'Sobrestock Thibe', type: 'warehouse' },
+  { name: 'Sobrestock Arenal', type: 'warehouse' },
+  { name: 'Destino Comercial', type: 'external' }
 ];
 
-async function seedDeposits() {
-  for (const name of defaultDeposits) {
-    const existing = await Deposit.findOne({ name });
+async function seedLocations() {
+  for (const location of defaultLocations) {
+    const existing = await Location.findOne({ name: location.name });
     if (!existing) {
-      await Deposit.create({ name });
+      await Location.create(location);
     }
   }
 }
@@ -105,7 +106,7 @@ async function seedDeposits() {
 async function seed() {
   await seedRoles();
   await seedGroups();
-  await seedDeposits();
+  await seedLocations();
   await seedAdminUser();
 }
 

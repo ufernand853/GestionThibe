@@ -15,11 +15,10 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [stockByDeposit, setStockByDeposit] = useState([]);
+  const [stockByLocation, setStockByLocation] = useState([]);
   const [stockByGroup, setStockByGroup] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [destinations, setDestinations] = useState([]);
-  const [deposits, setDeposits] = useState([]);
+  const [locations, setLocations] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -27,21 +26,19 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const [depositTotals, groupDetails, pending, destinationsResponse, depositsResponse] = await Promise.all([
-          canViewReports ? api.get('/reports/stock/by-deposit') : [],
+        const [locationTotals, groupDetails, pending, locationsResponse] = await Promise.all([
+          canViewReports ? api.get('/reports/stock/by-location') : [],
           canViewReports ? api.get('/reports/stock/by-group') : [],
           canManageRequests
             ? api.get('/stock/requests', { query: { status: 'pending' } })
             : [],
-          canViewCatalog ? api.get('/destinations') : [],
-          canViewCatalog ? api.get('/deposits') : []
+          canViewCatalog ? api.get('/locations') : []
         ]);
         if (!active) return;
-        setStockByDeposit(Array.isArray(depositTotals) ? depositTotals : []);
+        setStockByLocation(Array.isArray(locationTotals) ? locationTotals : []);
         setStockByGroup(Array.isArray(groupDetails) ? groupDetails : []);
         setPendingRequests(Array.isArray(pending) ? pending : []);
-        setDestinations(Array.isArray(destinationsResponse) ? destinationsResponse : []);
-        setDeposits(Array.isArray(depositsResponse) ? depositsResponse : []);
+        setLocations(Array.isArray(locationsResponse) ? locationsResponse : []);
       } catch (err) {
         if (!active) return;
         setError(err);
@@ -59,25 +56,27 @@ export default function DashboardPage() {
 
   const metrics = useMemo(() => {
     const totalItems = stockByGroup.reduce((acc, group) => acc + (Array.isArray(group.items) ? group.items.length : 0), 0);
-    const totalStock = stockByDeposit.reduce((acc, entry) => sumQuantities(acc, ensureQuantity(entry.total)), {
+    const totalStock = stockByLocation.reduce((acc, entry) => sumQuantities(acc, ensureQuantity(entry.total)), {
       boxes: 0,
       units: 0
     });
+    const warehouses = locations.filter(location => location.type === 'warehouse');
+    const externals = locations.filter(location => location.type === 'external');
     return {
       items: totalItems,
       totalStock,
-      deposits: deposits.length,
-      destinations: destinations.length,
+      warehouses: warehouses.length,
+      externals: externals.length,
       pending: pendingRequests.length
     };
-  }, [destinations.length, deposits.length, pendingRequests.length, stockByDeposit, stockByGroup]);
+  }, [locations, pendingRequests.length, stockByLocation, stockByGroup]);
 
   const topGroups = useMemo(() => {
     const ranking = stockByGroup
       .map(group => {
         const groupTotal = (group.items || []).reduce((acc, item) => {
-          return (item.stockByDeposit || []).reduce(
-            (innerAcc, depositEntry) => sumQuantities(innerAcc, ensureQuantity(depositEntry.quantity)),
+          return (item.stockByLocation || []).reduce(
+            (innerAcc, locationEntry) => sumQuantities(innerAcc, ensureQuantity(locationEntry.quantity)),
             acc
           );
         }, { boxes: 0, units: 0 });
@@ -101,7 +100,7 @@ export default function DashboardPage() {
     <div className="dashboard-page">
       <h2>Resumen operativo</h2>
       <p style={{ color: '#475569', marginTop: '-0.5rem' }}>
-        Visualice los indicadores clave del inventario, depósitos y destinos en un solo lugar.
+        Visualice los indicadores clave del inventario y las ubicaciones involucradas en las transferencias.
       </p>
 
       {error && <ErrorMessage error={error} />}
@@ -115,16 +114,16 @@ export default function DashboardPage() {
         <div className="metric-card">
           <h3>Stock total</h3>
           <p>{formatQuantity(metrics.totalStock)}</p>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Suma en todos los depósitos</span>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Suma en todas las ubicaciones</span>
         </div>
         <div className="metric-card">
-          <h3>Depósitos activos</h3>
-          <p>{metrics.deposits}</p>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Configurados para transferencias</span>
+          <h3>Depósitos internos</h3>
+          <p>{metrics.warehouses}</p>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Ubicaciones habilitadas como origen</span>
         </div>
         <div className="metric-card">
-          <h3>Destinos</h3>
-          <p>{metrics.destinations}</p>
+          <h3>Destinos externos</h3>
+          <p>{metrics.externals}</p>
           <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Contactos logísticos registrados</span>
         </div>
         <div className="metric-card">
@@ -134,24 +133,26 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {stockByDeposit.length > 0 && (
+      {stockByLocation.length > 0 && (
         <div className="section-card">
           <div className="flex-between">
-            <h2>Stock por depósito</h2>
+            <h2>Stock por ubicación</h2>
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Detalle consolidado por ubicación</span>
           </div>
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Depósito</th>
+                  <th>Ubicación</th>
+                  <th>Tipo</th>
                   <th>Total</th>
                 </tr>
               </thead>
               <tbody>
-                {stockByDeposit.map(entry => (
+                {stockByLocation.map(entry => (
                   <tr key={entry.id}>
-                    <td>{entry.name || 'Depósito'}</td>
+                    <td>{entry.name || 'Ubicación'}</td>
+                    <td>{entry.type === 'external' ? 'Destino externo' : 'Depósito interno'}</td>
                     <td>{formatQuantity(entry.total)}</td>
                   </tr>
                 ))}
@@ -212,8 +213,8 @@ export default function DashboardPage() {
                 {pendingRequests.slice(0, 5).map(request => (
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
-                    <td>{request.fromDeposit?.name || '-'}</td>
-                    <td>{request.toDeposit?.name || '-'}</td>
+                    <td>{request.fromLocation?.name || '-'}</td>
+                    <td>{request.toLocation?.name || '-'}</td>
                     <td>{formatQuantity(request.quantity)}</td>
                     <td>{request.requestedBy?.username || 'N/D'}</td>
                     <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>

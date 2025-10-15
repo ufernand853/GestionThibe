@@ -14,14 +14,14 @@ export default function MovementRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
-  const [deposits, setDeposits] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [resubmittingId, setResubmittingId] = useState(null);
   const [formValues, setFormValues] = useState({
     itemId: '',
-    fromDeposit: '',
-    toDeposit: '',
+    fromLocation: '',
+    toLocation: '',
     quantityBoxes: '',
     quantityUnits: '',
     reason: ''
@@ -40,15 +40,17 @@ export default function MovementRequestsPage() {
     let active = true;
     const loadMetadata = async () => {
       try {
-        const [itemsResponse, depositsResponse] = await Promise.all([
+        const [itemsResponse, locationsResponse] = await Promise.all([
           api.get('/items', { query: { page: 1, pageSize: 100 } }),
-          api.get('/deposits')
+          api.get('/locations')
         ]);
         if (!active) return;
         setItems(itemsResponse.items || []);
-        setDeposits(
-          Array.isArray(depositsResponse)
-            ? depositsResponse.filter(deposit => deposit.status !== 'inactive')
+        setLocations(
+          Array.isArray(locationsResponse)
+            ? locationsResponse
+                .filter(location => location.status !== 'inactive')
+                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
             : []
         );
       } catch (err) {
@@ -116,22 +118,22 @@ export default function MovementRequestsPage() {
         return;
       }
 
-      if (!formValues.fromDeposit || !formValues.toDeposit) {
-        setError('Debe seleccionar depósitos de origen y destino.');
+      if (!formValues.fromLocation || !formValues.toLocation) {
+        setError('Debe seleccionar ubicaciones de origen y destino.');
         setSubmitting(false);
         return;
       }
 
-      if (formValues.fromDeposit === formValues.toDeposit) {
-        setError('El depósito de origen y destino no pueden ser el mismo.');
+      if (formValues.fromLocation === formValues.toLocation) {
+        setError('La ubicación de origen y destino no pueden ser la misma.');
         setSubmitting(false);
         return;
       }
 
       const payload = {
         itemId: formValues.itemId,
-        fromDeposit: formValues.fromDeposit,
-        toDeposit: formValues.toDeposit,
+        fromLocation: formValues.fromLocation,
+        toLocation: formValues.toLocation,
         quantity: {
           boxes,
           units
@@ -202,23 +204,38 @@ export default function MovementRequestsPage() {
             </select>
           </div>
           <div className="input-group">
-            <label htmlFor="fromDeposit">Depósito origen *</label>
-            <select id="fromDeposit" name="fromDeposit" value={formValues.fromDeposit} onChange={handleFormChange} required>
+            <label htmlFor="fromLocation">Ubicación origen *</label>
+            <select
+              id="fromLocation"
+              name="fromLocation"
+              value={formValues.fromLocation}
+              onChange={handleFormChange}
+              required
+            >
               <option value="">Seleccione origen</option>
-              {deposits.map(deposit => (
-                <option key={deposit.id} value={deposit.id}>
-                  {deposit.name}
-                </option>
-              ))}
+              {locations
+                .filter(location => location.type === 'warehouse')
+                .map(location => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
             </select>
           </div>
           <div className="input-group">
-            <label htmlFor="toDeposit">Depósito destino *</label>
-            <select id="toDeposit" name="toDeposit" value={formValues.toDeposit} onChange={handleFormChange} required>
+            <label htmlFor="toLocation">Ubicación destino *</label>
+            <select
+              id="toLocation"
+              name="toLocation"
+              value={formValues.toLocation}
+              onChange={handleFormChange}
+              required
+            >
               <option value="">Seleccione destino</option>
-              {deposits.map(deposit => (
-                <option key={deposit.id} value={deposit.id}>
-                  {deposit.name}
+              {locations.map(location => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                  {location.type === 'external' ? ' · Externo' : ''}
                 </option>
               ))}
             </select>
@@ -291,8 +308,8 @@ export default function MovementRequestsPage() {
                 {requests.map(request => (
                   <tr key={request.id}>
                     <td>{request.item?.code || request.itemId}</td>
-                    <td>{request.fromDeposit?.name || '-'}</td>
-                    <td>{request.toDeposit?.name || '-'}</td>
+                    <td>{request.fromLocation?.name || '-'}</td>
+                    <td>{request.toLocation?.name || '-'}</td>
                     <td>{formatQuantity(request.quantity)}</td>
                     <td>
                       <span className={`badge ${request.status}`}>{request.status}</span>

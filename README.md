@@ -1,6 +1,6 @@
 # Gestión de Stock Multidepósito
 
-Este repositorio reúne la documentación funcional y una base de código inicial para construir una solución de inventario multidepósito centrada en transferencias entre depósitos y gestión de destinos comerciales, tal como se detalla en `Proyecto_Tecnico_Stock.md`.
+Este repositorio reúne la documentación funcional y una base de código inicial para construir una solución de inventario multidepósito centrada en transferencias entre ubicaciones (depósitos internos y destinos externos), tal como se detalla en `Proyecto_Tecnico_Stock.md`.
 
 ## Contenido principal
 
@@ -15,11 +15,11 @@ Este repositorio reúne la documentación funcional y una base de código inicia
 El directorio `backend/` contiene un proyecto Express que persiste la información en MongoDB mediante Mongoose. Cubre:
 
 - Autenticación por JWT (access + refresh tokens) y control de acceso por permisos de rol.
-- ABM de usuarios, grupos, artículos, destinos y depósitos.
+- ABM de usuarios, grupos, artículos y ubicaciones.
 - Solicitud, aprobación, ejecución y rechazo de movimientos de stock con bitácora de auditoría.
-- Reportes de stock por grupo y por depósito.
+- Reportes de stock por grupo y por ubicación.
 
-La capa de persistencia utiliza colecciones dedicadas (`users`, `roles`, `items`, `destinations`, `deposits`, `movementrequests`, `movementlogs`, `refreshtokens`). Al iniciar el servicio se crean automáticamente los roles base y el usuario administrador inicial.
+La capa de persistencia utiliza colecciones dedicadas (`users`, `roles`, `items`, `locations`, `movementrequests`, `movementlogs`, `refreshtokens`). Al iniciar el servicio se crean automáticamente los roles base y el usuario administrador inicial.
 
 ### Requisitos previos
 
@@ -148,10 +148,10 @@ La API implementa el contrato descripto en `openapi.yaml`, incluyendo:
 - `/api/auth/login`, `/api/auth/refresh`, `/api/auth/logout`
 - `/api/users` (CRUD), `/api/roles`
 - `/api/groups`, `/api/items`
-- `/api/destinations`, `/api/deposits`
+- `/api/locations`
 - `/api/stock/request`, `/api/stock/approve/{id}`, `/api/stock/reject/{id}`, `/api/stock/requests`
 - `/api/logs/movements`
-- `/api/reports/stock/by-group`, `/api/reports/stock/by-deposit`
+- `/api/reports/stock/by-group`, `/api/reports/stock/by-location` (alias `/by-deposit` preservado)
 
 Todas las rutas (excepto `POST /api/auth/login` y `POST /api/auth/refresh`) requieren encabezado `Authorization: Bearer <token>` generado desde el login.
 

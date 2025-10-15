@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 const Item = require('../models/Item');
-const Deposit = require('../models/Deposit');
+const Location = require('../models/Location');
 const MovementLog = require('../models/MovementLog');
 const { HttpError } = require('../utils/errors');
 
@@ -86,21 +86,24 @@ async function findItemOrThrow(itemId) {
   return item;
 }
 
-async function ensureDepositExists(depositId) {
-  if (!mongoose.Types.ObjectId.isValid(depositId)) {
-    throw new HttpError(404, 'Depósito no encontrado');
+async function ensureLocationExists(locationId, { mustBeWarehouse = false } = {}) {
+  if (!mongoose.Types.ObjectId.isValid(locationId)) {
+    throw new HttpError(404, 'Ubicación no encontrada');
   }
-  const deposit = await Deposit.findById(depositId);
-  if (!deposit) {
-    throw new HttpError(404, 'Depósito no encontrado');
+  const location = await Location.findById(locationId);
+  if (!location) {
+    throw new HttpError(404, 'Ubicación no encontrada');
   }
-  if (deposit.status === 'inactive') {
-    throw new HttpError(400, 'El depósito está inactivo');
+  if (location.status === 'inactive') {
+    throw new HttpError(400, 'La ubicación está inactiva');
   }
-  return deposit;
+  if (mustBeWarehouse && location.type !== 'warehouse') {
+    throw new HttpError(400, 'La ubicación de origen debe ser un depósito interno');
+  }
+  return location;
 }
 
-function adjustItemStock(item, depositId, delta) {
+function adjustItemStock(item, locationId, delta) {
   if (!item.stock) {
     item.stock = {};
   }
@@ -111,12 +114,12 @@ function adjustItemStock(item, depositId, delta) {
     stockMap = new Map(Object.entries(item.stock || {}));
     item.stock = stockMap;
   }
-  const current = normalizeStoredQuantity(stockMap.get(depositId));
-  const updated = combineQuantities(current, delta, 'Stock insuficiente en el depósito seleccionado');
+  const current = normalizeStoredQuantity(stockMap.get(locationId));
+  const updated = combineQuantities(current, delta, 'Stock insuficiente en la ubicación seleccionada');
   if (isZeroQuantity(updated)) {
-    stockMap.delete(depositId);
+    stockMap.delete(locationId);
   } else {
-    stockMap.set(depositId, updated);
+    stockMap.set(locationId, updated);
   }
   item.markModified('stock');
 }
@@ -145,14 +148,14 @@ async function executeMovement(request, actorUserId, metadata = {}) {
   const item = await findItemOrThrow(request.item);
   const quantity = normalizeStoredQuantity(request.quantity);
 
-  const fromDepositId = request.fromDeposit?.toString();
-  const toDepositId = request.toDeposit?.toString();
-  if (!fromDepositId || !toDepositId) {
-    throw new HttpError(400, 'Los movimientos requieren depósitos de origen y destino válidos');
+  const fromLocationId = request.fromLocation?.toString();
+  const toLocationId = request.toLocation?.toString();
+  if (!fromLocationId || !toLocationId) {
+    throw new HttpError(400, 'Los movimientos requieren ubicaciones de origen y destino válidas');
   }
 
-  adjustItemStock(item, fromDepositId, negateQuantity(quantity));
-  adjustItemStock(item, toDepositId, quantity);
+  adjustItemStock(item, fromLocationId, negateQuantity(quantity));
+  adjustItemStock(item, toLocationId, quantity);
   await item.save();
 
   request.status = 'executed';
@@ -173,27 +176,34 @@ async function validateMovementPayload(payload) {
   }
 
   if (payload.type && payload.type !== 'transfer') {
-    throw new HttpError(400, 'Solo se admiten transferencias entre depósitos');
+    throw new HttpError(400, 'Solo se admiten transferencias entre ubicaciones');
   }
 
   const quantity = normalizeQuantityInput(payload.quantity, { fieldName: 'Cantidad' });
 
-  if (!payload.fromDeposit) {
-    throw new HttpError(400, 'Debe indicarse el depósito de origen');
+  const fromLocationId = payload.fromLocation || payload.fromDeposit;
+  const toLocationId = payload.toLocation || payload.toDeposit;
+
+  if (!fromLocationId) {
+    throw new HttpError(400, 'Debe indicarse la ubicación de origen');
   }
-  if (!payload.toDeposit) {
-    throw new HttpError(400, 'Debe indicarse el depósito de destino');
+  if (!toLocationId) {
+    throw new HttpError(400, 'Debe indicarse la ubicación de destino');
   }
-  if (payload.fromDeposit === payload.toDeposit) {
-    throw new HttpError(400, 'El depósito de origen y destino no pueden ser el mismo');
+  if (fromLocationId === toLocationId) {
+    throw new HttpError(400, 'La ubicación de origen y destino no pueden ser la misma');
   }
 
-  const [fromDeposit, toDeposit] = await Promise.all([
-    ensureDepositExists(payload.fromDeposit),
-    ensureDepositExists(payload.toDeposit)
+  const [fromLocation, toLocation] = await Promise.all([
+    ensureLocationExists(fromLocationId, { mustBeWarehouse: true }),
+    ensureLocationExists(toLocationId)
   ]);
 
-  return { quantity, fromDeposit, toDeposit };
+  return {
+    quantity,
+    fromLocation,
+    toLocation
+  };
 }
 
 module.exports = {
@@ -201,7 +211,7 @@ module.exports = {
   executeMovement,
   addMovementLog,
   findItemOrThrow,
-  ensureDepositExists,
+  ensureLocationExists,
   normalizeQuantityInput,
   normalizeStoredQuantity
 };

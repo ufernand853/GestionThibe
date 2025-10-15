@@ -135,18 +135,14 @@ const converters = {
     _id: resolveObjectId('items', doc._id),
     group: resolveObjectId('groups', doc.group)
   }),
-  destinations: (doc) => ({
+  locations: (doc) => ({
     ...doc,
-    _id: resolveObjectId('destinations', doc._id)
-  }),
-  deposits: (doc) => ({
-    ...doc,
-    _id: resolveObjectId('deposits', doc._id)
+    _id: resolveObjectId('locations', doc._id)
   }),
   movementRequests: (doc) => {
-    const fromDeposit = doc.fromDeposit ? resolveObjectId('deposits', doc.fromDeposit) : null;
-    const toDeposit = doc.toDeposit ? resolveObjectId('deposits', doc.toDeposit) : null;
-    if (!fromDeposit || !toDeposit) {
+    const fromLocation = doc.fromLocation ? resolveObjectId('locations', doc.fromLocation) : null;
+    const toLocation = doc.toLocation ? resolveObjectId('locations', doc.toLocation) : null;
+    if (!fromLocation || !toLocation) {
       return null;
     }
     return {
@@ -155,8 +151,8 @@ const converters = {
       item: resolveObjectId('items', doc.item),
       requestedBy: resolveObjectId('users', doc.requestedBy),
       approvedBy: resolveObjectId('users', doc.approvedBy),
-      fromDeposit,
-      toDeposit
+      fromLocation,
+      toLocation
     };
   },
   movementLogs: (doc) => ({
@@ -172,8 +168,7 @@ const collectionMap = {
   roles: 'roles',
   users: 'users',
   items: 'items',
-  destinations: 'destinations',
-  deposits: 'deposits',
+  locations: 'locations',
   movementRequests: 'movementrequests',
   movementLogs: 'movementlogs'
 };

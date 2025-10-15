@@ -3,7 +3,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission, requireAuth } = require('../middlewares/auth');
 const MovementRequest = require('../models/MovementRequest');
-const Deposit = require('../models/Deposit');
+const Location = require('../models/Location');
 const {
   validateMovementPayload,
   executeMovement,
@@ -21,12 +21,14 @@ function serializeUserSummary(user) {
   };
 }
 
-function serializeDepositSummary(deposit) {
-  if (!deposit) return null;
+function serializeLocationSummary(location) {
+  if (!location) return null;
   return {
-    id: deposit.id,
-    name: deposit.name,
-    description: deposit.description || ''
+    id: location.id,
+    name: location.name,
+    description: location.description || '',
+    type: location.type,
+    contactInfo: location.contactInfo || ''
   };
 }
 
@@ -42,10 +44,10 @@ function serializeMovementRequest(doc) {
         }
       : null,
     type: doc.type,
-    fromDepositId: doc.fromDeposit?.id || doc.fromDeposit,
-    fromDeposit: doc.populated('fromDeposit') ? serializeDepositSummary(doc.fromDeposit) : null,
-    toDepositId: doc.toDeposit?.id || doc.toDeposit,
-    toDeposit: doc.populated('toDeposit') ? serializeDepositSummary(doc.toDeposit) : null,
+    fromLocationId: doc.fromLocation?.id || doc.fromLocation,
+    fromLocation: doc.populated('fromLocation') ? serializeLocationSummary(doc.fromLocation) : null,
+    toLocationId: doc.toLocation?.id || doc.toLocation,
+    toLocation: doc.populated('toLocation') ? serializeLocationSummary(doc.toLocation) : null,
     quantity: normalizeStoredQuantity(doc.quantity),
     reason: doc.reason,
     requestedBy: doc.populated('requestedBy') ? serializeUserSummary(doc.requestedBy) : doc.requestedBy,
@@ -72,14 +74,14 @@ router.post(
   requirePermission('stock.request'),
   asyncHandler(async (req, res) => {
     const body = req.body || {};
-    const { quantity, fromDeposit, toDeposit } = await validateMovementPayload(body);
+    const { quantity, fromLocation, toLocation } = await validateMovementPayload(body);
     await findItemOrThrow(body.itemId);
 
     const movementRequest = new MovementRequest({
       item: body.itemId,
       type: 'transfer',
-      fromDeposit: fromDeposit._id,
-      toDeposit: toDeposit._id,
+      fromLocation: fromLocation._id,
+      toLocation: toLocation._id,
       quantity,
       reason: body.reason || '',
       requestedBy: req.user.id,
@@ -90,7 +92,7 @@ router.post(
     await movementRequest.save();
     await addMovementLog(movementRequest.id, 'requested', req.user.id, requestMetadata(req));
 
-    const populated = await movementRequest.populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit']);
+    const populated = await movementRequest.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.status(201).json(serializeMovementRequest(populated));
   })
 );
@@ -112,7 +114,7 @@ router.post(
     request.approvedAt = new Date();
     await addMovementLog(request.id, 'approved', req.user.id, requestMetadata(req));
     await executeMovement(request, req.user.id, requestMetadata(req));
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit']);
+    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -136,7 +138,7 @@ router.post(
     request.approvedAt = new Date();
     await request.save();
     await addMovementLog(request.id, 'rejected', req.user.id, requestMetadata(req));
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit']);
+    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -155,7 +157,7 @@ router.get(
       filter.status = status;
     }
     const requests = await MovementRequest.find(filter)
-      .populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit'])
+      .populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation'])
       .sort({ requestedAt: -1 });
     res.json(requests.map(serializeMovementRequest));
   })
@@ -180,17 +182,22 @@ router.post(
     request.rejectedReason = null;
     await request.save();
     await addMovementLog(request.id, 'resubmitted', req.user.id, requestMetadata(req));
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromDeposit', 'toDeposit']);
+    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })
 );
 
 router.get(
-  '/deposits',
+  '/locations',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const deposits = await Deposit.find({}).sort({ name: 1 });
-    res.json(deposits.map(serializeDepositSummary));
+    const { type } = req.query || {};
+    const filters = {};
+    if (type) {
+      filters.type = type;
+    }
+    const locations = await Location.find(filters).sort({ name: 1 });
+    res.json(locations.map(serializeLocationSummary));
   })
 );
 
