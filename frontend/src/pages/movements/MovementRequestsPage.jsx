@@ -3,7 +3,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-import { formatQuantity } from '../../utils/quantity.js';
+import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 
@@ -34,6 +34,7 @@ export default function MovementRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [items, setItems] = useState([]);
+  const [allLocations, setAllLocations] = useState([]);
   const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
@@ -99,6 +100,7 @@ export default function MovementRequestsPage() {
         ]);
         if (!active) return;
         setItems(itemsResponse.items || []);
+        setAllLocations(Array.isArray(locationsResponse) ? locationsResponse : []);
         setLocations(
           Array.isArray(locationsResponse)
             ? locationsResponse
@@ -138,6 +140,41 @@ export default function MovementRequestsPage() {
   }, [locations]);
 
   const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
+
+  const locationMap = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(allLocations) ? allLocations : []).forEach(location => {
+      map.set(location.id, location);
+    });
+    return map;
+  }, [allLocations]);
+
+  const selectedItem = useMemo(
+    () => (formValues.itemId ? items.find(item => item.id === formValues.itemId) : null),
+    [formValues.itemId, items]
+  );
+
+  const selectedItemStock = useMemo(() => {
+    if (!selectedItem || !selectedItem.stock) {
+      return [];
+    }
+    return Object.entries(selectedItem.stock)
+      .map(([locationId, quantity]) => {
+        const normalized = ensureQuantity(quantity);
+        if (normalized.boxes === 0 && normalized.units === 0) {
+          return null;
+        }
+        const location = locationMap.get(locationId);
+        return {
+          locationId,
+          locationName: location?.name || `Depósito ${locationId.slice(-4)}`,
+          locationType: location?.type || null,
+          quantity: normalized
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.locationName.localeCompare(b.locationName, 'es', { sensitivity: 'base' }));
+  }, [locationMap, selectedItem]);
 
   const itemTotals = useMemo(() => {
     const map = new Map();
@@ -316,6 +353,26 @@ export default function MovementRequestsPage() {
               ))}
             </select>
           </div>
+          {formValues.itemId && (
+            <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+              <label>Stock disponible por depósito</label>
+              {selectedItemStock.length > 0 ? (
+                <ul className="stock-summary-list">
+                  {selectedItemStock.map(entry => (
+                    <li key={entry.locationId} className="stock-summary-item">
+                      <span className="stock-summary-location">
+                        {entry.locationName}
+                        {entry.locationType === 'external' ? ' · Externo' : ''}
+                      </span>
+                      <span className="stock-summary-quantity">{formatQuantity(entry.quantity)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="stock-summary-empty">No hay stock registrado para este artículo.</p>
+              )}
+            </div>
+          )}
           <div className="input-group">
             <label htmlFor="fromLocation">Ubicación origen *</label>
             <select

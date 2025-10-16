@@ -612,6 +612,43 @@ th {
   justify-content: flex-end;
 }
 
+.stock-summary-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #f8fafc;
+}
+
+.stock-summary-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.stock-summary-item + .stock-summary-item {
+  border-top: 1px solid #e2e8f0;
+}
+
+.stock-summary-location {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.stock-summary-quantity {
+  font-variant-numeric: tabular-nums;
+  color: #1e3a8a;
+  font-weight: 600;
+}
+
+.stock-summary-empty {
+  margin: 0.4rem 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 900px) {
   .app-layout {
     grid-template-columns: 1fr;
