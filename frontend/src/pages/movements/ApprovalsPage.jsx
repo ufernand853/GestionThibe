@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { formatQuantity } from '../../utils/quantity.js';
+import StockStatusBadge from '../../components/StockStatusBadge.jsx';
+import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 
 export default function ApprovalsPage() {
   const api = useApi();
@@ -14,6 +16,7 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [requests, setRequests] = useState([]);
+  const [itemsSnapshot, setItemsSnapshot] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
@@ -41,6 +44,48 @@ export default function ApprovalsPage() {
       active = false;
     };
   }, [api, canApprove]);
+
+  useEffect(() => {
+    let active = true;
+    const loadItems = async () => {
+      try {
+        const response = await api.get('/items', { query: { page: 1, pageSize: 500 } });
+        if (!active) return;
+        setItemsSnapshot(response.items || []);
+      } catch (err) {
+        if (!active) return;
+        console.warn('No se pudieron cargar artículos para indicadores', err);
+        setItemsSnapshot([]);
+      }
+    };
+    if (canApprove) {
+      loadItems();
+    } else {
+      setItemsSnapshot([]);
+    }
+    return () => {
+      active = false;
+    };
+  }, [api, canApprove]);
+
+  const pendingMap = useMemo(() => aggregatePendingByItem(requests), [requests]);
+
+  const itemTotals = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(itemsSnapshot) ? itemsSnapshot : []).forEach(item => {
+      map.set(item.id, computeTotalStockFromMap(item.stock));
+    });
+    return map;
+  }, [itemsSnapshot]);
+
+  const itemStatusMap = useMemo(() => {
+    const map = new Map();
+    itemTotals.forEach((total, itemId) => {
+      const pendingInfo = pendingMap.get(itemId);
+      map.set(itemId, deriveStockStatus(total, pendingInfo));
+    });
+    return map;
+  }, [itemTotals, pendingMap]);
 
   const handleApprove = async requestId => {
     try {
@@ -95,32 +140,53 @@ export default function ApprovalsPage() {
                   <th>Origen</th>
                   <th>Destino</th>
                   <th>Cantidad</th>
+                  <th>Disponibilidad</th>
                   <th>Solicitado por</th>
                   <th>Fecha</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {requests.map(request => (
-                  <tr key={request.id}>
-                    <td>{request.item?.code || request.itemId}</td>
-                    <td>{request.fromLocation?.name || '-'}</td>
-                    <td>{request.toLocation?.name || '-'}</td>
-                    <td>{formatQuantity(request.quantity)}</td>
-                    <td>{request.requestedBy?.username || 'N/D'}</td>
-                    <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
-                    <td>
-                      <div className="inline-actions">
-                        <button type="button" onClick={() => handleApprove(request.id)}>
-                          Aprobar
-                        </button>
-                        <button type="button" className="secondary-button" onClick={() => handleReject(request.id)}>
-                          Rechazar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {requests.map(request => {
+                  const itemId = request.item?.id || request.itemId;
+                  const stockStatus = itemStatusMap.get(itemId);
+                  return (
+                    <tr key={request.id}>
+                      <td>{request.item?.code || request.itemId}</td>
+                      <td>{request.fromLocation?.name || '-'}</td>
+                      <td>{request.toLocation?.name || '-'}</td>
+                      <td>{formatQuantity(request.quantity)}</td>
+                      <td>
+                        {stockStatus ? (
+                          <div className="stock-status-cell">
+                            <StockStatusBadge status={stockStatus} />
+                            {stockStatus.pendingCount > 0 && (
+                              <span className="stock-status-note">
+                                {stockStatus.pendingCount === 1
+                                  ? '1 solicitud pendiente'
+                                  : `${stockStatus.pendingCount} solicitudes pendientes`}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td>{request.requestedBy?.username || 'N/D'}</td>
+                      <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
+                      <td>
+                        <div className="inline-actions">
+                          <button type="button" onClick={() => handleApprove(request.id)}>
+                            Aprobar
+                          </button>
+                          <button type="button" className="secondary-button" onClick={() => handleReject(request.id)}>
+                            Rechazar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

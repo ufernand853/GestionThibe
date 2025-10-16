@@ -4,6 +4,26 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { formatQuantity } from '../../utils/quantity.js';
+import StockStatusBadge from '../../components/StockStatusBadge.jsx';
+import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
+
+const ORIGIN_PRIORITY = [
+  'Guadalupe',
+  'Justicia',
+  'Arnavia',
+  'Flex',
+  'Sobrestock Arenal Import',
+  'Sobrestock Thibe',
+  'Sobrestock General',
+  'Sobrestock Thibe Kids'
+];
+
+const MOVEMENT_TYPE_OPTIONS = [
+  { value: '', label: 'Todos' },
+  { value: 'transfer', label: 'Transferencias' },
+  { value: 'ingress', label: 'Ingresos' },
+  { value: 'egress', label: 'Retiros' }
+];
 
 export default function MovementRequestsPage() {
   const api = useApi();
@@ -17,6 +37,9 @@ export default function MovementRequestsPage() {
   const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [dateFilters, setDateFilters] = useState({ from: '', to: '' });
+  const [pendingSnapshot, setPendingSnapshot] = useState([]);
   const [resubmittingId, setResubmittingId] = useState(null);
   const [formValues, setFormValues] = useState({
     itemId: '',
@@ -30,18 +53,48 @@ export default function MovementRequestsPage() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const refreshRequests = useCallback(async () => {
+    const query = {};
+    if (statusFilter) {
+      query.status = statusFilter;
+    }
+    if (typeFilter) {
+      query.type = typeFilter;
+    }
+    if (dateFilters.from) {
+      query.from = dateFilters.from;
+    }
+    if (dateFilters.to) {
+      query.to = dateFilters.to;
+    }
     const response = await api.get('/stock/requests', {
-      query: statusFilter ? { status: statusFilter } : undefined
+      query: Object.keys(query).length > 0 ? query : undefined
     });
     return Array.isArray(response) ? response : [];
-  }, [api, statusFilter]);
+  }, [api, dateFilters.from, dateFilters.to, statusFilter, typeFilter]);
+
+  const refreshPendingSnapshot = useCallback(async () => {
+    if (!canRequest) {
+      setPendingSnapshot([]);
+      return [];
+    }
+    try {
+      const response = await api.get('/stock/requests', { query: { status: 'pending' } });
+      const normalized = Array.isArray(response) ? response : [];
+      setPendingSnapshot(normalized);
+      return normalized;
+    } catch (err) {
+      console.warn('No se pudieron cargar solicitudes pendientes', err);
+      setPendingSnapshot([]);
+      return [];
+    }
+  }, [api, canRequest]);
 
   useEffect(() => {
     let active = true;
     const loadMetadata = async () => {
       try {
         const [itemsResponse, locationsResponse] = await Promise.all([
-          api.get('/items', { query: { page: 1, pageSize: 100 } }),
+          api.get('/items', { query: { page: 1, pageSize: 500 } }),
           api.get('/locations')
         ]);
         if (!active) return;
@@ -65,6 +118,44 @@ export default function MovementRequestsPage() {
     };
   }, [api, canRequest]);
 
+  const prioritizedOrigins = useMemo(() => {
+    const priorityMap = new Map(
+      ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
+    );
+    return (Array.isArray(locations) ? locations : [])
+      .filter(location => location.type === 'warehouse')
+      .slice()
+      .sort((a, b) => {
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        const aPriority = priorityMap.has(aName) ? priorityMap.get(aName) : Number.MAX_SAFE_INTEGER;
+        const bPriority = priorityMap.has(bName) ? priorityMap.get(bName) : Number.MAX_SAFE_INTEGER;
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+        return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+      });
+  }, [locations]);
+
+  const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
+
+  const itemTotals = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(items) ? items : []).forEach(item => {
+      map.set(item.id, computeTotalStockFromMap(item.stock));
+    });
+    return map;
+  }, [items]);
+
+  const itemStatuses = useMemo(() => {
+    const map = new Map();
+    itemTotals.forEach((total, itemId) => {
+      const pendingInfo = pendingMap.get(itemId);
+      map.set(itemId, deriveStockStatus(total, pendingInfo));
+    });
+    return map;
+  }, [itemTotals, pendingMap]);
+
   useEffect(() => {
     let active = true;
     const loadRequests = async () => {
@@ -74,6 +165,13 @@ export default function MovementRequestsPage() {
         const data = await refreshRequests();
         if (!active) return;
         setRequests(data);
+        if (canRequest) {
+          if (statusFilter === 'pending') {
+            setPendingSnapshot(data);
+          } else {
+            await refreshPendingSnapshot();
+          }
+        }
       } catch (err) {
         if (!active) return;
         setError(err);
@@ -89,11 +187,16 @@ export default function MovementRequestsPage() {
     return () => {
       active = false;
     };
-  }, [canRequest, refreshRequests]);
+  }, [canRequest, refreshPendingSnapshot, refreshRequests, statusFilter]);
 
   const handleFormChange = event => {
     const { name, value } = event.target;
     setFormValues(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleDateFilterChange = event => {
+    const { name, value } = event.target;
+    setDateFilters(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async event => {
@@ -151,6 +254,11 @@ export default function MovementRequestsPage() {
       }));
       const refreshed = await refreshRequests();
       setRequests(refreshed);
+      if (statusFilter === 'pending') {
+        setPendingSnapshot(refreshed);
+      } else {
+        await refreshPendingSnapshot();
+      }
     } catch (err) {
       setError(err);
     } finally {
@@ -168,6 +276,11 @@ export default function MovementRequestsPage() {
       setSuccessMessage('Solicitud reenviada correctamente.');
       const refreshed = await refreshRequests();
       setRequests(refreshed);
+      if (statusFilter === 'pending') {
+        setPendingSnapshot(refreshed);
+      } else {
+        await refreshPendingSnapshot();
+      }
     } catch (err) {
       setError(err);
     } finally {
@@ -213,13 +326,11 @@ export default function MovementRequestsPage() {
               required
             >
               <option value="">Seleccione origen</option>
-              {locations
-                .filter(location => location.type === 'warehouse')
-                .map(location => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
+              {prioritizedOrigins.map(location => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
             </select>
           </div>
           <div className="input-group">
@@ -275,15 +386,58 @@ export default function MovementRequestsPage() {
       </div>
 
       <div className="section-card">
-        <div className="flex-between" style={{ alignItems: 'center' }}>
+        <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
           <h3>Solicitudes registradas</h3>
-          <select value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
-            <option value="">Todas</option>
-            <option value="pending">Pendientes</option>
-            <option value="approved">Aprobadas</option>
-            <option value="executed">Ejecutadas</option>
-            <option value="rejected">Rechazadas</option>
-          </select>
+          <div className="inline-actions" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div className="input-group" style={{ minWidth: '150px' }}>
+              <label htmlFor="statusFilter">Estado</label>
+              <select id="statusFilter" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
+                <option value="">Todas</option>
+                <option value="pending">Pendientes</option>
+                <option value="approved">Aprobadas</option>
+                <option value="executed">Ejecutadas</option>
+                <option value="rejected">Rechazadas</option>
+              </select>
+            </div>
+            <div className="input-group" style={{ minWidth: '180px' }}>
+              <label htmlFor="typeFilter">Tipo de movimiento</label>
+              <select id="typeFilter" value={typeFilter} onChange={event => setTypeFilter(event.target.value)}>
+                {MOVEMENT_TYPE_OPTIONS.map(option => (
+                  <option key={option.value || 'all'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="input-group" style={{ minWidth: '160px' }}>
+              <label htmlFor="fromDate">Desde</label>
+              <input
+                id="fromDate"
+                type="date"
+                name="from"
+                value={dateFilters.from}
+                onChange={handleDateFilterChange}
+              />
+            </div>
+            <div className="input-group" style={{ minWidth: '160px' }}>
+              <label htmlFor="toDate">Hasta</label>
+              <input
+                id="toDate"
+                type="date"
+                name="to"
+                value={dateFilters.to}
+                onChange={handleDateFilterChange}
+              />
+            </div>
+          </div>
+        </div>
+        <div className="origin-legend" style={{ marginTop: '0.75rem' }}>
+          <strong>Orígenes preferidos:</strong>
+          {ORIGIN_PRIORITY.map(name => (
+            <span key={name} className="badge">
+              {name}
+            </span>
+          ))}
         </div>
         {loading ? (
           <LoadingIndicator message="Buscando solicitudes..." />
@@ -298,6 +452,7 @@ export default function MovementRequestsPage() {
                   <th>Origen</th>
                   <th>Destino</th>
                   <th>Cantidad</th>
+                  <th>Disponibilidad</th>
                   <th>Estado</th>
                   <th>Solicitado por</th>
                   <th>Fecha</th>
@@ -305,31 +460,51 @@ export default function MovementRequestsPage() {
                 </tr>
               </thead>
               <tbody>
-                {requests.map(request => (
-                  <tr key={request.id}>
-                    <td>{request.item?.code || request.itemId}</td>
-                    <td>{request.fromLocation?.name || '-'}</td>
-                    <td>{request.toLocation?.name || '-'}</td>
-                    <td>{formatQuantity(request.quantity)}</td>
-                    <td>
-                      <span className={`badge ${request.status}`}>{request.status}</span>
-                    </td>
-                    <td>{request.requestedBy?.username || 'N/D'}</td>
-                    <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
-                    <td>
-                      {request.status === 'rejected' && (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={() => handleResubmit(request)}
-                          disabled={resubmittingId === request.id}
-                        >
-                          {resubmittingId === request.id ? 'Reenviando...' : 'Reenviar'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {requests.map(request => {
+                  const itemId = request.item?.id || request.itemId;
+                  const stockStatus = itemStatuses.get(itemId);
+                  return (
+                    <tr key={request.id}>
+                      <td>{request.item?.code || request.itemId}</td>
+                      <td>{request.fromLocation?.name || '-'}</td>
+                      <td>{request.toLocation?.name || '-'}</td>
+                      <td>{formatQuantity(request.quantity)}</td>
+                      <td>
+                        {stockStatus ? (
+                          <div className="stock-status-cell">
+                            <StockStatusBadge status={stockStatus} />
+                            {stockStatus.pendingCount > 0 && (
+                              <span className="stock-status-note">
+                                {stockStatus.pendingCount === 1
+                                  ? '1 solicitud pendiente'
+                                  : `${stockStatus.pendingCount} solicitudes pendientes`}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      <td>
+                        <span className={`badge ${request.status}`}>{request.status}</span>
+                      </td>
+                      <td>{request.requestedBy?.username || 'N/D'}</td>
+                      <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
+                      <td>
+                        {request.status === 'rejected' && (
+                          <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => handleResubmit(request)}
+                            disabled={resubmittingId === request.id}
+                          >
+                            {resubmittingId === request.id ? 'Reenviando...' : 'Reenviar'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

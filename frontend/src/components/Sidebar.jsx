@@ -19,7 +19,7 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-header">Thibe Stock</div>
+      <div className="sidebar-header">Stock</div>
       <nav className="sidebar-nav">
         {NAV_ITEMS.filter(item => !item.permission || permissions.includes(item.permission)).map(item => (
           <NavLink key={item.to} to={item.to} end={item.to === '/'}>

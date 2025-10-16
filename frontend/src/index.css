@@ -221,6 +221,53 @@ th {
   color: #b91c1c;
 }
 
+.stock-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.stock-indicator::before {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background-color: currentColor;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6);
+}
+
+.stock-indicator--updated {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.stock-indicator--pending {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.stock-indicator--empty {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.stock-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.stock-status-note {
+  margin: 0;
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
 .inline-actions {
   display: flex;
   gap: 0.5rem;
@@ -399,6 +446,72 @@ th {
 
 .trend-indicator.neutral {
   color: #475569;
+}
+
+.alert-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.alert-card {
+  border-radius: 12px;
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
+  background-color: #fff7ed;
+  box-shadow: 0 14px 28px -24px rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alert-card h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #92400e;
+}
+
+.alert-card--danger {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+}
+
+.alert-card--danger h3 {
+  color: #b91c1c;
+}
+
+.alert-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.alert-card ul {
+  margin: 0;
+  padding-left: 1rem;
+  color: #334155;
+  font-size: 0.8rem;
+}
+
+.alert-card li + li {
+  margin-top: 0.35rem;
+}
+
+.origin-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.origin-legend strong {
+  font-weight: 600;
+}
+
+.origin-legend .badge {
+  text-transform: none;
 }
 
 .flex-between {
