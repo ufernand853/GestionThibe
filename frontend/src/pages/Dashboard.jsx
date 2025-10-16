@@ -22,6 +22,8 @@ export default function DashboardPage() {
   const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [itemsSnapshot, setItemsSnapshot] = useState([]);
+  const [topWindowDays, setTopWindowDays] = useState(7);
+  const [attentionGroupId, setAttentionGroupId] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -92,9 +94,45 @@ export default function DashboardPage() {
       code: item.code,
       description: item.description,
       total: computeTotalStockFromMap(item.stock),
-      updatedAt: item.updatedAt
+      updatedAt: item.updatedAt,
+      group: item.group || null
     }));
   }, [itemsSnapshot]);
+
+  const itemsById = useMemo(() => {
+    const map = new Map();
+    itemSummaries.forEach(item => {
+      map.set(item.id, item);
+    });
+    return map;
+  }, [itemSummaries]);
+
+  const availableGroups = useMemo(() => {
+    const groupMap = new Map();
+    itemsSnapshot.forEach(item => {
+      const group = item.group;
+      if (!group) {
+        return;
+      }
+      const groupId = group.id || group._id;
+      if (!groupId) {
+        return;
+      }
+      if (!groupMap.has(groupId)) {
+        groupMap.set(groupId, { id: groupId, name: group.name || 'Sin nombre' });
+      }
+    });
+    return Array.from(groupMap.values()).sort((a, b) => a.name.localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
+  }, [itemsSnapshot]);
+
+  useEffect(() => {
+    if (!attentionGroupId) {
+      return;
+    }
+    if (!availableGroups.some(group => group.id === attentionGroupId)) {
+      setAttentionGroupId('');
+    }
+  }, [attentionGroupId, availableGroups]);
 
   const inventoryAlerts = useMemo(() => {
     const now = Date.now();
@@ -113,43 +151,81 @@ export default function DashboardPage() {
     return { stale, outOfStock };
   }, [itemSummaries]);
 
-  const lastWithdrawalByItem = useMemo(() => {
-    const map = new Map();
+  const rankedWithdrawals = useMemo(() => {
+    const windowMs = topWindowDays * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const aggregated = new Map();
     (Array.isArray(requests) ? requests : []).forEach(request => {
       if (request.status !== 'executed') {
-        return;
-      }
-      const itemId = request.item?.id || request.itemId;
-      if (!itemId) {
         return;
       }
       const executedAt = request.executedAt || request.approvedAt || request.requestedAt;
       if (!executedAt) {
         return;
       }
-      const current = map.get(itemId);
-      if (!current || new Date(executedAt) > new Date(current)) {
-        map.set(itemId, executedAt);
+      const executedTime = new Date(executedAt).getTime();
+      if (Number.isNaN(executedTime) || now - executedTime > windowMs) {
+        return;
       }
+      const itemId = request.item?.id || request.itemId;
+      if (!itemId) {
+        return;
+      }
+      const referenceItem = itemsById.get(itemId);
+      const existing = aggregated.get(itemId) || {
+        id: itemId,
+        code: referenceItem?.code || request.item?.code || itemId,
+        description: referenceItem?.description || request.item?.description || 'Artículo',
+        group: referenceItem?.group || request.item?.group || null,
+        groupId:
+          referenceItem?.group?.id ||
+          referenceItem?.group?._id ||
+          request.item?.groupId ||
+          (typeof request.item?.group === 'object'
+            ? request.item?.group?.id || request.item?.group?._id
+            : null) ||
+          null,
+        total: { boxes: 0, units: 0 },
+        lastWithdrawal: null
+      };
+      existing.total = sumQuantities(existing.total, ensureQuantity(request.quantity));
+      if (!existing.lastWithdrawal || executedTime > new Date(existing.lastWithdrawal).getTime()) {
+        existing.lastWithdrawal = executedAt;
+      }
+      if (!existing.group && referenceItem?.group) {
+        existing.group = referenceItem.group;
+      }
+      if (!existing.groupId && (referenceItem?.group?.id || referenceItem?.group?._id)) {
+        existing.groupId = referenceItem.group.id || referenceItem.group._id;
+      }
+      aggregated.set(itemId, existing);
     });
-    return map;
-  }, [requests]);
-
-  const topItems = useMemo(() => {
-    const ranked = itemSummaries
-      .filter(item => item.total.boxes > 0 || item.total.units > 0)
-      .map(item => ({
-        ...item,
-        lastWithdrawal: lastWithdrawalByItem.get(item.id) || null
-      }))
-      .sort((a, b) => {
-        if (a.total.boxes !== b.total.boxes) {
-          return b.total.boxes - a.total.boxes;
-        }
+    return Array.from(aggregated.values()).sort((a, b) => {
+      if (a.total.boxes !== b.total.boxes) {
+        return b.total.boxes - a.total.boxes;
+      }
+      if (a.total.units !== b.total.units) {
         return b.total.units - a.total.units;
-      });
-    return ranked.slice(0, 5);
-  }, [itemSummaries, lastWithdrawalByItem]);
+      }
+      const aDate = a.lastWithdrawal ? new Date(a.lastWithdrawal).getTime() : 0;
+      const bDate = b.lastWithdrawal ? new Date(b.lastWithdrawal).getTime() : 0;
+      return bDate - aDate;
+    });
+  }, [itemsById, requests, topWindowDays]);
+
+  const topItems = useMemo(() => rankedWithdrawals.slice(0, 5), [rankedWithdrawals]);
+
+  const attentionItems = useMemo(() => {
+    if (!attentionGroupId) {
+      return [];
+    }
+    return rankedWithdrawals
+      .filter(item => {
+        const groupId = item.groupId || item.group?.id || item.group?._id || null;
+        return groupId === attentionGroupId;
+      })
+      .slice(0, 5);
+  }, [attentionGroupId, rankedWithdrawals]);
 
   if (loading) {
     return <LoadingIndicator message="Calculando métricas..." />;
@@ -271,19 +347,41 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {topItems.length > 0 && (
-        <div className="section-card">
-          <div className="flex-between">
-            <h2>Top 5 artículos por stock</h2>
-            <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Ordenado por cantidad consolidada</span>
+      <div className="section-card">
+        <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <h2>Top 5</h2>
+            <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+              Retiros ejecutados en los últimos {topWindowDays} días
+            </span>
           </div>
+          <div className="inline-actions" style={{ gap: '0.5rem' }}>
+            <label htmlFor="topWindow" style={{ color: '#475569', fontSize: '0.85rem' }}>
+              Ventana
+            </label>
+            <select
+              id="topWindow"
+              value={topWindowDays}
+              onChange={event => setTopWindowDays(Number(event.target.value))}
+            >
+              <option value={7}>7 días</option>
+              <option value={15}>15 días</option>
+              <option value={30}>30 días</option>
+            </select>
+          </div>
+        </div>
+        {topItems.length === 0 ? (
+          <p style={{ color: '#64748b', marginTop: '1rem' }}>
+            No se registraron retiros ejecutados en la ventana seleccionada.
+          </p>
+        ) : (
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
                   <th>Código</th>
                   <th>Descripción</th>
-                  <th>Stock total</th>
+                  <th>Total retirado</th>
                   <th>Último retiro</th>
                 </tr>
               </thead>
@@ -299,8 +397,70 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      <div className="section-card">
+        <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
+          <div>
+            <h2>Atención</h2>
+            <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+              Enfoque por categoría para la misma ventana seleccionada
+            </span>
+          </div>
+          <div className="inline-actions" style={{ gap: '0.5rem' }}>
+            <label htmlFor="attentionGroup" style={{ color: '#475569', fontSize: '0.85rem' }}>
+              Categoría
+            </label>
+            <select
+              id="attentionGroup"
+              value={attentionGroupId}
+              onChange={event => setAttentionGroupId(event.target.value)}
+            >
+              <option value="">Selecciona categoría</option>
+              {availableGroups.map(group => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      )}
+        {attentionGroupId && attentionItems.length === 0 ? (
+          <p style={{ color: '#64748b', marginTop: '1rem' }}>
+            No se encontraron retiros para la categoría seleccionada en la ventana elegida.
+          </p>
+        ) : null}
+        {!attentionGroupId && (
+          <p style={{ color: '#64748b', marginTop: '1rem' }}>
+            Seleccione una categoría para explorar los retiros recientes asociados.
+          </p>
+        )}
+        {attentionItems.length > 0 && (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Descripción</th>
+                  <th>Total retirado</th>
+                  <th>Último retiro</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attentionItems.map(item => (
+                  <tr key={`${item.id}-${attentionGroupId}`}>
+                    <td>{item.code}</td>
+                    <td>{item.description}</td>
+                    <td>{formatQuantity(item.total)}</td>
+                    <td>{item.lastWithdrawal ? new Date(item.lastWithdrawal).toLocaleString('es-AR') : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {pendingRequests.length > 0 && (
         <div className="section-card">

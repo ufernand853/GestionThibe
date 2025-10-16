@@ -7,7 +7,23 @@ import { formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 
-const ORIGIN_PRIORITY = ['Guadalupe', 'Justicia', 'Arnavia', 'Flex', 'Sobrestock Arenal Import', 'Sobrestock Thibe'];
+const ORIGIN_PRIORITY = [
+  'Guadalupe',
+  'Justicia',
+  'Arnavia',
+  'Flex',
+  'Sobrestock Arenal Import',
+  'Sobrestock Thibe',
+  'Sobrestock General',
+  'Sobrestock Thibe Kids'
+];
+
+const MOVEMENT_TYPE_OPTIONS = [
+  { value: '', label: 'Todos' },
+  { value: 'transfer', label: 'Transferencias' },
+  { value: 'ingress', label: 'Ingresos' },
+  { value: 'egress', label: 'Retiros' }
+];
 
 export default function MovementRequestsPage() {
   const api = useApi();
@@ -21,6 +37,7 @@ export default function MovementRequestsPage() {
   const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [dateFilters, setDateFilters] = useState({ from: '', to: '' });
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
   const [resubmittingId, setResubmittingId] = useState(null);
@@ -40,6 +57,9 @@ export default function MovementRequestsPage() {
     if (statusFilter) {
       query.status = statusFilter;
     }
+    if (typeFilter) {
+      query.type = typeFilter;
+    }
     if (dateFilters.from) {
       query.from = dateFilters.from;
     }
@@ -50,7 +70,7 @@ export default function MovementRequestsPage() {
       query: Object.keys(query).length > 0 ? query : undefined
     });
     return Array.isArray(response) ? response : [];
-  }, [api, dateFilters.from, dateFilters.to, statusFilter]);
+  }, [api, dateFilters.from, dateFilters.to, statusFilter, typeFilter]);
 
   const refreshPendingSnapshot = useCallback(async () => {
     if (!canRequest) {
@@ -377,6 +397,16 @@ export default function MovementRequestsPage() {
                 <option value="approved">Aprobadas</option>
                 <option value="executed">Ejecutadas</option>
                 <option value="rejected">Rechazadas</option>
+              </select>
+            </div>
+            <div className="input-group" style={{ minWidth: '180px' }}>
+              <label htmlFor="typeFilter">Tipo de movimiento</label>
+              <select id="typeFilter" value={typeFilter} onChange={event => setTypeFilter(event.target.value)}>
+                {MOVEMENT_TYPE_OPTIONS.map(option => (
+                  <option key={option.value || 'all'} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="input-group" style={{ minWidth: '160px' }}>
