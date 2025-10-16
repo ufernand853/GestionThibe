@@ -626,6 +626,7 @@ th {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.55rem 0.75rem;
+  align-items: flex-start;
 }
 
 .stock-summary-item + .stock-summary-item {
@@ -635,11 +636,16 @@ th {
 .stock-summary-location {
   font-weight: 500;
   color: #0f172a;
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .stock-summary-quantity {
   font-variant-numeric: tabular-nums;
   color: #1e3a8a;
+  flex-shrink: 0;
   font-weight: 600;
 }
 
