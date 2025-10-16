@@ -144,7 +144,7 @@ export default function MovementRequestsPage() {
   const locationMap = useMemo(() => {
     const map = new Map();
     (Array.isArray(allLocations) ? allLocations : []).forEach(location => {
-      map.set(location.id, location);
+      map.set(String(location.id), location);
     });
     return map;
   }, [allLocations]);
