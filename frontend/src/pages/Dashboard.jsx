@@ -270,6 +270,11 @@ export default function DashboardPage() {
     return rankedWithdrawals.slice(startIndex, endIndex);
   }, [attentionPage, rankedWithdrawals]);
 
+  const handleAttentionItemChange = event => {
+    setAttentionItemId(event.target.value);
+    setHasManualAttentionSelection(true);
+  };
+
   if (loading) {
     return <LoadingIndicator message="Calculando métricas..." />;
   }
