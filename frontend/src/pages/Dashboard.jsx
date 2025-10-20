@@ -8,6 +8,24 @@ import { computeTotalStockFromMap } from '../utils/stockStatus.js';
 
 const RECOUNT_THRESHOLD_DAYS = 30;
 
+const formatDateForInput = date => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateFromInput = value => {
+  if (!value) {
+    return null;
+  }
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  return new Date(year, month - 1, day);
+};
+
 export default function DashboardPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -22,7 +40,17 @@ export default function DashboardPage() {
   const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [itemsSnapshot, setItemsSnapshot] = useState([]);
-  const [topWindowDays, setTopWindowDays] = useState(7);
+  const [topStartDate, setTopStartDate] = useState(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - 6);
+    return formatDateForInput(date);
+  });
+  const [topEndDate, setTopEndDate] = useState(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return formatDateForInput(date);
+  });
   const [attentionItemId, setAttentionItemId] = useState('');
 
   useEffect(() => {
@@ -147,8 +175,10 @@ export default function DashboardPage() {
   }, [itemSummaries]);
 
   const rankedWithdrawals = useMemo(() => {
-    const windowMs = topWindowDays * 24 * 60 * 60 * 1000;
-    const now = Date.now();
+    const startDate = parseDateFromInput(topStartDate);
+    const endDate = parseDateFromInput(topEndDate);
+    const startMs = startDate ? startDate.setHours(0, 0, 0, 0) : null;
+    const endMs = endDate ? endDate.setHours(23, 59, 59, 999) : null;
     const aggregated = new Map();
     (Array.isArray(requests) ? requests : []).forEach(request => {
       if (request.status !== 'executed') {
@@ -159,7 +189,13 @@ export default function DashboardPage() {
         return;
       }
       const executedTime = new Date(executedAt).getTime();
-      if (Number.isNaN(executedTime) || now - executedTime > windowMs) {
+      if (Number.isNaN(executedTime)) {
+        return;
+      }
+      if (startMs !== null && executedTime < startMs) {
+        return;
+      }
+      if (endMs !== null && executedTime > endMs) {
         return;
       }
       const itemId = request.item?.id || request.itemId;
@@ -206,7 +242,7 @@ export default function DashboardPage() {
       const bDate = b.lastWithdrawal ? new Date(b.lastWithdrawal).getTime() : 0;
       return bDate - aDate;
     });
-  }, [itemsById, requests, topWindowDays]);
+  }, [itemsById, requests, topEndDate, topStartDate]);
 
   const topItems = useMemo(() => rankedWithdrawals.slice(0, 5), [rankedWithdrawals]);
 
@@ -362,27 +398,47 @@ export default function DashboardPage() {
           <div>
             <h2>Top 5</h2>
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
-              Retiros ejecutados en los últimos {topWindowDays} días
+              Retiros ejecutados en el rango seleccionado
             </span>
           </div>
-          <div className="inline-actions" style={{ gap: '0.5rem' }}>
-            <label htmlFor="topWindow" style={{ color: '#475569', fontSize: '0.85rem' }}>
-              Ventana
+          <div className="inline-actions" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+            <label htmlFor="topStartDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
+              Desde
             </label>
-            <select
-              id="topWindow"
-              value={topWindowDays}
-              onChange={event => setTopWindowDays(Number(event.target.value))}
-            >
-              <option value={7}>7 días</option>
-              <option value={15}>15 días</option>
-              <option value={30}>30 días</option>
-            </select>
+            <input
+              id="topStartDate"
+              type="date"
+              value={topStartDate}
+              max={topEndDate || undefined}
+              onChange={event => {
+                const value = event.target.value;
+                setTopStartDate(value);
+                if (topEndDate && value && value > topEndDate) {
+                  setTopEndDate(value);
+                }
+              }}
+            />
+            <label htmlFor="topEndDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
+              Hasta
+            </label>
+            <input
+              id="topEndDate"
+              type="date"
+              value={topEndDate}
+              min={topStartDate || undefined}
+              onChange={event => {
+                const value = event.target.value;
+                setTopEndDate(value);
+                if (topStartDate && value && value < topStartDate) {
+                  setTopStartDate(value);
+                }
+              }}
+            />
           </div>
         </div>
         {topItems.length === 0 ? (
           <p style={{ color: '#64748b', marginTop: '1rem' }}>
-            No se registraron retiros ejecutados en la ventana seleccionada.
+            No se registraron retiros ejecutados en el rango seleccionado.
           </p>
         ) : (
           <div className="table-wrapper">
@@ -415,7 +471,7 @@ export default function DashboardPage() {
           <div>
             <h2>Atención</h2>
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
-              Enfoque por artículo para la misma ventana seleccionada
+              Enfoque por artículo para el mismo rango seleccionado
             </span>
           </div>
           <div className="inline-actions" style={{ gap: '0.5rem' }}>
@@ -438,7 +494,7 @@ export default function DashboardPage() {
         </div>
         {attentionItemId && attentionItems.length === 0 ? (
           <p style={{ color: '#64748b', marginTop: '1rem' }}>
-            No se encontraron retiros para el artículo seleccionado en la ventana elegida.
+            No se encontraron retiros para el artículo seleccionado en el rango elegido.
           </p>
         ) : null}
         {!attentionItemId && (
