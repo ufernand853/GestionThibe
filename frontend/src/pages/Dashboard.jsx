@@ -95,7 +95,8 @@ export default function DashboardPage() {
       description: item.description,
       total: computeTotalStockFromMap(item.stock),
       updatedAt: item.updatedAt,
-      group: item.group || null
+      group: item.group || null,
+      needsRecount: Boolean(item.needsRecount)
     }));
   }, [itemsSnapshot]);
 
@@ -137,18 +138,39 @@ export default function DashboardPage() {
   const inventoryAlerts = useMemo(() => {
     const now = Date.now();
     const thresholdMs = RECOUNT_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
-    const stale = [];
+    const recount = [];
     const outOfStock = [];
     itemSummaries.forEach(item => {
       if (item.total.boxes === 0 && item.total.units === 0) {
         outOfStock.push(item);
       }
       const updatedAtMs = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+      const reasons = [];
+      let staleDays = null;
       if (!updatedAtMs || now - updatedAtMs >= thresholdMs) {
-        stale.push(item);
+        staleDays = updatedAtMs
+          ? Math.max(0, Math.floor((now - updatedAtMs) / (24 * 60 * 60 * 1000)))
+          : null;
+        reasons.push('stale');
+      }
+      if (item.needsRecount) {
+        reasons.push('manual');
+      }
+      if (reasons.length > 0) {
+        recount.push({ ...item, reasons, staleDays });
       }
     });
-    return { stale, outOfStock };
+    recount.sort((a, b) => {
+      const aManual = a.reasons.includes('manual');
+      const bManual = b.reasons.includes('manual');
+      if (aManual !== bManual) {
+        return aManual ? -1 : 1;
+      }
+      const aDays = a.staleDays ?? -1;
+      const bDays = b.staleDays ?? -1;
+      return bDays - aDays;
+    });
+    return { recount, outOfStock };
   }, [itemSummaries]);
 
   const rankedWithdrawals = useMemo(() => {
@@ -231,8 +253,7 @@ export default function DashboardPage() {
     return <LoadingIndicator message="Calculando métricas..." />;
   }
 
-  const { stale: staleItems, outOfStock: outOfStockItems } = inventoryAlerts;
-  const now = Date.now();
+  const { recount: recountItems, outOfStock: outOfStockItems } = inventoryAlerts;
 
   return (
     <div className="dashboard-page">
@@ -272,26 +293,31 @@ export default function DashboardPage() {
           <div className="alert-card">
             <h3>Recuento pendiente</h3>
             <p>
-              {staleItems.length === 0
+              {recountItems.length === 0
                 ? 'Todos los artículos registran recuentos recientes.'
-                : `${staleItems.length} artículos superan ${RECOUNT_THRESHOLD_DAYS} días sin recuento.`}
+                : `${recountItems.length} artículos requieren recuento (marcados manualmente o sin actualización en ${RECOUNT_THRESHOLD_DAYS}+ días).`}
             </p>
-            {staleItems.length > 0 && (
+            {recountItems.length > 0 && (
               <ul>
-                {staleItems.slice(0, 5).map(item => {
-                  const updatedAt = item.updatedAt ? new Date(item.updatedAt) : null;
-                  const daysWithoutUpdate = updatedAt
-                    ? Math.max(0, Math.floor((now - updatedAt.getTime()) / (24 * 60 * 60 * 1000)))
-                    : null;
-                  const label =
-                    daysWithoutUpdate === null
-                      ? 'sin registro'
-                      : daysWithoutUpdate === 1
-                        ? '1 día'
-                        : `${daysWithoutUpdate} días`;
+                {recountItems.slice(0, 5).map(item => {
+                  const reasonParts = [];
+                  if (item.reasons.includes('manual')) {
+                    reasonParts.push('marcado manualmente');
+                  }
+                  if (item.reasons.includes('stale')) {
+                    let label;
+                    if (item.staleDays === null) {
+                      label = 'sin registro de actualización';
+                    } else if (item.staleDays === 1) {
+                      label = '1 día sin actualización';
+                    } else {
+                      label = `${item.staleDays} días sin actualización`;
+                    }
+                    reasonParts.push(label);
+                  }
                   return (
                     <li key={item.id}>
-                      {item.code} · {label} sin actualización
+                      {item.code} · {reasonParts.join(' · ')}
                     </li>
                   );
                 })}
