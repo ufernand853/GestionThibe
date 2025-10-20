@@ -7,6 +7,7 @@ import { formatQuantity, ensureQuantity, sumQuantities } from '../utils/quantity
 import { computeTotalStockFromMap } from '../utils/stockStatus.js';
 
 const RECOUNT_THRESHOLD_DAYS = 30;
+const ATTENTION_PAGE_SIZE = 10;
 
 const formatDateForInput = date => {
   const year = date.getFullYear();
@@ -51,8 +52,7 @@ export default function DashboardPage() {
     date.setHours(0, 0, 0, 0);
     return formatDateForInput(date);
   });
-  const [attentionItemId, setAttentionItemId] = useState('');
-  const [hasManualAttentionSelection, setHasManualAttentionSelection] = useState(false);
+  const [attentionPage, setAttentionPage] = useState(1);
 
   useEffect(() => {
     let active = true;
@@ -247,42 +247,28 @@ export default function DashboardPage() {
 
   const topItems = useMemo(() => rankedWithdrawals.slice(0, 5), [rankedWithdrawals]);
 
+  useEffect(() => {
+    setAttentionPage(1);
+  }, [rankedWithdrawals.length]);
+
+  const totalAttentionPages = useMemo(() => {
+    if (rankedWithdrawals.length === 0) {
+      return 1;
+    }
+    return Math.ceil(rankedWithdrawals.length / ATTENTION_PAGE_SIZE);
+  }, [rankedWithdrawals.length]);
+
+  useEffect(() => {
+    if (attentionPage > totalAttentionPages) {
+      setAttentionPage(totalAttentionPages);
+    }
+  }, [attentionPage, totalAttentionPages]);
+
   const attentionItems = useMemo(() => {
-    if (!attentionItemId) {
-      return [];
-    }
-    return rankedWithdrawals.filter(item => item.id === attentionItemId);
-  }, [attentionItemId, rankedWithdrawals]);
-
-  const availableAttentionItems = useMemo(() => {
-    return rankedWithdrawals.map(item => ({
-      id: item.id,
-      label: `${item.code} · ${item.description}`
-    }));
-  }, [rankedWithdrawals]);
-
-  useEffect(() => {
-    if (availableAttentionItems.length === 0) {
-      if (attentionItemId) {
-        setAttentionItemId('');
-      }
-      setHasManualAttentionSelection(false);
-      return;
-    }
-    if (!attentionItemId && !hasManualAttentionSelection) {
-      setAttentionItemId(availableAttentionItems[0].id);
-    }
-  }, [attentionItemId, availableAttentionItems, hasManualAttentionSelection]);
-
-  useEffect(() => {
-    if (!attentionItemId) {
-      return;
-    }
-    if (!availableAttentionItems.some(item => item.id === attentionItemId)) {
-      setHasManualAttentionSelection(false);
-      setAttentionItemId('');
-    }
-  }, [attentionItemId, availableAttentionItems]);
+    const startIndex = (attentionPage - 1) * ATTENTION_PAGE_SIZE;
+    const endIndex = startIndex + ATTENTION_PAGE_SIZE;
+    return rankedWithdrawals.slice(startIndex, endIndex);
+  }, [attentionPage, rankedWithdrawals]);
 
   const handleAttentionItemChange = event => {
     setAttentionItemId(event.target.value);
@@ -494,31 +480,12 @@ export default function DashboardPage() {
               Enfoque por artículo para el mismo rango seleccionado
             </span>
           </div>
-          <div className="inline-actions" style={{ gap: '0.5rem' }}>
-            <label htmlFor="attentionItem" style={{ color: '#475569', fontSize: '0.85rem' }}>
-              Artículo
-            </label>
-            <select id="attentionItem" value={attentionItemId} onChange={handleAttentionItemChange}>
-              <option value="">Selecciona artículo</option>
-              {availableAttentionItems.map(item => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
-        {attentionItemId && attentionItems.length === 0 ? (
+        {rankedWithdrawals.length === 0 ? (
           <p style={{ color: '#64748b', marginTop: '1rem' }}>
-            No se encontraron retiros para el artículo seleccionado en el rango elegido.
+            No se encontraron retiros ejecutados en el rango seleccionado.
           </p>
-        ) : null}
-        {!attentionItemId && (
-          <p style={{ color: '#64748b', marginTop: '1rem' }}>
-            Seleccione un artículo para explorar los retiros recientes asociados.
-          </p>
-        )}
-        {attentionItems.length > 0 && (
+        ) : (
           <div className="table-wrapper">
             <table>
               <thead>
@@ -531,7 +498,7 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {attentionItems.map(item => (
-                  <tr key={`${item.id}-${attentionItemId}`}>
+                  <tr key={item.id}>
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{formatQuantity(item.total)}</td>
@@ -540,6 +507,38 @@ export default function DashboardPage() {
                 ))}
               </tbody>
             </table>
+            {totalAttentionPages > 1 && (
+              <div
+                className="inline-actions"
+                style={{
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '1rem',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem'
+                }}
+              >
+                <span style={{ color: '#475569', fontSize: '0.85rem' }}>
+                  Página {attentionPage} de {totalAttentionPages}
+                </span>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAttentionPage(page => Math.max(1, page - 1))}
+                    disabled={attentionPage === 1}
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAttentionPage(page => Math.min(totalAttentionPages, page + 1))}
+                    disabled={attentionPage === totalAttentionPages}
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
