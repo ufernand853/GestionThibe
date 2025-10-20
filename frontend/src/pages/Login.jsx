@@ -45,7 +45,6 @@ export default function LoginPage() {
               value={email}
               onChange={event => setEmail(event.target.value)}
               required
-              placeholder="nombre@thibe.com"
             />
           </div>
           <div className="input-group">
