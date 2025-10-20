@@ -2,6 +2,10 @@
 backend/node_modules/
 frontend/node_modules/
 
+# Archivos temporales de carga
+backend/uploads/*
+!backend/uploads/.gitkeep
+
 # Artefactos de empaquetado
 dist/
 *.zip
