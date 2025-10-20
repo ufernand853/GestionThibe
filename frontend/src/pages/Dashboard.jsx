@@ -23,7 +23,7 @@ export default function DashboardPage() {
   const [requests, setRequests] = useState([]);
   const [itemsSnapshot, setItemsSnapshot] = useState([]);
   const [topWindowDays, setTopWindowDays] = useState(7);
-  const [attentionGroupId, setAttentionGroupId] = useState('');
+  const [attentionItemId, setAttentionItemId] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -107,33 +107,6 @@ export default function DashboardPage() {
     return map;
   }, [itemSummaries]);
 
-  const availableGroups = useMemo(() => {
-    const groupMap = new Map();
-    itemsSnapshot.forEach(item => {
-      const group = item.group;
-      if (!group) {
-        return;
-      }
-      const groupId = group.id || group._id;
-      if (!groupId) {
-        return;
-      }
-      if (!groupMap.has(groupId)) {
-        groupMap.set(groupId, { id: groupId, name: group.name || 'Sin nombre' });
-      }
-    });
-    return Array.from(groupMap.values()).sort((a, b) => a.name.localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
-  }, [itemsSnapshot]);
-
-  useEffect(() => {
-    if (!attentionGroupId) {
-      return;
-    }
-    if (!availableGroups.some(group => group.id === attentionGroupId)) {
-      setAttentionGroupId('');
-    }
-  }, [attentionGroupId, availableGroups]);
-
   const inventoryAlerts = useMemo(() => {
     const now = Date.now();
     const thresholdMs = RECOUNT_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
@@ -216,16 +189,27 @@ export default function DashboardPage() {
   const topItems = useMemo(() => rankedWithdrawals.slice(0, 5), [rankedWithdrawals]);
 
   const attentionItems = useMemo(() => {
-    if (!attentionGroupId) {
+    if (!attentionItemId) {
       return [];
     }
-    return rankedWithdrawals
-      .filter(item => {
-        const groupId = item.groupId || item.group?.id || item.group?._id || null;
-        return groupId === attentionGroupId;
-      })
-      .slice(0, 5);
-  }, [attentionGroupId, rankedWithdrawals]);
+    return rankedWithdrawals.filter(item => item.id === attentionItemId);
+  }, [attentionItemId, rankedWithdrawals]);
+
+  const availableAttentionItems = useMemo(() => {
+    return rankedWithdrawals.map(item => ({
+      id: item.id,
+      label: `${item.code} · ${item.description}`
+    }));
+  }, [rankedWithdrawals]);
+
+  useEffect(() => {
+    if (!attentionItemId) {
+      return;
+    }
+    if (!availableAttentionItems.some(item => item.id === attentionItemId)) {
+      setAttentionItemId('');
+    }
+  }, [attentionItemId, availableAttentionItems]);
 
   if (loading) {
     return <LoadingIndicator message="Calculando métricas..." />;
@@ -405,35 +389,35 @@ export default function DashboardPage() {
           <div>
             <h2>Atención</h2>
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
-              Enfoque por categoría para la misma ventana seleccionada
+              Enfoque por artículo para la misma ventana seleccionada
             </span>
           </div>
           <div className="inline-actions" style={{ gap: '0.5rem' }}>
-            <label htmlFor="attentionGroup" style={{ color: '#475569', fontSize: '0.85rem' }}>
-              Categoría
+            <label htmlFor="attentionItem" style={{ color: '#475569', fontSize: '0.85rem' }}>
+              Artículo
             </label>
             <select
-              id="attentionGroup"
-              value={attentionGroupId}
-              onChange={event => setAttentionGroupId(event.target.value)}
+              id="attentionItem"
+              value={attentionItemId}
+              onChange={event => setAttentionItemId(event.target.value)}
             >
-              <option value="">Selecciona categoría</option>
-              {availableGroups.map(group => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
+              <option value="">Selecciona artículo</option>
+              {availableAttentionItems.map(item => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
                 </option>
               ))}
             </select>
           </div>
         </div>
-        {attentionGroupId && attentionItems.length === 0 ? (
+        {attentionItemId && attentionItems.length === 0 ? (
           <p style={{ color: '#64748b', marginTop: '1rem' }}>
-            No se encontraron retiros para la categoría seleccionada en la ventana elegida.
+            No se encontraron retiros para el artículo seleccionado en la ventana elegida.
           </p>
         ) : null}
-        {!attentionGroupId && (
+        {!attentionItemId && (
           <p style={{ color: '#64748b', marginTop: '1rem' }}>
-            Seleccione una categoría para explorar los retiros recientes asociados.
+            Seleccione un artículo para explorar los retiros recientes asociados.
           </p>
         )}
         {attentionItems.length > 0 && (
@@ -449,7 +433,7 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {attentionItems.map(item => (
-                  <tr key={`${item.id}-${attentionGroupId}`}>
+                  <tr key={`${item.id}-${attentionItemId}`}>
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{formatQuantity(item.total)}</td>
