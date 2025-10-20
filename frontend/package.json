@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "clean": "node scripts/clean-dist.mjs",
+    "rebuild": "npm run clean && npm run build",
     "preview": "vite preview",
     "lint": "echo \"No hay reglas de lint configuradas\""
   },
