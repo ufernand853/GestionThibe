@@ -52,6 +52,7 @@ export default function DashboardPage() {
     return formatDateForInput(date);
   });
   const [attentionItemId, setAttentionItemId] = useState('');
+  const [hasManualAttentionSelection, setHasManualAttentionSelection] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -261,13 +262,32 @@ export default function DashboardPage() {
   }, [rankedWithdrawals]);
 
   useEffect(() => {
+    if (availableAttentionItems.length === 0) {
+      if (attentionItemId) {
+        setAttentionItemId('');
+      }
+      setHasManualAttentionSelection(false);
+      return;
+    }
+    if (!attentionItemId && !hasManualAttentionSelection) {
+      setAttentionItemId(availableAttentionItems[0].id);
+    }
+  }, [attentionItemId, availableAttentionItems, hasManualAttentionSelection]);
+
+  useEffect(() => {
     if (!attentionItemId) {
       return;
     }
     if (!availableAttentionItems.some(item => item.id === attentionItemId)) {
+      setHasManualAttentionSelection(false);
       setAttentionItemId('');
     }
   }, [attentionItemId, availableAttentionItems]);
+
+  const handleAttentionItemChange = event => {
+    setAttentionItemId(event.target.value);
+    setHasManualAttentionSelection(true);
+  };
 
   if (loading) {
     return <LoadingIndicator message="Calculando métricas..." />;
@@ -478,11 +498,7 @@ export default function DashboardPage() {
             <label htmlFor="attentionItem" style={{ color: '#475569', fontSize: '0.85rem' }}>
               Artículo
             </label>
-            <select
-              id="attentionItem"
-              value={attentionItemId}
-              onChange={event => setAttentionItemId(event.target.value)}
-            >
+            <select id="attentionItem" value={attentionItemId} onChange={handleAttentionItemChange}>
               <option value="">Selecciona artículo</option>
               {availableAttentionItems.map(item => (
                 <option key={item.id} value={item.id}>
