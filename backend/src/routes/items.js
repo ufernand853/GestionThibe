@@ -173,6 +173,36 @@ function parseItemPayload(req) {
   return req.body || {};
 }
 
+function normalizeBooleanFlag(value, { fieldName = 'Flag', defaultValue } = {}) {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  if (value === null) {
+    return false;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultValue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (['true', '1', 'yes', 'y', 'si', 'sí', 'on'].includes(normalized)) {
+      return true;
+    }
+    if (['false', '0', 'no', 'n', 'off'].includes(normalized)) {
+      return false;
+    }
+  }
+  throw new HttpError(400, `${fieldName} inválido`);
+}
+
 function toPlainAttributes(attributes) {
   if (!attributes) return {};
   if (attributes instanceof Map) {
@@ -192,6 +222,7 @@ function serializeItem(doc) {
     attributes: toPlainAttributes(doc.attributes),
     stock: toPlainStock(doc.stock),
     images: Array.isArray(doc.images) ? doc.images : [],
+    needsRecount: Boolean(doc.needsRecount),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt
   };
@@ -293,7 +324,7 @@ router.post(
   requirePermission('items.write'),
   asyncHandler(async (req, res) => {
     const payload = parseItemPayload(req);
-    const { code, description, groupId, attributes = {}, stock = {}, images = [] } = payload;
+    const { code, description, groupId, attributes = {}, stock = {}, images = [], needsRecount } = payload;
     if (!code || !description) {
       throw new HttpError(400, 'code y description son obligatorios');
     }
@@ -320,6 +351,10 @@ router.post(
       await cleanupNewFiles(createdPaths);
       throw new HttpError(400, `Solo se permiten hasta ${MAX_IMAGES} imágenes por artículo.`);
     }
+    const normalizedNeedsRecount = normalizeBooleanFlag(needsRecount, {
+      fieldName: 'needsRecount',
+      defaultValue: false
+    });
     let item;
     try {
       item = await Item.create({
@@ -328,7 +363,8 @@ router.post(
         group: group ? group.id : null,
         attributes,
         stock: stockData,
-        images: sanitizedImages
+        images: sanitizedImages,
+        needsRecount: normalizedNeedsRecount
       });
     } catch (error) {
       await cleanupNewFiles(createdPaths);
@@ -352,14 +388,16 @@ router.put(
       throw new HttpError(404, 'Artículo no encontrado');
     }
     const payload = parseItemPayload(req);
-    const { description, groupId, attributes, stock, images, imagesToKeep } = payload || {};
-    if (description) {
+    const { description, groupId, attributes, stock, images, imagesToKeep, needsRecount } = payload || {};
+    if (typeof description === 'string' && description && description !== item.description) {
       item.description = description;
     }
     const normalizedGroupId = normalizeOptionalObjectId(groupId);
     if (normalizedGroupId !== undefined) {
       if (normalizedGroupId === null) {
-        item.group = null;
+        if (item.group !== null) {
+          item.group = null;
+        }
       } else {
         if (!Types.ObjectId.isValid(normalizedGroupId)) {
           throw new HttpError(400, 'Grupo inválido');
@@ -368,7 +406,10 @@ router.put(
         if (!group) {
           throw new HttpError(400, 'Grupo inválido');
         }
-        item.group = group.id;
+        const currentGroupId = item.group ? String(item.group) : null;
+        if (currentGroupId !== String(group.id)) {
+          item.group = group.id;
+        }
       }
     }
     if (attributes) {
@@ -377,9 +418,15 @@ router.put(
       }
       Object.entries(attributes).forEach(([key, value]) => {
         if (value === null || value === undefined || value === '') {
-          item.attributes.delete(key);
+          if (item.attributes.has(key)) {
+            item.attributes.delete(key);
+          }
         } else {
-          item.attributes.set(key, value);
+          const nextValue = String(value);
+          const currentValue = item.attributes.get(key);
+          if (currentValue !== nextValue) {
+            item.attributes.set(key, nextValue);
+          }
         }
       });
     }
@@ -390,11 +437,30 @@ router.put(
       }
       Object.entries(stockUpdates).forEach(([key, value]) => {
         if (value === null) {
-          item.stock.delete(key);
+          if (item.stock.has(key)) {
+            item.stock.delete(key);
+          }
         } else {
-          item.stock.set(key, value);
+          const currentValue = item.stock.get(key);
+          const currentBoxes = currentValue ? Number(currentValue.boxes) || 0 : 0;
+          const currentUnits = currentValue ? Number(currentValue.units) || 0 : 0;
+          const nextBoxes = Number(value.boxes) || 0;
+          const nextUnits = Number(value.units) || 0;
+          if (currentBoxes !== nextBoxes || currentUnits !== nextUnits) {
+            item.stock.set(key, value);
+          }
         }
       });
+    }
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, 'needsRecount')) {
+      const normalizedNeedsRecount = normalizeBooleanFlag(needsRecount, {
+        fieldName: 'needsRecount',
+        defaultValue: item.needsRecount
+      });
+      if (normalizedNeedsRecount !== item.needsRecount) {
+        item.needsRecount = normalizedNeedsRecount;
+      }
     }
 
     const currentImages = Array.isArray(item.images) ? item.images : [];
@@ -424,12 +490,26 @@ router.put(
         pathsToRemove.push(pathValue);
       }
     });
+    const imagesChanged =
+      nextImages.length !== currentImages.length ||
+      nextImages.some((value, index) => value !== currentImages[index]);
     if (pathsToRemove.length > 0) {
       await Promise.allSettled(pathsToRemove.map(removeFileSafe));
     }
-    item.images = nextImages;
+    if (imagesChanged) {
+      item.images = nextImages;
+    }
+    const modifiedPaths = item.modifiedPaths();
+    if (modifiedPaths.length === 0) {
+      if (createdDuringUpdate.length > 0) {
+        await cleanupNewFiles(createdDuringUpdate);
+      }
+      const populated = await item.populate('group');
+      return res.json(serializeItem(populated));
+    }
+    const hasOtherModifications = modifiedPaths.some(path => path !== 'needsRecount');
     try {
-      await item.save();
+      await item.save(hasOtherModifications ? undefined : { timestamps: false });
     } catch (error) {
       await cleanupNewFiles(createdDuringUpdate);
       throw error;

@@ -94,6 +94,7 @@ export default function ItemsPage() {
     code: '',
     description: '',
     groupId: '',
+    needsRecount: false,
     gender: '',
     size: '',
     color: '',
@@ -236,6 +237,7 @@ export default function ItemsPage() {
       code: '',
       description: '',
       groupId: '',
+      needsRecount: false,
       gender: '',
       size: '',
       color: '',
@@ -250,8 +252,9 @@ export default function ItemsPage() {
   };
 
   const handleFormChange = event => {
-    const { name, value } = event.target;
-    setFormValues(prev => ({ ...prev, [name]: value }));
+    const { name, type, checked, value } = event.target;
+    const nextValue = type === 'checkbox' ? checked : value;
+    setFormValues(prev => ({ ...prev, [name]: nextValue }));
   };
 
   const handleStockByLocationChange = (locationId, field, rawValue) => {
@@ -320,6 +323,7 @@ export default function ItemsPage() {
     return {
       description: formValues.description,
       groupId: formValues.groupId || null,
+      needsRecount: Boolean(formValues.needsRecount),
       attributes: Object.keys(attributes).length ? attributes : undefined,
       stock,
       images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
@@ -456,6 +460,7 @@ export default function ItemsPage() {
       code: item.code,
       description: item.description,
       groupId: item.groupId || '',
+      needsRecount: Boolean(item.needsRecount),
       gender: item.attributes?.gender || '',
       size: item.attributes?.size || '',
       color: item.attributes?.color || '',
@@ -532,6 +537,23 @@ export default function ItemsPage() {
                     );
                   })}
                 </select>
+              </div>
+              <div className="input-group">
+                <label htmlFor="needsRecount">Recuento manual</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    id="needsRecount"
+                    name="needsRecount"
+                    type="checkbox"
+                    checked={Boolean(formValues.needsRecount)}
+                    onChange={handleFormChange}
+                    disabled={!canWrite}
+                  />
+                  <span>Marcar artículo para recuento</span>
+                </div>
+                <p className="input-helper">
+                  Los artículos marcados aparecerán priorizados en el tablero hasta que se actualice su stock.
+                </p>
               </div>
               {ATTRIBUTE_FIELDS.map(({ key, label, placeholder, type, options = [] }) => {
                 const selectedValue = formValues[key];
@@ -782,6 +804,7 @@ export default function ItemsPage() {
                   <th>Imágenes</th>
                   <th>Ubicaciones</th>
                   <th>Total</th>
+                  <th>Recuento</th>
                   <th>Disponibilidad</th>
                   {canWrite && <th>Acciones</th>}
                 </tr>
@@ -819,6 +842,15 @@ export default function ItemsPage() {
                     </td>
                     <td>{formatQuantity(totalQuantity)}</td>
                     <td>
+                      {item.needsRecount ? (
+                        <span className="badge" style={{ backgroundColor: '#f97316', color: '#fff' }}>
+                          Reconteo pendiente
+                        </span>
+                      ) : (
+                        <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Al día</span>
+                      )}
+                    </td>
+                    <td>
                       {stockStatus ? (
                         <div className="stock-status-cell">
                           <StockStatusBadge status={stockStatus} />
@@ -846,13 +878,13 @@ export default function ItemsPage() {
                   </tr>
                 );
               })}
-                {items.length === 0 && (
-                  <tr>
-                    <td colSpan={canWrite ? 11 : 10} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-                      No se encontraron artículos para los filtros seleccionados.
-                    </td>
-                  </tr>
-                )}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={canWrite ? 10 : 9} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    No se encontraron artículos para los filtros seleccionados.
+                  </td>
+                </tr>
+              )}
               </tbody>
             </table>
           </div>

@@ -10,7 +10,8 @@ const itemSchema = new Schema(
     group: { type: Types.ObjectId, ref: 'Group', default: null },
     attributes: { type: Map, of: String, default: {} },
     stock: { type: Map, of: quantitySubSchema, default: () => ({}) },
-    images: { type: [String], default: [] }
+    images: { type: [String], default: [] },
+    needsRecount: { type: Boolean, default: false }
   },
   {
     timestamps: true,
