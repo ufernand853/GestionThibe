@@ -17,6 +17,22 @@ const formatDateForInput = date => {
   return `${year}-${month}-${day}`;
 };
 
+const normalizeManualAttentionIds = ids => {
+  if (!Array.isArray(ids)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  ids.forEach(value => {
+    const stringValue = String(value);
+    if (!seen.has(stringValue) && normalized.length < ATTENTION_MANUAL_LIMIT) {
+      seen.add(stringValue);
+      normalized.push(stringValue);
+    }
+  });
+  return normalized;
+};
+
 const parseDateFromInput = value => {
   if (!value) {
     return null;
@@ -53,21 +69,10 @@ export default function DashboardPage() {
     date.setHours(0, 0, 0, 0);
     return formatDateForInput(date);
   });
-  const [manualAttentionIds, setManualAttentionIds] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = JSON.parse(window.localStorage.getItem('dashboard.manualAttentionIds') || '[]');
-        if (Array.isArray(stored)) {
-          return stored
-            .slice(0, ATTENTION_MANUAL_LIMIT)
-            .map(id => String(id));
-        }
-      } catch (err) {
-        console.warn('No se pudo leer la selección manual de atención', err);
-      }
-    }
-    return [];
-  });
+  const [manualAttentionIds, setManualAttentionIds] = useState([]);
+  const [savedManualAttentionIds, setSavedManualAttentionIds] = useState([]);
+  const [manualAttentionSaving, setManualAttentionSaving] = useState(false);
+  const [manualAttentionFeedback, setManualAttentionFeedback] = useState(null);
   const [manualSelectionValue, setManualSelectionValue] = useState('');
   const [attentionSearch, setAttentionSearch] = useState('');
 
@@ -77,13 +82,24 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const [locationTotals, locationsResponse, requestsResponse, itemsResponse] = await Promise.all([
+        const preferencesPromise = api.get('/preferences').catch(error => {
+          console.warn('No se pudieron cargar las preferencias del usuario', error);
+          return null;
+        });
+        const [
+          locationTotals,
+          locationsResponse,
+          requestsResponse,
+          itemsResponse,
+          preferencesResponse
+        ] = await Promise.all([
           canViewReports ? api.get('/reports/stock/by-location') : Promise.resolve([]),
           canViewCatalog ? api.get('/locations') : Promise.resolve([]),
           canManageRequests ? api.get('/stock/requests') : Promise.resolve([]),
           canViewCatalog
             ? api.get('/items', { query: { page: 1, pageSize: 500 } })
-            : Promise.resolve(null)
+            : Promise.resolve(null),
+          preferencesPromise
         ]);
         if (!active) return;
         setStockByLocation(Array.isArray(locationTotals) ? locationTotals : []);
@@ -94,6 +110,12 @@ export default function DashboardPage() {
         } else {
           setItemsSnapshot([]);
         }
+        const normalizedManualIds = normalizeManualAttentionIds(
+          preferencesResponse?.dashboard?.manualAttentionIds
+        );
+        setManualAttentionIds(normalizedManualIds);
+        setSavedManualAttentionIds(normalizedManualIds);
+        setManualAttentionFeedback(null);
       } catch (err) {
         if (!active) return;
         setError(err);
@@ -130,13 +152,6 @@ export default function DashboardPage() {
       pending: pendingRequests.length
     };
   }, [locations, pendingRequests.length, stockByLocation]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    window.localStorage.setItem('dashboard.manualAttentionIds', JSON.stringify(manualAttentionIds));
-  }, [manualAttentionIds]);
 
   const itemSummaries = useMemo(() => {
     if (!Array.isArray(itemsSnapshot)) {
@@ -311,6 +326,34 @@ export default function DashboardPage() {
       .filter(Boolean);
   }, [itemsById, manualAttentionIds, rankedWithdrawalsMap]);
 
+  const hasManualAttentionChanges = useMemo(() => {
+    if (manualAttentionIds.length !== savedManualAttentionIds.length) {
+      return true;
+    }
+    for (let index = 0; index < manualAttentionIds.length; index += 1) {
+      if (manualAttentionIds[index] !== savedManualAttentionIds[index]) {
+        return true;
+      }
+    }
+    return false;
+  }, [manualAttentionIds, savedManualAttentionIds]);
+
+  useEffect(() => {
+    if (hasManualAttentionChanges) {
+      setManualAttentionFeedback(prev => (prev?.type === 'success' ? null : prev));
+    }
+  }, [hasManualAttentionChanges]);
+
+  useEffect(() => {
+    if (manualAttentionFeedback?.type === 'success') {
+      const timeout = setTimeout(() => {
+        setManualAttentionFeedback(null);
+      }, 4000);
+      return () => clearTimeout(timeout);
+    }
+    return undefined;
+  }, [manualAttentionFeedback]);
+
   const attentionHelperText = 'Personalizá la lista eligiendo hasta cinco artículos.';
 
   const manualSelectionDisabled =
@@ -320,20 +363,55 @@ export default function DashboardPage() {
     if (!manualSelectionValue) {
       return;
     }
+    const nextId = String(manualSelectionValue);
     setManualAttentionIds(prev => {
-      if (prev.includes(manualSelectionValue) || prev.length >= ATTENTION_MANUAL_LIMIT) {
+      if (prev.includes(nextId) || prev.length >= ATTENTION_MANUAL_LIMIT) {
         return prev;
       }
-      return [...prev, manualSelectionValue];
+      return [...prev, nextId];
     });
     setManualSelectionValue('');
+  };
+
+  const handleManualSelectionClear = () => {
+    setManualSelectionValue('');
+    setAttentionSearch('');
+    setManualAttentionIds([]);
   };
 
   const handleManualAttentionRemove = id => {
     setManualAttentionIds(prev => prev.filter(existingId => existingId !== id));
   };
 
+  const handleManualAttentionApply = async () => {
+    setManualAttentionSaving(true);
+    setManualAttentionFeedback(null);
+    try {
+      const response = await api.put('/preferences', {
+        dashboard: { manualAttentionIds }
+      });
+      const normalizedManualIds = normalizeManualAttentionIds(
+        response?.dashboard?.manualAttentionIds
+      );
+      setManualAttentionIds(normalizedManualIds);
+      setSavedManualAttentionIds(normalizedManualIds);
+      setManualAttentionFeedback({ type: 'success', message: 'Configuración guardada.' });
+    } catch (err) {
+      setManualAttentionFeedback({
+        type: 'error',
+        message: err?.message || 'No se pudo guardar la configuración.'
+      });
+    } finally {
+      setManualAttentionSaving(false);
+    }
+  };
+
   const shouldShowEmptyAttentionMessage = manualAttentionItems.length === 0;
+
+  const manualAttentionStatusClass = manualAttentionFeedback
+    ? `attention-actions__status attention-actions__status--${manualAttentionFeedback.type}`
+    : null;
+  const manualAttentionStatusRole = manualAttentionFeedback?.type === 'error' ? 'alert' : 'status';
 
   if (loading) {
     return <LoadingIndicator message="Calculando métricas..." />;
@@ -544,11 +622,8 @@ export default function DashboardPage() {
         <div className="attention-selection">
           {canViewCatalog ? (
             <>
-              <div
-                className="inline-actions"
-                style={{ alignItems: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}
-              >
-                <div className="input-group" style={{ minWidth: '220px' }}>
+              <div className="attention-actions">
+                <div className="attention-actions__field input-group" style={{ minWidth: '220px' }}>
                   <label htmlFor="attentionSearch">Buscar artículo</label>
                   <input
                     id="attentionSearch"
@@ -558,7 +633,7 @@ export default function DashboardPage() {
                     onChange={event => setAttentionSearch(event.target.value)}
                   />
                 </div>
-                <div className="input-group" style={{ minWidth: '240px' }}>
+                <div className="attention-actions__field input-group" style={{ minWidth: '240px' }}>
                   <label htmlFor="attentionSelect">Agregar a la lista</label>
                   <select
                     id="attentionSelect"
@@ -577,26 +652,40 @@ export default function DashboardPage() {
                     Hasta {ATTENTION_MANUAL_LIMIT} artículos. Los valores muestran retiros en el rango elegido.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={handleManualSelectionSubmit}
-                  disabled={manualSelectionDisabled || !manualSelectionValue}
-                >
-                  Agregar
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => {
-                    setManualSelectionValue('');
-                    setAttentionSearch('');
-                    setManualAttentionIds([]);
-                  }}
-                  disabled={manualAttentionItems.length === 0}
-                >
-                  Limpiar selección
-                </button>
+                <div className="attention-actions__field attention-actions__field--buttons">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={handleManualSelectionSubmit}
+                    disabled={manualSelectionDisabled || !manualSelectionValue}
+                  >
+                    Agregar
+                  </button>
+                </div>
+                <div className="attention-actions__field attention-actions__field--buttons">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={handleManualSelectionClear}
+                    disabled={manualAttentionIds.length === 0}
+                  >
+                    Limpiar selección
+                  </button>
+                </div>
+                <div className="attention-actions__field attention-actions__field--buttons">
+                  <button
+                    type="button"
+                    onClick={handleManualAttentionApply}
+                    disabled={!hasManualAttentionChanges || manualAttentionSaving}
+                  >
+                    {manualAttentionSaving ? 'Guardando…' : 'Aplicar cambios'}
+                  </button>
+                  {manualAttentionFeedback && manualAttentionStatusClass && (
+                    <p className={manualAttentionStatusClass} role={manualAttentionStatusRole}>
+                      {manualAttentionFeedback.message}
+                    </p>
+                  )}
+                </div>
               </div>
               {attentionSearch.trim() && filteredAttentionOptions.length === 0 && (
                 <p className="input-helper">No hay resultados para la búsqueda actual.</p>

@@ -8,6 +8,7 @@ const Role = require('../models/Role');
 
 function serializeUser(userDoc) {
   const role = userDoc.role;
+  const preferences = userDoc.preferences;
   return {
     id: userDoc.id,
     username: userDoc.username,
@@ -18,7 +19,8 @@ function serializeUser(userDoc) {
     status: userDoc.status,
     createdAt: userDoc.createdAt,
     updatedAt: userDoc.updatedAt,
-    lastLoginAt: userDoc.lastLoginAt
+    lastLoginAt: userDoc.lastLoginAt,
+    preferences: preferences && typeof preferences.toObject === 'function' ? preferences.toObject() : preferences || {}
   };
 }
 

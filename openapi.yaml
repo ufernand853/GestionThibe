@@ -118,6 +118,17 @@ paths:
       responses:
         '200':
           description: Resubmitted
+  /api/preferences:
+    get:
+      summary: Get authenticated user preferences
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Update authenticated user preferences
+      responses:
+        '200':
+          description: OK
   /api/stock/approve/{requestId}:
     post:
       summary: Approve and execute movement (requires stock.approve)
