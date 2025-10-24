@@ -220,11 +220,15 @@ export default function DashboardPage() {
             : null) ||
           null,
         total: { boxes: 0, units: 0 },
-        lastWithdrawal: null
+        lastWithdrawal: null,
+        currentStock: referenceItem?.total || null
       };
       existing.total = sumQuantities(existing.total, ensureQuantity(request.quantity));
       if (!existing.lastWithdrawal || executedTime > new Date(existing.lastWithdrawal).getTime()) {
         existing.lastWithdrawal = executedAt;
+      }
+      if (!existing.currentStock && referenceItem?.total) {
+        existing.currentStock = referenceItem.total;
       }
       if (!existing.group && referenceItem?.group) {
         existing.group = referenceItem.group;
@@ -283,6 +287,12 @@ export default function DashboardPage() {
       .map(id => {
         const ranked = rankedWithdrawalsMap.get(id);
         if (ranked) {
+          if (!ranked.currentStock) {
+            const reference = itemsById.get(id);
+            if (reference?.total) {
+              ranked.currentStock = reference.total;
+            }
+          }
           return ranked;
         }
         const fallback = itemsById.get(id);
@@ -292,7 +302,8 @@ export default function DashboardPage() {
             code: fallback.code,
             description: fallback.description,
             total: { boxes: 0, units: 0 },
-            lastWithdrawal: null
+            lastWithdrawal: null,
+            currentStock: fallback.total || null
           };
         }
         return null;
@@ -503,6 +514,7 @@ export default function DashboardPage() {
                   <th>Código</th>
                   <th>Descripción</th>
                   <th>Total retirado</th>
+                  <th>Stock disponible</th>
                   <th>Último retiro</th>
                 </tr>
               </thead>
@@ -512,6 +524,7 @@ export default function DashboardPage() {
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{formatQuantity(item.total)}</td>
+                    <td>{item.currentStock ? formatQuantity(item.currentStock) : '-'}</td>
                     <td>{item.lastWithdrawal ? new Date(item.lastWithdrawal).toLocaleString('es-AR') : '-'}</td>
                   </tr>
                 ))}
@@ -626,6 +639,7 @@ export default function DashboardPage() {
                   <th>Código</th>
                   <th>Descripción</th>
                   <th>Total retirado</th>
+                  <th>Stock disponible</th>
                   <th>Último retiro</th>
                 </tr>
               </thead>
@@ -635,6 +649,7 @@ export default function DashboardPage() {
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{formatQuantity(item.total)}</td>
+                    <td>{item.currentStock ? formatQuantity(item.currentStock) : '-'}</td>
                     <td>{item.lastWithdrawal ? new Date(item.lastWithdrawal).toLocaleString('es-AR') : '-'}</td>
                   </tr>
                 ))}
