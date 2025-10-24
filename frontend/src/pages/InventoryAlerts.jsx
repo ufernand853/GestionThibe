@@ -70,6 +70,7 @@ export default function InventoryAlertsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [itemsSnapshot, setItemsSnapshot] = useState([]);
+  const [activeSection, setActiveSection] = useState('all');
 
   useEffect(() => {
     let active = true;
@@ -111,6 +112,18 @@ export default function InventoryAlertsPage() {
       return;
     }
     const hash = location.hash?.replace('#', '');
+    if (hash === 'recount' || hash === 'out-of-stock') {
+      setActiveSection(hash);
+    } else {
+      setActiveSection('all');
+    }
+  }, [location.hash, loading]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+    const hash = location.hash?.replace('#', '');
     if (!hash) {
       return;
     }
@@ -121,7 +134,7 @@ export default function InventoryAlertsPage() {
         target.focus({ preventScroll: true });
       }
     }
-  }, [location.hash, loading]);
+  }, [activeSection, location.hash, loading]);
 
   const itemSummaries = useMemo(() => buildItemSummaries(itemsSnapshot), [itemsSnapshot]);
   const { recount: recountItems, outOfStock: outOfStockItems } = useMemo(
@@ -154,91 +167,95 @@ export default function InventoryAlertsPage() {
         <LoadingIndicator message="Cargando alertas de inventario..." />
       ) : (
         <>
-          <section className="section-card" id="recount" tabIndex={-1}>
-            <div className="flex-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
-              <div>
-                <h3>Artículos con recuento pendiente</h3>
-                <p style={{ color: '#475569', marginTop: '-0.5rem' }}>
-                  Incluye artículos marcados manualmente o sin actualización en {RECOUNT_THRESHOLD_DAYS}+ días.
+          {(activeSection === 'all' || activeSection === 'recount') && (
+            <section className="section-card" id="recount" tabIndex={-1}>
+              <div className="flex-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
+                <div>
+                  <h3>Artículos con recuento pendiente</h3>
+                  <p style={{ color: '#475569', marginTop: '-0.5rem' }}>
+                    Incluye artículos marcados manualmente o sin actualización en {RECOUNT_THRESHOLD_DAYS}+ días.
+                  </p>
+                </div>
+                <span className="badge">Total: {recountItems.length}</span>
+              </div>
+              {recountItems.length === 0 ? (
+                <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '1rem' }}>
+                  No hay artículos pendientes de recuento.
                 </p>
-              </div>
-              <span className="badge">Total: {recountItems.length}</span>
-            </div>
-            {recountItems.length === 0 ? (
-              <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '1rem' }}>
-                No hay artículos pendientes de recuento.
-              </p>
-            ) : (
-              <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Código</th>
-                      <th>Descripción</th>
-                      <th>Grupo</th>
-                      <th>Stock</th>
-                      <th>Motivo</th>
-                      <th>Última actualización</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recountItems.map(item => (
-                      <tr key={item.id}>
-                        <td>{item.code}</td>
-                        <td>{item.description}</td>
-                        <td>{item.group?.name || 'Sin grupo'}</td>
-                        <td>{formatQuantity(item.total)}</td>
-                        <td>{formatRecountReasons(item)}</td>
-                        <td>{formatUpdatedAt(item.updatedAt)}</td>
+              ) : (
+                <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Grupo</th>
+                        <th>Stock</th>
+                        <th>Motivo</th>
+                        <th>Última actualización</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+                    </thead>
+                    <tbody>
+                      {recountItems.map(item => (
+                        <tr key={item.id}>
+                          <td>{item.code}</td>
+                          <td>{item.description}</td>
+                          <td>{item.group?.name || 'Sin grupo'}</td>
+                          <td>{formatQuantity(item.total)}</td>
+                          <td>{formatRecountReasons(item)}</td>
+                          <td>{formatUpdatedAt(item.updatedAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
 
-          <section className="section-card" id="out-of-stock" tabIndex={-1}>
-            <div className="flex-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
-              <div>
-                <h3>Artículos agotados</h3>
-                <p style={{ color: '#475569', marginTop: '-0.5rem' }}>
-                  Listado completo de artículos sin unidades disponibles en el inventario consolidado.
+          {(activeSection === 'all' || activeSection === 'out-of-stock') && (
+            <section className="section-card" id="out-of-stock" tabIndex={-1}>
+              <div className="flex-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
+                <div>
+                  <h3>Artículos agotados</h3>
+                  <p style={{ color: '#475569', marginTop: '-0.5rem' }}>
+                    Listado completo de artículos sin unidades disponibles en el inventario consolidado.
+                  </p>
+                </div>
+                <span className="badge">Total: {outOfStockItems.length}</span>
+              </div>
+              {outOfStockItems.length === 0 ? (
+                <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '1rem' }}>
+                  No hay artículos agotados en este momento.
                 </p>
-              </div>
-              <span className="badge">Total: {outOfStockItems.length}</span>
-            </div>
-            {outOfStockItems.length === 0 ? (
-              <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '1rem' }}>
-                No hay artículos agotados en este momento.
-              </p>
-            ) : (
-              <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Código</th>
-                      <th>Descripción</th>
-                      <th>Grupo</th>
-                      <th>Stock</th>
-                      <th>Última actualización</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {outOfStockItems.map(item => (
-                      <tr key={item.id}>
-                        <td>{item.code}</td>
-                        <td>{item.description}</td>
-                        <td>{item.group?.name || 'Sin grupo'}</td>
-                        <td>{formatQuantity(item.total)}</td>
-                        <td>{formatUpdatedAt(item.updatedAt)}</td>
+              ) : (
+                <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Grupo</th>
+                        <th>Stock</th>
+                        <th>Última actualización</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+                    </thead>
+                    <tbody>
+                      {outOfStockItems.map(item => (
+                        <tr key={item.id}>
+                          <td>{item.code}</td>
+                          <td>{item.description}</td>
+                          <td>{item.group?.name || 'Sin grupo'}</td>
+                          <td>{formatQuantity(item.total)}</td>
+                          <td>{formatUpdatedAt(item.updatedAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
         </>
       )}
     </div>
