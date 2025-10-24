@@ -274,6 +274,28 @@ th {
   flex-wrap: wrap;
 }
 
+.toggle-button {
+  background-color: transparent;
+  color: #2563eb;
+  border: 1px solid #2563eb;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+}
+
+.toggle-button:hover:not(:disabled):not(.active) {
+  background-color: rgba(37, 99, 235, 0.12);
+}
+
+.toggle-button.active {
+  background-color: #2563eb;
+  color: #fff;
+}
+
+.toggle-button:disabled {
+  color: #94a3b8;
+  border-color: #cbd5f5;
+}
+
 .secondary-button {
   background-color: transparent;
   color: #2563eb;
@@ -311,6 +333,47 @@ th {
   margin: 0;
   font-size: 0.75rem;
   color: #64748b;
+}
+
+.attention-selection {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.selection-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.selection-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #e2e8f0;
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.selection-chip button {
+  border: none;
+  background-color: transparent;
+  color: #64748b;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.selection-chip button:hover:not(:disabled) {
+  color: #ef4444;
+  background-color: transparent;
 }
 
 .image-preview-wrapper {
