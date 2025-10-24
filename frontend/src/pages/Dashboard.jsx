@@ -8,7 +8,6 @@ import { formatQuantity, ensureQuantity, sumQuantities } from '../utils/quantity
 import { computeTotalStockFromMap } from '../utils/stockStatus.js';
 import { computeInventoryAlerts, RECOUNT_THRESHOLD_DAYS } from '../utils/inventoryAlerts.js';
 
-const ATTENTION_PAGE_SIZE = 10;
 const ATTENTION_MANUAL_LIMIT = 5;
 
 const formatDateForInput = date => {
@@ -53,16 +52,6 @@ export default function DashboardPage() {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
     return formatDateForInput(date);
-  });
-  const [attentionPage, setAttentionPage] = useState(1);
-  const [attentionMode, setAttentionMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const stored = window.localStorage.getItem('dashboard.attentionMode');
-      if (stored === 'manual' || stored === 'auto') {
-        return stored;
-      }
-    }
-    return 'auto';
   });
   const [manualAttentionIds, setManualAttentionIds] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -146,21 +135,8 @@ export default function DashboardPage() {
     if (typeof window === 'undefined') {
       return;
     }
-    window.localStorage.setItem('dashboard.attentionMode', attentionMode);
-  }, [attentionMode]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
     window.localStorage.setItem('dashboard.manualAttentionIds', JSON.stringify(manualAttentionIds));
   }, [manualAttentionIds]);
-
-  useEffect(() => {
-    if (!canViewCatalog && attentionMode === 'manual') {
-      setAttentionMode('auto');
-    }
-  }, [attentionMode, canViewCatalog]);
 
   const itemSummaries = useMemo(() => {
     if (!Array.isArray(itemsSnapshot)) {
@@ -281,29 +257,6 @@ export default function DashboardPage() {
 
   const topItems = useMemo(() => rankedWithdrawals.slice(0, 5), [rankedWithdrawals]);
 
-  useEffect(() => {
-    setAttentionPage(1);
-  }, [rankedWithdrawals.length]);
-
-  const totalAttentionPages = useMemo(() => {
-    if (rankedWithdrawals.length === 0) {
-      return 1;
-    }
-    return Math.ceil(rankedWithdrawals.length / ATTENTION_PAGE_SIZE);
-  }, [rankedWithdrawals.length]);
-
-  useEffect(() => {
-    if (attentionPage > totalAttentionPages) {
-      setAttentionPage(totalAttentionPages);
-    }
-  }, [attentionPage, totalAttentionPages]);
-
-  const autoAttentionItems = useMemo(() => {
-    const startIndex = (attentionPage - 1) * ATTENTION_PAGE_SIZE;
-    const endIndex = startIndex + ATTENTION_PAGE_SIZE;
-    return rankedWithdrawals.slice(startIndex, endIndex);
-  }, [attentionPage, rankedWithdrawals]);
-
   const availableAttentionOptions = useMemo(() => {
     const taken = new Set(manualAttentionIds);
     return itemSummaries
@@ -347,24 +300,10 @@ export default function DashboardPage() {
       .filter(Boolean);
   }, [itemsById, manualAttentionIds, rankedWithdrawalsMap]);
 
-  const displayedAttentionItems = attentionMode === 'manual' ? manualAttentionItems : autoAttentionItems;
-
-  const attentionHelperText = attentionMode === 'manual'
-    ? 'Personalizá la lista eligiendo hasta cinco artículos.'
-    : 'Enfoque por artículo para el mismo rango seleccionado';
+  const attentionHelperText = 'Personalizá la lista eligiendo hasta cinco artículos.';
 
   const manualSelectionDisabled =
     manualAttentionIds.length >= ATTENTION_MANUAL_LIMIT || filteredAttentionOptions.length === 0;
-
-  const handleAttentionModeChange = mode => {
-    if (mode === 'manual' && !canViewCatalog) {
-      return;
-    }
-    setAttentionMode(mode);
-    if (mode === 'auto') {
-      setAttentionPage(1);
-    }
-  };
 
   const handleManualSelectionSubmit = () => {
     if (!manualSelectionValue) {
@@ -383,8 +322,7 @@ export default function DashboardPage() {
     setManualAttentionIds(prev => prev.filter(existingId => existingId !== id));
   };
 
-  const shouldShowEmptyAttentionMessage =
-    attentionMode === 'manual' ? manualAttentionItems.length === 0 : rankedWithdrawals.length === 0;
+  const shouldShowEmptyAttentionMessage = manualAttentionItems.length === 0;
 
   if (loading) {
     return <LoadingIndicator message="Calculando métricas..." />;
@@ -589,112 +527,96 @@ export default function DashboardPage() {
             <h2>Atención</h2>
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{attentionHelperText}</span>
           </div>
-          <div className="inline-actions" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className={`toggle-button${attentionMode === 'auto' ? ' active' : ''}`}
-              onClick={() => handleAttentionModeChange('auto')}
-            >
-              Automático
-            </button>
-            <button
-              type="button"
-              className={`toggle-button${attentionMode === 'manual' ? ' active' : ''}`}
-              onClick={() => handleAttentionModeChange('manual')}
-              disabled={!canViewCatalog}
-            >
-              Personalizado
-            </button>
-          </div>
         </div>
-        {attentionMode === 'manual' && (
-          <div className="attention-selection">
-            {canViewCatalog ? (
-              <>
-                <div
-                  className="inline-actions"
-                  style={{ alignItems: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}
-                >
-                  <div className="input-group" style={{ minWidth: '220px' }}>
-                    <label htmlFor="attentionSearch">Buscar artículo</label>
-                    <input
-                      id="attentionSearch"
-                      type="text"
-                      placeholder="Código o descripción"
-                      value={attentionSearch}
-                      onChange={event => setAttentionSearch(event.target.value)}
-                    />
-                  </div>
-                  <div className="input-group" style={{ minWidth: '240px' }}>
-                    <label htmlFor="attentionSelect">Agregar a la lista</label>
-                    <select
-                      id="attentionSelect"
-                      value={manualSelectionValue}
-                      onChange={event => setManualSelectionValue(event.target.value)}
-                      disabled={manualSelectionDisabled}
-                    >
-                      <option value="">Seleccionar...</option>
-                      {filteredAttentionOptions.map(option => (
-                        <option key={option.id} value={option.id}>
-                          {option.code} · {option.description}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="input-helper">
-                      Hasta {ATTENTION_MANUAL_LIMIT} artículos. Los valores muestran retiros en el rango elegido.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={handleManualSelectionSubmit}
-                    disabled={!manualSelectionValue}
-                  >
-                    Agregar
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() => setManualAttentionIds([])}
-                    disabled={manualAttentionIds.length === 0}
-                  >
-                    Limpiar selección
-                  </button>
+        <div className="attention-selection">
+          {canViewCatalog ? (
+            <>
+              <div
+                className="inline-actions"
+                style={{ alignItems: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}
+              >
+                <div className="input-group" style={{ minWidth: '220px' }}>
+                  <label htmlFor="attentionSearch">Buscar artículo</label>
+                  <input
+                    id="attentionSearch"
+                    type="text"
+                    placeholder="Código o descripción"
+                    value={attentionSearch}
+                    onChange={event => setAttentionSearch(event.target.value)}
+                  />
                 </div>
-                {attentionSearch.trim() && filteredAttentionOptions.length === 0 && (
-                  <p className="input-helper">No hay resultados para la búsqueda actual.</p>
-                )}
-                {manualAttentionItems.length > 0 && (
-                  <ul className="selection-chips">
-                    {manualAttentionItems.map(item => (
-                      <li key={item.id} className="selection-chip">
-                        <span>
-                          {item.code} · {item.description}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleManualAttentionRemove(item.id)}
-                          aria-label={`Quitar ${item.code}`}
-                        >
-                          ×
-                        </button>
-                      </li>
+                <div className="input-group" style={{ minWidth: '240px' }}>
+                  <label htmlFor="attentionSelect">Agregar a la lista</label>
+                  <select
+                    id="attentionSelect"
+                    value={manualSelectionValue}
+                    onChange={event => setManualSelectionValue(event.target.value)}
+                    disabled={manualSelectionDisabled}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {filteredAttentionOptions.map(option => (
+                      <option key={option.id} value={option.id}>
+                        {option.code} · {option.description}
+                      </option>
                     ))}
-                  </ul>
-                )}
-              </>
-            ) : (
-              <p style={{ color: '#64748b', margin: '1rem 0 0' }}>
-                Necesitás permisos de catálogo para configurar esta lista.
-              </p>
-            )}
-          </div>
-        )}
+                  </select>
+                  <p className="input-helper">
+                    Hasta {ATTENTION_MANUAL_LIMIT} artículos. Los valores muestran retiros en el rango elegido.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={handleManualSelectionSubmit}
+                  disabled={manualSelectionDisabled || !manualSelectionValue}
+                >
+                  Agregar
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    setManualSelectionValue('');
+                    setAttentionSearch('');
+                    setManualAttentionIds([]);
+                  }}
+                  disabled={manualAttentionItems.length === 0}
+                >
+                  Limpiar selección
+                </button>
+              </div>
+              {attentionSearch.trim() && filteredAttentionOptions.length === 0 && (
+                <p className="input-helper">No hay resultados para la búsqueda actual.</p>
+              )}
+              {manualAttentionItems.length > 0 && (
+                <ul className="selection-chips">
+                  {manualAttentionItems.map(item => (
+                    <li key={item.id} className="selection-chip">
+                      <span>
+                        {item.code} · {item.description}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleManualAttentionRemove(item.id)}
+                        aria-label={`Quitar ${item.code}`}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p style={{ color: '#64748b', margin: '1rem 0 0' }}>
+              Necesitás permisos de catálogo para configurar esta lista.
+            </p>
+          )}
+        </div>
+
         {shouldShowEmptyAttentionMessage ? (
           <p style={{ color: '#64748b', marginTop: '1rem' }}>
-            {attentionMode === 'manual'
-              ? 'Seleccioná artículos para monitorear en la lista personalizada.'
-              : 'No se encontraron retiros ejecutados en el rango seleccionado.'}
+            Seleccioná artículos para monitorear en la lista personalizada.
           </p>
         ) : (
           <div className="table-wrapper">
@@ -708,7 +630,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {displayedAttentionItems.map(item => (
+                {manualAttentionItems.map(item => (
                   <tr key={item.id}>
                     <td>{item.code}</td>
                     <td>{item.description}</td>
@@ -718,38 +640,6 @@ export default function DashboardPage() {
                 ))}
               </tbody>
             </table>
-            {attentionMode === 'auto' && totalAttentionPages > 1 && (
-              <div
-                className="inline-actions"
-                style={{
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: '1rem',
-                  flexWrap: 'wrap',
-                  gap: '0.75rem'
-                }}
-              >
-                <span style={{ color: '#475569', fontSize: '0.85rem' }}>
-                  Página {attentionPage} de {totalAttentionPages}
-                </span>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => setAttentionPage(page => Math.max(1, page - 1))}
-                    disabled={attentionPage === 1}
-                  >
-                    Anterior
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAttentionPage(page => Math.min(totalAttentionPages, page + 1))}
-                    disabled={attentionPage === totalAttentionPages}
-                  >
-                    Siguiente
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
