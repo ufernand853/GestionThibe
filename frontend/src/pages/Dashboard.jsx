@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import useApi from '../hooks/useApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import LoadingIndicator from '../components/LoadingIndicator.jsx';
 import ErrorMessage from '../components/ErrorMessage.jsx';
 import { formatQuantity, ensureQuantity, sumQuantities } from '../utils/quantity.js';
 import { computeTotalStockFromMap } from '../utils/stockStatus.js';
+import { computeInventoryAlerts, RECOUNT_THRESHOLD_DAYS } from '../utils/inventoryAlerts.js';
 
-const RECOUNT_THRESHOLD_DAYS = 30;
 const ATTENTION_PAGE_SIZE = 10;
 const ATTENTION_MANUAL_LIMIT = 5;
 
@@ -198,43 +199,7 @@ export default function DashboardPage() {
     });
   }, [itemSummaries]);
 
-  const inventoryAlerts = useMemo(() => {
-    const now = Date.now();
-    const thresholdMs = RECOUNT_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
-    const recount = [];
-    const outOfStock = [];
-    itemSummaries.forEach(item => {
-      if (item.total.boxes === 0 && item.total.units === 0) {
-        outOfStock.push(item);
-      }
-      const updatedAtMs = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
-      const reasons = [];
-      let staleDays = null;
-      if (!updatedAtMs || now - updatedAtMs >= thresholdMs) {
-        staleDays = updatedAtMs
-          ? Math.max(0, Math.floor((now - updatedAtMs) / (24 * 60 * 60 * 1000)))
-          : null;
-        reasons.push('stale');
-      }
-      if (item.needsRecount) {
-        reasons.push('manual');
-      }
-      if (reasons.length > 0) {
-        recount.push({ ...item, reasons, staleDays });
-      }
-    });
-    recount.sort((a, b) => {
-      const aManual = a.reasons.includes('manual');
-      const bManual = b.reasons.includes('manual');
-      if (aManual !== bManual) {
-        return aManual ? -1 : 1;
-      }
-      const aDays = a.staleDays ?? -1;
-      const bDays = b.staleDays ?? -1;
-      return bDays - aDays;
-    });
-    return { recount, outOfStock };
-  }, [itemSummaries]);
+  const inventoryAlerts = useMemo(() => computeInventoryAlerts(itemSummaries), [itemSummaries]);
 
   const rankedWithdrawals = useMemo(() => {
     const startDate = parseDateFromInput(topStartDate);
@@ -462,7 +427,7 @@ export default function DashboardPage() {
 
       {canViewCatalog && (
         <div className="alert-grid">
-          <div className="alert-card">
+          <Link to="/inventory/alerts#recount" className="alert-card alert-card--interactive">
             <h3>Recuento pendiente</h3>
             <p>
               {recountItems.length === 0
@@ -495,8 +460,8 @@ export default function DashboardPage() {
                 })}
               </ul>
             )}
-          </div>
-          <div className="alert-card alert-card--danger">
+          </Link>
+          <Link to="/inventory/alerts#out-of-stock" className="alert-card alert-card--danger alert-card--interactive">
             <h3>Artículos agotados</h3>
             <p>
               {outOfStockItems.length === 0
@@ -512,7 +477,7 @@ export default function DashboardPage() {
                 ))}
               </ul>
             )}
-          </div>
+          </Link>
         </div>
       )}
 
