@@ -23,7 +23,11 @@ const authenticate = asyncHandler(async (req, res, next) => {
       role: user.role ? user.role.name : null,
       roleId: user.role ? user.role.id : null,
       permissions: user.role ? user.role.permissions : [],
-      lastLoginAt: user.lastLoginAt
+      lastLoginAt: user.lastLoginAt,
+      preferences:
+        user.preferences && typeof user.preferences.toObject === 'function'
+          ? user.preferences.toObject()
+          : user.preferences || {}
     };
   } catch (error) {
     // Ignore invalid tokens to allow public routes to respond 401 when required
