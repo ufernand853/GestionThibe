@@ -4,13 +4,29 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 
-const AUDIT_ACTIONS = ['requested', 'approved', 'executed', 'rejected', 'resubmitted'];
+const AUDIT_ACTIONS = ['Solicitud de movimiento', 'Artículo', 'Autenticación'];
 const ACTION_LABELS = {
-  requested: 'Solicitada',
-  approved: 'Aprobada',
-  executed: 'Ejecutada',
-  rejected: 'Rechazada',
-  resubmitted: 'Reenviada'
+  'Solicitud de movimiento': 'Solicitud de movimiento',
+  Artículo: 'Artículo',
+  Autenticación: 'Autenticación'
+};
+
+const getDefaultDateRange = () => {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  const formatDate = date => date.toISOString().slice(0, 10);
+  return { from: formatDate(from), to: formatDate(to) };
+};
+
+const getActionLabel = action => {
+  if (!action) {
+    return '-';
+  }
+  if (ACTION_LABELS[action]) {
+    return ACTION_LABELS[action];
+  }
+  return action;
 };
 
 const getDefaultDateRange = () => {
@@ -43,11 +59,21 @@ export default function AuditLogsPage() {
   const [error, setError] = useState(null);
   const [logs, setLogs] = useState([]);
   const [filters, setFilters] = useState(() => ({
-    requestId: '',
+    request: '',
+    user: '',
     limit: 100,
     action: '',
     ...getDefaultDateRange()
   }));
+  const actionOptions = useMemo(() => {
+    const unique = new Set(AUDIT_ACTIONS);
+    logs.forEach(log => {
+      if (log && log.action) {
+        unique.add(log.action);
+      }
+    });
+    return Array.from(unique).sort((a, b) => a.localeCompare(b, 'es'));
+  }, [logs]);
 
   useEffect(() => {
     let active = true;
@@ -58,11 +84,14 @@ export default function AuditLogsPage() {
         const query = {
           limit: filters.limit
         };
-        if (filters.requestId) {
-          query.requestId = filters.requestId;
-        }
         if (filters.action) {
           query.action = filters.action;
+        }
+        if (filters.request) {
+          query.request = filters.request;
+        }
+        if (filters.user) {
+          query.user = filters.user;
         }
         if (filters.from) {
           query.from = filters.from;
@@ -70,7 +99,7 @@ export default function AuditLogsPage() {
         if (filters.to) {
           query.to = filters.to;
         }
-        const response = await api.get('/logs/movements', { query });
+        const response = await api.get('/logs/audit', { query });
         if (!active) return;
         setLogs(Array.isArray(response) ? response : []);
       } catch (err) {
@@ -88,7 +117,7 @@ export default function AuditLogsPage() {
     return () => {
       active = false;
     };
-  }, [api, canViewLogs, filters.action, filters.from, filters.limit, filters.requestId, filters.to]);
+  }, [api, canViewLogs, filters.action, filters.from, filters.limit, filters.request, filters.to, filters.user]);
 
   if (!canViewLogs) {
     return <ErrorMessage error="No tiene permisos para acceder a la auditoría." />;
@@ -96,7 +125,7 @@ export default function AuditLogsPage() {
 
   return (
     <div>
-      <h2>Auditoría de movimientos</h2>
+      <h2>Auditoría de operaciones</h2>
       <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
         Consulte el historial de acciones registradas sobre solicitudes de movimiento y operaciones críticas.
       </p>
@@ -106,26 +135,6 @@ export default function AuditLogsPage() {
       <div className="section-card">
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           <div className="input-group">
-            <label htmlFor="requestId">ID de solicitud</label>
-            <input
-              id="requestId"
-              value={filters.requestId}
-              onChange={event => setFilters(prev => ({ ...prev, requestId: event.target.value }))}
-              placeholder="UUID de la solicitud"
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="limit">Límite</label>
-            <input
-              id="limit"
-              type="number"
-              min="10"
-              max="500"
-              value={filters.limit}
-              onChange={event => setFilters(prev => ({ ...prev, limit: Number(event.target.value) }))}
-            />
-          </div>
-          <div className="input-group">
             <label htmlFor="actionFilter">Acción</label>
             <select
               id="actionFilter"
@@ -133,12 +142,30 @@ export default function AuditLogsPage() {
               onChange={event => setFilters(prev => ({ ...prev, action: event.target.value }))}
             >
               <option value="">Todas</option>
-              {AUDIT_ACTIONS.map(action => (
+              {actionOptions.map(action => (
                 <option key={action} value={action}>
                   {getActionLabel(action)}
                 </option>
               ))}
             </select>
+          </div>
+          <div className="input-group">
+            <label htmlFor="requestFilter">Detalle</label>
+            <input
+              id="requestFilter"
+              value={filters.request}
+              onChange={event => setFilters(prev => ({ ...prev, request: event.target.value }))}
+              placeholder="Ej.: Alta de artículo"
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="userFilter">Usuario</label>
+            <input
+              id="userFilter"
+              value={filters.user}
+              onChange={event => setFilters(prev => ({ ...prev, user: event.target.value }))}
+              placeholder="Nombre de usuario"
+            />
           </div>
           <div className="input-group">
             <label htmlFor="fromDate">Desde</label>
@@ -158,6 +185,17 @@ export default function AuditLogsPage() {
               onChange={event => setFilters(prev => ({ ...prev, to: event.target.value }))}
             />
           </div>
+          <div className="input-group">
+            <label htmlFor="limit">Límite</label>
+            <input
+              id="limit"
+              type="number"
+              min="10"
+              max="500"
+              value={filters.limit}
+              onChange={event => setFilters(prev => ({ ...prev, limit: Number(event.target.value) }))}
+            />
+          </div>
         </form>
       </div>
 
@@ -171,9 +209,8 @@ export default function AuditLogsPage() {
                 <tr>
                   <th>Fecha</th>
                   <th>Acción</th>
-                  <th>Solicitud</th>
+                  <th>Detalle</th>
                   <th>Usuario</th>
-                  <th>User Agent</th>
                 </tr>
               </thead>
               <tbody>
@@ -181,14 +218,13 @@ export default function AuditLogsPage() {
                   <tr key={log.id}>
                     <td>{new Date(log.timestamp).toLocaleString('es-AR')}</td>
                     <td>{getActionLabel(log.action)}</td>
-                    <td>{log.movementRequestId || '-'}</td>
-                    <td>{log.actor?.username || log.actor?.email || '-'}</td>
-                    <td>{log.metadata?.userAgent || '-'}</td>
+                    <td>{log.request || '-'}</td>
+                    <td>{log.user || '-'}</td>
                   </tr>
                 ))}
                 {logs.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron registros.
                     </td>
                   </tr>
