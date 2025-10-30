@@ -29,6 +29,25 @@ const getActionLabel = action => {
   return action;
 };
 
+const getDefaultDateRange = () => {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  const formatDate = date => date.toISOString().slice(0, 10);
+  return { from: formatDate(from), to: formatDate(to) };
+};
+
+const getActionLabel = action => {
+  if (!action) {
+    return '-';
+  }
+  if (ACTION_LABELS[action]) {
+    return ACTION_LABELS[action];
+  }
+  const normalized = action.replace(/[_-]+/g, ' ').toLowerCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
 export default function AuditLogsPage() {
   const api = useApi();
   const { user } = useAuth();
