@@ -23,6 +23,14 @@ export default function ReportsPage() {
   });
   const [groupDetailLoading, setGroupDetailLoading] = useState(false);
   const [groupDetailError, setGroupDetailError] = useState(null);
+  const [depositDetailState, setDepositDetailState] = useState({
+    locationKey: null,
+    locationName: '',
+    items: [],
+    total: { boxes: 0, units: 0 }
+  });
+  const [depositDetailLoading, setDepositDetailLoading] = useState(false);
+  const [depositDetailError, setDepositDetailError] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -72,6 +80,22 @@ export default function ReportsPage() {
     });
   }, [groupData]);
 
+  const consolidatedDeposits = useMemo(() => {
+    return depositData.map((entry, index) => {
+      const normalizedTotal = ensureQuantity(entry.total);
+      const hasIdentifier = entry?.id !== undefined && entry?.id !== null;
+      const identifier = hasIdentifier ? String(entry.id) : null;
+      const fallbackKey = entry.name ? `${entry.name}-${index}` : `deposit-${index}`;
+      return {
+        id: identifier,
+        key: identifier || fallbackKey,
+        queryKey: identifier,
+        name: entry.name || 'Depósito',
+        total: normalizedTotal
+      };
+    });
+  }, [depositData]);
+
   const handleViewGroupDetail = async group => {
     const selected = {
       groupKey: group.queryKey,
@@ -111,6 +135,50 @@ export default function ReportsPage() {
     });
     setGroupDetailError(null);
     setGroupDetailLoading(false);
+  };
+
+  const handleViewDepositDetail = async deposit => {
+    if (!deposit.queryKey) {
+      return;
+    }
+    setDepositDetailState({
+      locationKey: deposit.queryKey,
+      locationName: deposit.name || 'Depósito',
+      items: [],
+      total: ensureQuantity(deposit.total)
+    });
+    setDepositDetailError(null);
+    setDepositDetailLoading(true);
+    try {
+      const queryParam = encodeURIComponent(deposit.queryKey);
+      const detailResponse = await api.get(
+        `/reports/stock/by-deposit?includeItems=true&locationId=${queryParam}`
+      );
+      const detailEntry = Array.isArray(detailResponse)
+        ? detailResponse.find(entry => (entry.id ? String(entry.id) : null) === deposit.queryKey)
+        : null;
+      setDepositDetailState({
+        locationKey: deposit.queryKey,
+        locationName: deposit.name || 'Depósito',
+        items: Array.isArray(detailEntry?.items) ? detailEntry.items : [],
+        total: ensureQuantity(detailEntry?.total ?? deposit.total)
+      });
+    } catch (err) {
+      setDepositDetailError(err);
+    } finally {
+      setDepositDetailLoading(false);
+    }
+  };
+
+  const handleCloseDepositDetail = () => {
+    setDepositDetailState({
+      locationKey: null,
+      locationName: '',
+      items: [],
+      total: { boxes: 0, units: 0 }
+    });
+    setDepositDetailError(null);
+    setDepositDetailLoading(false);
   };
 
   if (!canViewReports) {
@@ -263,18 +331,28 @@ export default function ReportsPage() {
               <tr>
                 <th>Depósito</th>
                 <th>Total</th>
+                <th style={{ width: '1%', textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {depositData.map(entry => (
-                <tr key={entry.id || entry.name}>
-                  <td>{entry.name || 'Depósito'}</td>
-                  <td>{formatQuantity(entry.total)}</td>
+              {consolidatedDeposits.map(deposit => (
+                <tr key={deposit.key}>
+                  <td>{deposit.name}</td>
+                  <td>{formatQuantity(deposit.total)}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleViewDepositDetail(deposit)}
+                      disabled={!deposit.queryKey || (depositDetailLoading && depositDetailState.locationKey === deposit.queryKey)}
+                    >
+                      Ver detalle
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {depositData.length === 0 && (
+              {consolidatedDeposits.length === 0 && (
                 <tr>
-                  <td colSpan={2} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <td colSpan={3} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay información consolidada de depósitos disponible.
                   </td>
                 </tr>
@@ -283,6 +361,94 @@ export default function ReportsPage() {
           </table>
         </div>
       </div>
+
+      {(depositDetailState.locationKey || depositDetailLoading || depositDetailError) && (
+        <div className="section-card">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '1rem',
+              marginBottom: '0.75rem'
+            }}
+          >
+            <div>
+              <h3 style={{ marginBottom: '0.25rem' }}>Desglose por producto</h3>
+              <p style={{ margin: 0, color: '#475569' }}>
+                {depositDetailState.locationName
+                  ? `Depósito seleccionado: ${depositDetailState.locationName}`
+                  : 'Seleccione un depósito para ver el detalle por producto.'}
+              </p>
+            </div>
+            {depositDetailState.locationKey && (
+              <button type="button" onClick={handleCloseDepositDetail}>
+                Cerrar
+              </button>
+            )}
+          </div>
+
+          {depositDetailError && <ErrorMessage error={depositDetailError} />}
+
+          {depositDetailLoading && (
+            <p style={{ margin: '1rem 0', color: '#475569' }}>
+              Cargando desglose del depósito seleccionado...
+            </p>
+          )}
+
+          {!depositDetailLoading && !depositDetailError && depositDetailState.locationKey && (
+            <>
+              <p style={{ marginBottom: '0.75rem', color: '#1f2937' }}>
+                Stock total del depósito: {formatQuantity(depositDetailState.total)}
+              </p>
+              <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Descripción</th>
+                      <th>Depósitos</th>
+                      <th>Stock en depósito</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {depositDetailState.items.map(item => {
+                      const locations = Array.isArray(item.stockByLocation) ? item.stockByLocation : [];
+                      return (
+                        <tr key={item.id}>
+                          <td>{item.code}</td>
+                          <td>{item.description}</td>
+                          <td>
+                            <div className="chip-list">
+                              {locations.map(location => (
+                                <span
+                                  key={location.locationId || location.location?.id || Math.random()}
+                                  className="badge"
+                                >
+                                  {location.location?.name || 'Depósito'} ·{' '}
+                                  {formatQuantity(location.quantity, { compact: true })}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td>{formatQuantity(item.total)}</td>
+                        </tr>
+                      );
+                    })}
+                    {depositDetailState.items.length === 0 && (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                          No hay productos asociados al depósito seleccionado.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
