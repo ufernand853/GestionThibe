@@ -29,7 +29,8 @@ export default function MovementRequestsPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canRequest = permissions.includes('stock.request');
+  const isOperator = user?.role === 'Operador';
+  const canRequest = !isOperator && permissions.includes('stock.request');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

@@ -8,7 +8,8 @@ export default function GroupsPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canWrite = permissions.includes('items.write');
+  const isOperator = user?.role === 'Operador';
+  const canManageGroups = !isOperator && permissions.includes('items.write');
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,11 @@ export default function GroupsPage() {
   useEffect(() => {
     let active = true;
     const loadGroups = async () => {
+      if (!canManageGroups) {
+        setGroups([]);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError(null);
       try {
@@ -83,7 +89,7 @@ export default function GroupsPage() {
     return () => {
       active = false;
     };
-  }, [api, sortGroupsByName, normalizeGroup]);
+  }, [api, canManageGroups, sortGroupsByName, normalizeGroup]);
 
   const handleGroupFormChange = event => {
     const { name, value } = event.target;
@@ -104,7 +110,7 @@ export default function GroupsPage() {
 
   const handleCreateGroup = async event => {
     event.preventDefault();
-    if (!canWrite || !groupForm.name.trim()) {
+    if (!canManageGroups || !groupForm.name.trim()) {
       return;
     }
     setCreatingGroup(true);
@@ -176,7 +182,7 @@ export default function GroupsPage() {
   };
 
   const handleDeleteGroup = async group => {
-    if (!canWrite) {
+    if (!canManageGroups) {
       return;
     }
     const confirmed = window.confirm(
@@ -204,6 +210,10 @@ export default function GroupsPage() {
     }
   };
 
+  if (!canManageGroups) {
+    return <ErrorMessage error="No tiene permisos para modificar los grupos." />;
+  }
+
   if (loading) {
     return <LoadingIndicator message="Cargando grupos..." />;
   }
@@ -222,13 +232,7 @@ export default function GroupsPage() {
       {error && <ErrorMessage error={error} />}
       {successMessage && <div className="success-message">{successMessage}</div>}
 
-      {!canWrite ? (
-        <div className="section-card">
-          <p style={{ margin: 0, color: '#64748b' }}>
-            No tiene permisos para modificar los grupos. Solicite acceso al administrador del sistema.
-          </p>
-        </div>
-      ) : (
+      {canManageGroups && (
         <div className="section-card">
           <h3 style={{ marginTop: 0 }}>Crear nuevo grupo</h3>
           <form
@@ -296,7 +300,7 @@ export default function GroupsPage() {
                     ? groupMapById.get(group.parent)?.name || 'Sin padre'
                     : 'Sin padre';
 
-                  if (!canWrite && !isEditing) {
+                  if (!canManageGroups && !isEditing) {
                     return (
                       <tr key={group.id}>
                         <td>{group.name}</td>

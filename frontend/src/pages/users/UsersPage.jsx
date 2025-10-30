@@ -8,8 +8,9 @@ export default function UsersPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canRead = permissions.includes('users.read');
-  const canWrite = permissions.includes('users.write');
+  const isOperator = user?.role === 'Operador';
+  const canRead = permissions.includes('users.read') && !isOperator;
+  const canWrite = permissions.includes('users.write') && !isOperator;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
