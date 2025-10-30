@@ -157,10 +157,12 @@ export default function DashboardPage() {
     );
     const warehouses = locations.filter(location => location.type === 'warehouse');
     const externals = locations.filter(location => location.type === 'external');
+    const externalOrigins = locations.filter(location => location.type === 'externalOrigin');
     return {
       totalStock,
       warehouses: warehouses.length,
       externals: externals.length,
+      externalOrigins: externalOrigins.length,
       pending: pendingRequests.length
     };
   }, [locations, pendingRequests.length, stockByLocation]);
@@ -476,17 +478,28 @@ export default function DashboardPage() {
 
       {error && <ErrorMessage error={error} />}
 
-      {visibleSummaryCards.length > 0 && (
-        <div className="metrics-grid">
-          {visibleSummaryCards.map(card => (
-            <div key={card.key} className="metric-card">
-              <h3>{card.title}</h3>
-              <p>{card.value}</p>
-              {card.helper && (
-                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{card.helper}</span>
-              )}
-            </div>
-          ))}
+      <div className="metrics-grid">
+        <div className="metric-card">
+          <h3>Stock total</h3>
+          <p>{formatQuantity(metrics.totalStock)}</p>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Suma en todas las ubicaciones</span>
+        </div>
+        <div className="metric-card">
+          <h3>Depósitos internos</h3>
+          <p>{metrics.warehouses}</p>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Ubicaciones habilitadas como origen</span>
+        </div>
+        <div className="metric-card">
+          <h3>Destinos externos</h3>
+          <p>{metrics.externals}</p>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+            Orígenes externos: {metrics.externalOrigins ?? 0}
+          </span>
+        </div>
+        <div className="metric-card">
+          <h3>Solicitudes pendientes</h3>
+          <p>{metrics.pending}</p>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Transferencias por aprobar</span>
         </div>
       )}
 
@@ -565,7 +578,13 @@ export default function DashboardPage() {
                 {stockByLocation.map(entry => (
                   <tr key={entry.id}>
                     <td>{entry.name || 'Ubicación'}</td>
-                    <td>{entry.type === 'external' ? 'Destino externo' : 'Depósito interno'}</td>
+                    <td>
+                      {entry.type === 'external'
+                        ? 'Destino externo'
+                        : entry.type === 'externalOrigin'
+                        ? 'Origen externo'
+                        : 'Depósito interno'}
+                    </td>
                     <td>{formatQuantity(entry.total)}</td>
                   </tr>
                 ))}

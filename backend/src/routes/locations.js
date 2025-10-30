@@ -3,6 +3,9 @@ const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const Location = require('../models/Location');
+
+const LOCATION_TYPES = Location.LOCATION_TYPES || ['warehouse', 'external', 'externalOrigin'];
+const ALLOWED_LOCATION_TYPES = new Set(LOCATION_TYPES);
 const Item = require('../models/Item');
 const MovementRequest = require('../models/MovementRequest');
 
@@ -24,13 +27,14 @@ function sanitizeOptionalString(value) {
 }
 
 function ensureValidType(type) {
-  if (!type) {
+  const normalized = typeof type === 'string' ? type.trim() : '';
+  if (!normalized) {
     return 'warehouse';
   }
-  if (!['warehouse', 'external'].includes(type)) {
+  if (!ALLOWED_LOCATION_TYPES.has(normalized)) {
     throw new HttpError(400, 'Tipo de ubicación inválido');
   }
-  return type;
+  return normalized;
 }
 
 router.get(

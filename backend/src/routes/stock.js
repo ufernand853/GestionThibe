@@ -33,7 +33,23 @@ function serializeLocationSummary(location) {
   };
 }
 
+function determineMovementType(fromLocation, toLocation) {
+  if (fromLocation && fromLocation.type === 'externalOrigin') {
+    return 'ingress';
+  }
+  if (toLocation && toLocation.type === 'external') {
+    return 'egress';
+  }
+  return 'transfer';
+}
+
 function serializeMovementRequest(doc) {
+  const populatedFrom = doc.populated('fromLocation') ? doc.fromLocation : null;
+  const populatedTo = doc.populated('toLocation') ? doc.toLocation : null;
+  const computedType = determineMovementType(populatedFrom, populatedTo);
+  const type =
+    doc.type && ['ingress', 'egress'].includes(doc.type) ? doc.type : computedType;
+
   return {
     id: doc.id,
     itemId: doc.item?.id || doc.item,
@@ -44,7 +60,7 @@ function serializeMovementRequest(doc) {
           description: doc.item.description
         }
       : null,
-    type: doc.type,
+    type,
     fromLocationId: doc.fromLocation?.id || doc.fromLocation,
     fromLocation: doc.populated('fromLocation') ? serializeLocationSummary(doc.fromLocation) : null,
     toLocationId: doc.toLocation?.id || doc.toLocation,
@@ -78,9 +94,11 @@ router.post(
     const { quantity, fromLocation, toLocation } = await validateMovementPayload(body);
     await findItemOrThrow(body.itemId);
 
+    const movementType = determineMovementType(fromLocation, toLocation);
+
     const movementRequest = new MovementRequest({
       item: body.itemId,
-      type: 'transfer',
+      type: movementType,
       fromLocation: fromLocation._id,
       toLocation: toLocation._id,
       quantity,
@@ -154,11 +172,16 @@ router.get(
     }
     const { status, type, from, to } = req.query || {};
     const filter = {};
+    const normalizedType = typeof type === 'string' ? type.trim() : '';
     if (status) {
       filter.status = status;
     }
-    if (type) {
-      filter.type = type;
+    if (normalizedType) {
+      if (['ingress', 'egress'].includes(normalizedType)) {
+        filter.type = { $in: [normalizedType, 'transfer'] };
+      } else if (['transfer'].includes(normalizedType)) {
+        filter.type = normalizedType;
+      }
     }
     const range = {};
     const fromDate = parseDateBoundary(from);
@@ -175,7 +198,12 @@ router.get(
     const requests = await MovementRequest.find(filter)
       .populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation'])
       .sort({ requestedAt: -1 });
-    res.json(requests.map(serializeMovementRequest));
+    const serialized = requests.map(serializeMovementRequest);
+    const filteredByType =
+      normalizedType && ['transfer', 'ingress', 'egress'].includes(normalizedType)
+        ? serialized.filter(request => request.type === normalizedType)
+        : serialized;
+    res.json(filteredByType);
   })
 );
 
