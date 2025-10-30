@@ -373,13 +373,9 @@ router.post(
     }
     const populated = await item.populate('group');
     await recordAuditEvent({
-      action: 'item.created',
-      entityType: 'Item',
-      entityId: item.id,
-      actorUserId: req.user?.id,
-      metadata: { code },
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] || ''
+      action: 'Artículo',
+      request: 'Alta de artículo',
+      user: req.user?.username || 'Desconocido'
     });
     res.status(201).json(serializeItem(populated));
   })
@@ -526,15 +522,9 @@ router.put(
     }
     const populated = await item.populate('group');
     await recordAuditEvent({
-      action: 'item.updated',
-      entityType: 'Item',
-      entityId: item.id,
-      actorUserId: req.user?.id,
-      metadata: {
-        modifiedFields: modifiedPaths.filter(field => field !== '__v').join(',') || 'none'
-      },
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] || ''
+      action: 'Artículo',
+      request: 'Actualización de artículo',
+      user: req.user?.username || 'Desconocido'
     });
     res.json(serializeItem(populated));
   })

@@ -63,13 +63,9 @@ router.post(
     });
 
     await recordAuditEvent({
-      action: 'auth.login',
-      entityType: 'User',
-      entityId: user.id,
-      actorUserId: user.id,
-      metadata: { email: user.email },
-      ip: req.ip,
-      userAgent: req.headers['user-agent'] || ''
+      action: 'Autenticación',
+      request: 'Inicio de sesión',
+      user: user.username
     });
 
     res.json({
