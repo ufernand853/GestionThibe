@@ -5,7 +5,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Resumen' },
   { to: '/items', label: 'Artículos', permission: 'items.read' },
   { to: '/groups', label: 'Grupos', permission: 'items.write', hiddenForRoles: ['Operador'] },
-  { to: '/requests', label: 'Solicitudes', permission: 'stock.request', hiddenForRoles: ['Operador'] },
+  { to: '/requests', label: 'Solicitudes', permission: 'stock.request' },
   { to: '/approvals', label: 'Aprobaciones', permission: 'stock.approve', hiddenForRoles: ['Operador'] },
   { to: '/locations', label: 'Ubicaciones', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/reports', label: 'Reportes', permission: 'reports.read', hiddenForRoles: ['Operador'] },
