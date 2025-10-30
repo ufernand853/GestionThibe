@@ -47,10 +47,14 @@ const parseDateFromInput = value => {
 export default function DashboardPage() {
   const api = useApi();
   const { user } = useAuth();
+  const isOperator = user?.role === 'Operador';
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canViewReports = permissions.includes('reports.read');
   const canManageRequests = permissions.includes('stock.request') || permissions.includes('stock.approve');
   const canViewCatalog = permissions.includes('items.read');
+  const shouldLoadStockSummary = canViewReports && !isOperator;
+  const shouldLoadLocations = canViewCatalog && !isOperator;
+  const shouldLoadRequests = canManageRequests && !isOperator;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -93,9 +97,9 @@ export default function DashboardPage() {
           itemsResponse,
           preferencesResponse
         ] = await Promise.all([
-          canViewReports ? api.get('/reports/stock/by-location') : Promise.resolve([]),
-          canViewCatalog ? api.get('/locations') : Promise.resolve([]),
-          canManageRequests ? api.get('/stock/requests') : Promise.resolve([]),
+          shouldLoadStockSummary ? api.get('/reports/stock/by-location') : Promise.resolve([]),
+          shouldLoadLocations ? api.get('/locations') : Promise.resolve([]),
+          shouldLoadRequests ? api.get('/stock/requests') : Promise.resolve([]),
           canViewCatalog
             ? api.get('/items', { query: { page: 1, pageSize: 500 } })
             : Promise.resolve(null),
@@ -129,7 +133,13 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [api, canManageRequests, canViewCatalog, canViewReports]);
+  }, [
+    api,
+    canViewCatalog,
+    shouldLoadLocations,
+    shouldLoadRequests,
+    shouldLoadStockSummary
+  ]);
 
   const pendingRequests = useMemo(() => {
     if (!Array.isArray(requests)) {
@@ -419,6 +429,41 @@ export default function DashboardPage() {
 
   const { recount: recountItems, outOfStock: outOfStockItems } = inventoryAlerts;
 
+  const summaryCards = [
+    {
+      key: 'total',
+      title: 'Stock total',
+      value: formatQuantity(metrics.totalStock),
+      helper: 'Suma en todas las ubicaciones',
+      hideForOperator: true
+    },
+    {
+      key: 'warehouses',
+      title: 'Depósitos internos',
+      value: metrics.warehouses,
+      helper: 'Ubicaciones habilitadas como origen',
+      hideForOperator: true
+    },
+    {
+      key: 'externals',
+      title: 'Destinos externos',
+      value: metrics.externals,
+      helper: 'Contactos logísticos registrados',
+      hideForOperator: true
+    },
+    {
+      key: 'pending',
+      title: 'Solicitudes pendientes',
+      value: metrics.pending,
+      helper: 'Transferencias por aprobar',
+      hideForOperator: true
+    }
+  ];
+
+  const visibleSummaryCards = summaryCards.filter(
+    card => !(isOperator && card.hideForOperator)
+  );
+
   return (
     <div className="dashboard-page">
       <h2>Resumen operativo</h2>
@@ -429,28 +474,19 @@ export default function DashboardPage() {
 
       {error && <ErrorMessage error={error} />}
 
-      <div className="metrics-grid">
-        <div className="metric-card">
-          <h3>Stock total</h3>
-          <p>{formatQuantity(metrics.totalStock)}</p>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Suma en todas las ubicaciones</span>
+      {visibleSummaryCards.length > 0 && (
+        <div className="metrics-grid">
+          {visibleSummaryCards.map(card => (
+            <div key={card.key} className="metric-card">
+              <h3>{card.title}</h3>
+              <p>{card.value}</p>
+              {card.helper && (
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{card.helper}</span>
+              )}
+            </div>
+          ))}
         </div>
-        <div className="metric-card">
-          <h3>Depósitos internos</h3>
-          <p>{metrics.warehouses}</p>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Ubicaciones habilitadas como origen</span>
-        </div>
-        <div className="metric-card">
-          <h3>Destinos externos</h3>
-          <p>{metrics.externals}</p>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Contactos logísticos registrados</span>
-        </div>
-        <div className="metric-card">
-          <h3>Solicitudes pendientes</h3>
-          <p>{metrics.pending}</p>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Transferencias por aprobar</span>
-        </div>
-      </div>
+      )}
 
       {canViewCatalog && (
         <div className="alert-grid">
@@ -508,7 +544,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {stockByLocation.length > 0 && (
+      {!isOperator && stockByLocation.length > 0 && (
         <div className="section-card">
           <div className="flex-between">
             <h2>Stock por ubicación</h2>
@@ -537,7 +573,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="section-card">
+      {!isOperator && (
+        <div className="section-card">
         <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
           <div>
             <h2>Top 5</h2>
@@ -610,9 +647,11 @@ export default function DashboardPage() {
             </table>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
-      <div className="section-card">
+      {!isOperator && (
+        <div className="section-card">
         <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
           <div>
             <h2>Atención</h2>
@@ -746,9 +785,10 @@ export default function DashboardPage() {
             </table>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
-      {pendingRequests.length > 0 && (
+      {!isOperator && pendingRequests.length > 0 && (
         <div className="section-card">
           <div className="flex-between">
             <h2>Solicitudes pendientes de aprobación</h2>

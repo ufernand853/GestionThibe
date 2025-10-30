@@ -21,7 +21,9 @@ export default function LocationsPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canWrite = permissions.includes('items.write');
+  const isOperator = user?.role === 'Operador';
+  const canRead = permissions.includes('items.read') && !isOperator;
+  const canWrite = permissions.includes('items.write') && !isOperator;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -56,6 +58,11 @@ export default function LocationsPage() {
       setLoading(true);
       setError(null);
       try {
+        if (!canRead) {
+          setLocations([]);
+          setLoading(false);
+          return;
+        }
         const response = await api.get('/locations');
         if (!active) return;
         const normalized = Array.isArray(response)
@@ -77,7 +84,7 @@ export default function LocationsPage() {
     return () => {
       active = false;
     };
-  }, [api]);
+  }, [api, canRead]);
 
   const filteredLocations = useMemo(() => {
     if (filterType === 'all') {
@@ -177,6 +184,10 @@ export default function LocationsPage() {
       setDeletingId(null);
     }
   };
+
+  if (!canRead) {
+    return <ErrorMessage error="No tiene permisos para acceder a las ubicaciones." />;
+  }
 
   if (loading) {
     return <LoadingIndicator message="Cargando ubicaciones..." />;
