@@ -17,7 +17,8 @@ export default function AuditLogsPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canViewLogs = permissions.includes('stock.logs.read');
+  const isOperator = user?.role === 'Operador';
+  const canViewLogs = permissions.includes('stock.logs.read') && !isOperator;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

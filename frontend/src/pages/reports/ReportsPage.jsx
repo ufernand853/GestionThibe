@@ -9,7 +9,8 @@ export default function ReportsPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canViewReports = permissions.includes('reports.read');
+  const isOperator = user?.role === 'Operador';
+  const canViewReports = permissions.includes('reports.read') && !isOperator;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -50,7 +51,6 @@ export default function ReportsPage() {
       load();
     } else {
       setLoading(false);
-      setError('No tiene permisos para acceder a los reportes.');
     }
     return () => {
       active = false;

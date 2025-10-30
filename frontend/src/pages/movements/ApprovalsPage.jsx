@@ -11,7 +11,8 @@ export default function ApprovalsPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canApprove = permissions.includes('stock.approve');
+  const isOperator = user?.role === 'Operador';
+  const canApprove = !isOperator && permissions.includes('stock.approve');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

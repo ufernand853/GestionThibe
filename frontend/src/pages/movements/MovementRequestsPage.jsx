@@ -29,7 +29,10 @@ export default function MovementRequestsPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canRequest = permissions.includes('stock.request');
+  const isOperator = user?.role === 'Operador';
+  const hasRequestPermission = permissions.includes('stock.request');
+  const canRequest = hasRequestPermission;
+  const isOperatorWithRestrictions = isOperator && hasRequestPermission;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -124,7 +127,11 @@ export default function MovementRequestsPage() {
     const priorityMap = new Map(
       ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
     );
-    return (Array.isArray(locations) ? locations : [])
+    const availableLocations = Array.isArray(locations) ? locations : [];
+    const filteredLocations = isOperatorWithRestrictions
+      ? availableLocations.filter(location => location.type === 'warehouse')
+      : availableLocations;
+    return filteredLocations
       .filter(location => location.type === 'warehouse')
       .slice()
       .sort((a, b) => {
@@ -137,7 +144,7 @@ export default function MovementRequestsPage() {
         }
         return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
       });
-  }, [locations]);
+  }, [isOperatorWithRestrictions, locations]);
 
   const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
 
@@ -236,6 +243,16 @@ export default function MovementRequestsPage() {
     setDateFilters(prev => ({ ...prev, [name]: value }));
   };
 
+  const availableDestinations = useMemo(() => {
+    if (!Array.isArray(locations)) {
+      return [];
+    }
+    if (!isOperatorWithRestrictions) {
+      return locations;
+    }
+    return locations.filter(location => location.type === 'warehouse');
+  }, [isOperatorWithRestrictions, locations]);
+
   const handleSubmit = async event => {
     event.preventDefault();
     if (!canRequest) return;
@@ -268,6 +285,19 @@ export default function MovementRequestsPage() {
         setError('La ubicación de origen y destino no pueden ser la misma.');
         setSubmitting(false);
         return;
+      }
+
+      const fromLocation = locationMap.get(String(formValues.fromLocation));
+      const toLocation = locationMap.get(String(formValues.toLocation));
+
+      if (isOperatorWithRestrictions) {
+        const isFromWarehouse = fromLocation?.type === 'warehouse';
+        const isToWarehouse = toLocation?.type === 'warehouse';
+        if (!isFromWarehouse || !isToWarehouse) {
+          setError('Como operador solo puede solicitar transferencias entre depósitos internos.');
+          setSubmitting(false);
+          return;
+        }
       }
 
       const payload = {
@@ -400,7 +430,7 @@ export default function MovementRequestsPage() {
               required
             >
               <option value="">Seleccione destino</option>
-              {locations.map(location => (
+              {availableDestinations.map(location => (
                 <option key={location.id} value={location.id}>
                   {location.name}
                   {location.type === 'external' ? ' · Externo' : ''}
