@@ -22,6 +22,14 @@ function addQuantity(target, quantity) {
   target.units += normalized.units;
 }
 
+function hasPositiveQuantity(quantity) {
+  if (!quantity) {
+    return false;
+  }
+  const normalized = ensureQuantity(quantity);
+  return Number(normalized.boxes) > 0 || Number(normalized.units) > 0;
+}
+
 function mapStockToArray(stock, locationsById) {
   const entries = [];
   if (stock instanceof Map) {
@@ -148,55 +156,124 @@ router.get(
 );
 
 async function respondStockByLocation(req, res) {
+  const includeItems =
+    typeof req.query.includeItems === 'string' && req.query.includeItems.toLowerCase() === 'true';
+  const requestedLocationId = typeof req.query.locationId === 'string' ? req.query.locationId : null;
+
   const [items, locations] = await Promise.all([Item.find(), Location.find()]);
-  const totals = new Map(
-    locations.map(location => [location.id, { id: location.id, name: location.name, type: location.type, total: { boxes: 0, units: 0 } }])
+  const locationsById = new Map(
+    locations.map(location => [
+      String(location.id),
+      {
+        id: String(location.id),
+        name: location.name,
+        type: location.type,
+        status: location.status
+      }
+    ])
   );
 
-  items.forEach(item => {
-    if (item.stock instanceof Map) {
-      for (const [locationId, quantity] of item.stock.entries()) {
-        let bucket = totals.get(locationId);
-        if (!bucket) {
-          const locationInfo = locations.find(location => location.id === locationId);
-          bucket = {
-            id: locationId,
-            name: locationInfo ? locationInfo.name : '',
-            type: locationInfo ? locationInfo.type : undefined,
-            total: { boxes: 0, units: 0 }
-          };
-          totals.set(locationId, bucket);
-        }
-        const normalized = normalizeStoredQuantity(quantity);
-        bucket.total.boxes += normalized.boxes;
-        bucket.total.units += normalized.units;
-      }
-    } else if (item.stock && typeof item.stock === 'object') {
-      Object.entries(item.stock).forEach(([locationId, quantity]) => {
-        let bucket = totals.get(locationId);
-        if (!bucket) {
-          const locationInfo = locations.find(location => location.id === locationId);
-          bucket = {
-            id: locationId,
-            name: locationInfo ? locationInfo.name : '',
-            type: locationInfo ? locationInfo.type : undefined,
-            total: { boxes: 0, units: 0 }
-          };
-          totals.set(locationId, bucket);
-        }
-        const normalized = normalizeStoredQuantity(quantity);
-        bucket.total.boxes += normalized.boxes;
-        bucket.total.units += normalized.units;
-      });
-    }
+  const totals = new Map();
+
+  locationsById.forEach(info => {
+    totals.set(info.id, {
+      id: info.id,
+      name: info.name || '',
+      type: info.type,
+      status: info.status,
+      total: { boxes: 0, units: 0 },
+      ...(includeItems ? { items: [] } : {})
+    });
   });
 
-  const response = Array.from(totals.values()).map(entry => ({
-    id: entry.id,
-    name: entry.name,
-    type: entry.type,
-    total: entry.total
-  }));
+  function getBucket(locationId) {
+    const key = String(locationId);
+    let bucket = totals.get(key);
+    if (!bucket) {
+      const locationInfo = locationsById.get(key) || null;
+      bucket = {
+        id: key,
+        name: locationInfo?.name || '',
+        type: locationInfo?.type,
+        status: locationInfo?.status,
+        total: { boxes: 0, units: 0 },
+        ...(includeItems ? { items: [] } : {})
+      };
+      totals.set(key, bucket);
+    }
+    return bucket;
+  }
+
+  items.forEach(item => {
+    const stockEntries = mapStockToArray(item.stock, locationsById);
+    stockEntries.forEach(entry => {
+      const normalized = ensureQuantity(entry.quantity);
+      if (!hasPositiveQuantity(normalized)) {
+        return;
+      }
+      const bucket = getBucket(entry.locationId);
+      addQuantity(bucket.total, normalized);
+
+      if (includeItems && Array.isArray(bucket.items)) {
+        bucket.items.push({
+          id: item.id,
+          code: item.code,
+          description: item.description,
+          stockByLocation: stockEntries.map(locationEntry => ({
+            locationId: locationEntry.locationId,
+            quantity: ensureQuantity(locationEntry.quantity),
+            location: locationEntry.location
+              ? {
+                  id: locationEntry.location.id,
+                  name: locationEntry.location.name,
+                  status: locationEntry.location.status,
+                  type: locationEntry.location.type
+                }
+              : null
+          })),
+          total: normalized
+        });
+      }
+    });
+  });
+
+  let response = Array.from(totals.values()).map(entry => {
+    const base = {
+      id: entry.id,
+      name: entry.name,
+      type: entry.type,
+      status: entry.status,
+      total: ensureQuantity(entry.total)
+    };
+    if (includeItems) {
+      return {
+        ...base,
+        items: Array.isArray(entry.items)
+          ? entry.items.map(item => ({
+              id: item.id,
+              code: item.code,
+              description: item.description,
+              stockByLocation: Array.isArray(item.stockByLocation)
+                ? item.stockByLocation.map(locationEntry => ({
+                    locationId: locationEntry.locationId,
+                    quantity: ensureQuantity(locationEntry.quantity),
+                    location: locationEntry.location
+                  }))
+                : [],
+              total: ensureQuantity(item.total)
+            }))
+          : []
+      };
+    }
+    return base;
+  });
+
+  if (requestedLocationId) {
+    const requestedKey = String(requestedLocationId);
+    response = response.filter(entry => String(entry.id) === requestedKey);
+  } else if (includeItems) {
+    response = response.filter(entry => Array.isArray(entry.items) && entry.items.length > 0);
+  }
 
   res.json(response);
 }
