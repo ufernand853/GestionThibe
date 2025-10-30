@@ -159,6 +159,12 @@ paths:
       responses:
         '200':
           description: OK
+  /api/logs/audit:
+    get:
+      summary: Read general audit logs
+      responses:
+        '200':
+          description: OK
   /api/reports/stock/by-group:
     get:
       summary: Stock report grouped by taxonomy
