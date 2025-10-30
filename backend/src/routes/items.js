@@ -9,6 +9,7 @@ const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
 const { normalizeQuantityInput } = require('../services/stockService');
+const { recordAuditEvent } = require('../services/auditService');
 
 const { promises: fsPromises } = fs;
 
@@ -371,6 +372,15 @@ router.post(
       throw error;
     }
     const populated = await item.populate('group');
+    await recordAuditEvent({
+      action: 'item.created',
+      entityType: 'Item',
+      entityId: item.id,
+      actorUserId: req.user?.id,
+      metadata: { code },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || ''
+    });
     res.status(201).json(serializeItem(populated));
   })
 );
@@ -515,6 +525,17 @@ router.put(
       throw error;
     }
     const populated = await item.populate('group');
+    await recordAuditEvent({
+      action: 'item.updated',
+      entityType: 'Item',
+      entityId: item.id,
+      actorUserId: req.user?.id,
+      metadata: {
+        modifiedFields: modifiedPaths.filter(field => field !== '__v').join(',') || 'none'
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || ''
+    });
     res.json(serializeItem(populated));
   })
 );
