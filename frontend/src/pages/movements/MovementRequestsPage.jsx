@@ -36,7 +36,9 @@ export default function MovementRequestsPage() {
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const isOperator = user?.role === 'Operador';
-  const canRequest = !isOperator && permissions.includes('stock.request');
+  const hasRequestPermission = permissions.includes('stock.request');
+  const canRequest = hasRequestPermission;
+  const isOperatorWithRestrictions = isOperator && hasRequestPermission;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -131,28 +133,24 @@ export default function MovementRequestsPage() {
     const priorityMap = new Map(
       ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
     );
-    const warehouses = [];
-    const externalOrigins = [];
-    (Array.isArray(locations) ? locations : []).forEach(location => {
-      if (location.type === 'warehouse') {
-        warehouses.push(location);
-      } else if (location.type === 'externalOrigin') {
-        externalOrigins.push(location);
-      }
-    });
-    warehouses.sort((a, b) => {
-      const aName = (a.name || '').toLowerCase();
-      const bName = (b.name || '').toLowerCase();
-      const aPriority = priorityMap.has(aName) ? priorityMap.get(aName) : Number.MAX_SAFE_INTEGER;
-      const bPriority = priorityMap.has(bName) ? priorityMap.get(bName) : Number.MAX_SAFE_INTEGER;
-      if (aPriority !== bPriority) {
-        return aPriority - bPriority;
-      }
-      return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
-    });
-    externalOrigins.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
-    return [...warehouses, ...externalOrigins];
-  }, [locations]);
+    const availableLocations = Array.isArray(locations) ? locations : [];
+    const filteredLocations = isOperatorWithRestrictions
+      ? availableLocations.filter(location => location.type === 'warehouse')
+      : availableLocations;
+    return filteredLocations
+      .filter(location => location.type === 'warehouse')
+      .slice()
+      .sort((a, b) => {
+        const aName = (a.name || '').toLowerCase();
+        const bName = (b.name || '').toLowerCase();
+        const aPriority = priorityMap.has(aName) ? priorityMap.get(aName) : Number.MAX_SAFE_INTEGER;
+        const bPriority = priorityMap.has(bName) ? priorityMap.get(bName) : Number.MAX_SAFE_INTEGER;
+        if (aPriority !== bPriority) {
+          return aPriority - bPriority;
+        }
+        return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+      });
+  }, [isOperatorWithRestrictions, locations]);
 
   const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
 
@@ -264,6 +262,16 @@ export default function MovementRequestsPage() {
     setDateFilters(prev => ({ ...prev, [name]: value }));
   };
 
+  const availableDestinations = useMemo(() => {
+    if (!Array.isArray(locations)) {
+      return [];
+    }
+    if (!isOperatorWithRestrictions) {
+      return locations;
+    }
+    return locations.filter(location => location.type === 'warehouse');
+  }, [isOperatorWithRestrictions, locations]);
+
   const handleSubmit = async event => {
     event.preventDefault();
     if (!canRequest) return;
@@ -296,6 +304,19 @@ export default function MovementRequestsPage() {
         setError('La ubicación de origen y destino no pueden ser la misma.');
         setSubmitting(false);
         return;
+      }
+
+      const fromLocation = locationMap.get(String(formValues.fromLocation));
+      const toLocation = locationMap.get(String(formValues.toLocation));
+
+      if (isOperatorWithRestrictions) {
+        const isFromWarehouse = fromLocation?.type === 'warehouse';
+        const isToWarehouse = toLocation?.type === 'warehouse';
+        if (!isFromWarehouse || !isToWarehouse) {
+          setError('Como operador solo puede solicitar transferencias entre depósitos internos.');
+          setSubmitting(false);
+          return;
+        }
       }
 
       const payload = {
@@ -429,7 +450,7 @@ export default function MovementRequestsPage() {
               required
             >
               <option value="">Seleccione destino</option>
-              {locations.map(location => (
+              {availableDestinations.map(location => (
                 <option key={location.id} value={location.id}>
                   {location.name}
                   {locationTypeSuffix(location.type)}
