@@ -6,6 +6,7 @@ import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
+import { MOVEMENT_TYPE_BADGE_CLASS, MOVEMENT_TYPE_LABELS, resolveMovementType } from '../../utils/movements.js';
 
 export default function ApprovalsPage() {
   const api = useApi();
@@ -150,12 +151,25 @@ export default function ApprovalsPage() {
                 {requests.map(request => {
                   const itemId = request.item?.id || request.itemId;
                   const stockStatus = itemStatusMap.get(itemId);
+                  const movementType = resolveMovementType({
+                    explicitType: request.type,
+                    fromType: request.fromLocation?.type,
+                    toType: request.toLocation?.type
+                  });
+                  const movementBadgeClass =
+                    MOVEMENT_TYPE_BADGE_CLASS[movementType] || MOVEMENT_TYPE_BADGE_CLASS.transfer;
+                  const movementLabel = MOVEMENT_TYPE_LABELS[movementType] || MOVEMENT_TYPE_LABELS.transfer;
                   return (
                     <tr key={request.id}>
                       <td>{request.item?.code || request.itemId}</td>
                       <td>{request.fromLocation?.name || '-'}</td>
                       <td>{request.toLocation?.name || '-'}</td>
-                      <td>{formatQuantity(request.quantity)}</td>
+                      <td>
+                        <div className="quantity-with-flag">
+                          <span>{formatQuantity(request.quantity)}</span>
+                          <span className={`badge ${movementBadgeClass}`}>{movementLabel}</span>
+                        </div>
+                      </td>
                       <td>
                         {stockStatus ? (
                           <div className="stock-status-cell">

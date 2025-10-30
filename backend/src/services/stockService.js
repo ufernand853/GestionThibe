@@ -86,7 +86,7 @@ async function findItemOrThrow(itemId) {
   return item;
 }
 
-async function ensureLocationExists(locationId, { mustBeWarehouse = false } = {}) {
+async function ensureLocationExists(locationId, { allowedTypes = null, invalidTypeMessage = 'La ubicación seleccionada no es válida para esta operación' } = {}) {
   if (!mongoose.Types.ObjectId.isValid(locationId)) {
     throw new HttpError(404, 'Ubicación no encontrada');
   }
@@ -97,8 +97,8 @@ async function ensureLocationExists(locationId, { mustBeWarehouse = false } = {}
   if (location.status === 'inactive') {
     throw new HttpError(400, 'La ubicación está inactiva');
   }
-  if (mustBeWarehouse && location.type !== 'warehouse') {
-    throw new HttpError(400, 'La ubicación de origen debe ser un depósito interno');
+  if (Array.isArray(allowedTypes) && allowedTypes.length > 0 && !allowedTypes.includes(location.type)) {
+    throw new HttpError(400, invalidTypeMessage);
   }
   return location;
 }
@@ -154,7 +154,12 @@ async function executeMovement(request, actorUserId, metadata = {}) {
     throw new HttpError(400, 'Los movimientos requieren ubicaciones de origen y destino válidas');
   }
 
-  adjustItemStock(item, fromLocationId, negateQuantity(quantity));
+  const movementType = ['ingress', 'egress'].includes(request.type) ? request.type : 'transfer';
+
+  if (movementType !== 'ingress') {
+    adjustItemStock(item, fromLocationId, negateQuantity(quantity));
+  }
+
   adjustItemStock(item, toLocationId, quantity);
   await item.save();
 
@@ -176,7 +181,7 @@ async function validateMovementPayload(payload) {
   }
 
   if (payload.type && payload.type !== 'transfer') {
-    throw new HttpError(400, 'Solo se admiten transferencias entre ubicaciones');
+    throw new HttpError(400, 'No es necesario indicar el tipo de movimiento');
   }
 
   const quantity = normalizeQuantityInput(payload.quantity, { fieldName: 'Cantidad' });
@@ -195,8 +200,14 @@ async function validateMovementPayload(payload) {
   }
 
   const [fromLocation, toLocation] = await Promise.all([
-    ensureLocationExists(fromLocationId, { mustBeWarehouse: true }),
-    ensureLocationExists(toLocationId)
+    ensureLocationExists(fromLocationId, {
+      allowedTypes: ['warehouse', 'externalOrigin'],
+      invalidTypeMessage: 'La ubicación de origen debe ser un depósito interno o un origen externo válido'
+    }),
+    ensureLocationExists(toLocationId, {
+      allowedTypes: ['warehouse', 'external'],
+      invalidTypeMessage: 'La ubicación de destino debe ser un depósito interno o un destino externo válido'
+    })
   ]);
 
   return {

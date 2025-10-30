@@ -14,8 +14,11 @@ const INITIAL_FORM_STATE = {
 
 const TYPE_LABELS = {
   warehouse: 'Depósito interno',
-  external: 'Destino externo'
+  external: 'Destino externo',
+  externalOrigin: 'Origen externo'
 };
+
+const ALLOWED_TYPES = ['warehouse', 'external', 'externalOrigin'];
 
 export default function LocationsPage() {
   const api = useApi();
@@ -40,10 +43,12 @@ export default function LocationsPage() {
         ? rawId.toString()
         : rawId || '';
 
+    const normalizedType = ALLOWED_TYPES.includes(location.type) ? location.type : 'warehouse';
+
     return {
       id: normalizedId,
       name: location.name || '',
-      type: location.type === 'external' ? 'external' : 'warehouse',
+      type: normalizedType,
       description: location.description || '',
       contactInfo: location.contactInfo || '',
       status: location.status === 'inactive' ? 'inactive' : 'active'
@@ -204,6 +209,7 @@ export default function LocationsPage() {
               <option value="all">Todos los tipos</option>
               <option value="warehouse">Depósitos internos</option>
               <option value="external">Destinos externos</option>
+              <option value="externalOrigin">Orígenes externos</option>
             </select>
             {canWrite && (
               <button type="button" className="secondary-button" onClick={handleCreateNew}>
@@ -299,6 +305,7 @@ export default function LocationsPage() {
               <select id="locationType" name="type" value={formValues.type} onChange={handleFormChange}>
                 <option value="warehouse">Depósito interno</option>
                 <option value="external">Destino externo</option>
+                <option value="externalOrigin">Origen externo</option>
               </select>
             </div>
             <div className="input-group">

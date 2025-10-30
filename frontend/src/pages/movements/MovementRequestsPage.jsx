@@ -6,6 +6,12 @@ import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
+import {
+  MOVEMENT_TYPE_BADGE_CLASS,
+  MOVEMENT_TYPE_LABELS,
+  resolveMovementType,
+  locationTypeSuffix
+} from '../../utils/movements.js';
 
 const ORIGIN_PRIORITY = [
   'Guadalupe',
@@ -21,8 +27,8 @@ const ORIGIN_PRIORITY = [
 const MOVEMENT_TYPE_OPTIONS = [
   { value: '', label: 'Todos' },
   { value: 'transfer', label: 'Transferencias' },
-  { value: 'ingress', label: 'Ingresos' },
-  { value: 'egress', label: 'Retiros' }
+  { value: 'ingress', label: 'Entradas' },
+  { value: 'egress', label: 'Salidas' }
 ];
 
 export default function MovementRequestsPage() {
@@ -120,23 +126,31 @@ export default function MovementRequestsPage() {
     };
   }, [api, canRequest]);
 
-  const prioritizedOrigins = useMemo(() => {
+  const originOptions = useMemo(() => {
     const priorityMap = new Map(
       ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
     );
-    return (Array.isArray(locations) ? locations : [])
-      .filter(location => location.type === 'warehouse')
-      .slice()
-      .sort((a, b) => {
-        const aName = (a.name || '').toLowerCase();
-        const bName = (b.name || '').toLowerCase();
-        const aPriority = priorityMap.has(aName) ? priorityMap.get(aName) : Number.MAX_SAFE_INTEGER;
-        const bPriority = priorityMap.has(bName) ? priorityMap.get(bName) : Number.MAX_SAFE_INTEGER;
-        if (aPriority !== bPriority) {
-          return aPriority - bPriority;
-        }
-        return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
-      });
+    const warehouses = [];
+    const externalOrigins = [];
+    (Array.isArray(locations) ? locations : []).forEach(location => {
+      if (location.type === 'warehouse') {
+        warehouses.push(location);
+      } else if (location.type === 'externalOrigin') {
+        externalOrigins.push(location);
+      }
+    });
+    warehouses.sort((a, b) => {
+      const aName = (a.name || '').toLowerCase();
+      const bName = (b.name || '').toLowerCase();
+      const aPriority = priorityMap.has(aName) ? priorityMap.get(aName) : Number.MAX_SAFE_INTEGER;
+      const bPriority = priorityMap.has(bName) ? priorityMap.get(bName) : Number.MAX_SAFE_INTEGER;
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+    });
+    externalOrigins.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
+    return [...warehouses, ...externalOrigins];
   }, [locations]);
 
   const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
@@ -153,6 +167,19 @@ export default function MovementRequestsPage() {
     () => (formValues.itemId ? items.find(item => item.id === formValues.itemId) : null),
     [formValues.itemId, items]
   );
+
+  const currentMovementType = useMemo(() => {
+    if (!formValues.fromLocation || !formValues.toLocation) {
+      return null;
+    }
+    const fromLocation = locationMap.get(formValues.fromLocation);
+    const toLocation = locationMap.get(formValues.toLocation);
+    return resolveMovementType({
+      explicitType: null,
+      fromType: fromLocation?.type,
+      toType: toLocation?.type
+    });
+  }, [formValues.fromLocation, formValues.toLocation, locationMap]);
 
   const selectedItemStock = useMemo(() => {
     if (!selectedItem || !selectedItem.stock) {
@@ -362,7 +389,7 @@ export default function MovementRequestsPage() {
                     <li key={entry.locationId} className="stock-summary-item">
                       <span className="stock-summary-location">
                         {entry.locationName}
-                        {entry.locationType === 'external' ? ' · Externo' : ''}
+                        {locationTypeSuffix(entry.locationType)}
                       </span>
                       <span className="stock-summary-quantity">{formatQuantity(entry.quantity)}</span>
                     </li>
@@ -383,9 +410,10 @@ export default function MovementRequestsPage() {
               required
             >
               <option value="">Seleccione origen</option>
-              {prioritizedOrigins.map(location => (
+              {originOptions.map(location => (
                 <option key={location.id} value={location.id}>
                   {location.name}
+                  {locationTypeSuffix(location.type)}
                 </option>
               ))}
             </select>
@@ -403,7 +431,7 @@ export default function MovementRequestsPage() {
               {locations.map(location => (
                 <option key={location.id} value={location.id}>
                   {location.name}
-                  {location.type === 'external' ? ' · Externo' : ''}
+                  {locationTypeSuffix(location.type)}
                 </option>
               ))}
             </select>
@@ -421,14 +449,25 @@ export default function MovementRequestsPage() {
           </div>
           <div className="input-group">
             <label htmlFor="quantityUnits">Unidades</label>
-            <input
-              id="quantityUnits"
-              name="quantityUnits"
-              type="number"
-              min="0"
-              value={formValues.quantityUnits}
-              onChange={handleFormChange}
-            />
+            <div className="quantity-with-flag">
+              <input
+                id="quantityUnits"
+                name="quantityUnits"
+                type="number"
+                min="0"
+                value={formValues.quantityUnits}
+                onChange={handleFormChange}
+              />
+              {currentMovementType && (
+                <span
+                  className={`badge ${
+                    MOVEMENT_TYPE_BADGE_CLASS[currentMovementType] || MOVEMENT_TYPE_BADGE_CLASS.transfer
+                  }`}
+                >
+                  {MOVEMENT_TYPE_LABELS[currentMovementType]}
+                </span>
+              )}
+            </div>
           </div>
           <div className="input-group" style={{ gridColumn: '1 / -1' }}>
             <label htmlFor="reason">Motivo</label>
@@ -520,12 +559,25 @@ export default function MovementRequestsPage() {
                 {requests.map(request => {
                   const itemId = request.item?.id || request.itemId;
                   const stockStatus = itemStatuses.get(itemId);
+                  const movementType = resolveMovementType({
+                    explicitType: request.type,
+                    fromType: request.fromLocation?.type,
+                    toType: request.toLocation?.type
+                  });
+                  const movementBadgeClass =
+                    MOVEMENT_TYPE_BADGE_CLASS[movementType] || MOVEMENT_TYPE_BADGE_CLASS.transfer;
+                  const movementLabel = MOVEMENT_TYPE_LABELS[movementType] || MOVEMENT_TYPE_LABELS.transfer;
                   return (
                     <tr key={request.id}>
                       <td>{request.item?.code || request.itemId}</td>
                       <td>{request.fromLocation?.name || '-'}</td>
                       <td>{request.toLocation?.name || '-'}</td>
-                      <td>{formatQuantity(request.quantity)}</td>
+                      <td>
+                        <div className="quantity-with-flag">
+                          <span>{formatQuantity(request.quantity)}</span>
+                          <span className={`badge ${movementBadgeClass}`}>{movementLabel}</span>
+                        </div>
+                      </td>
                       <td>
                         {stockStatus ? (
                           <div className="stock-status-cell">

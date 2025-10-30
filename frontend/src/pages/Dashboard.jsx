@@ -145,10 +145,12 @@ export default function DashboardPage() {
     );
     const warehouses = locations.filter(location => location.type === 'warehouse');
     const externals = locations.filter(location => location.type === 'external');
+    const externalOrigins = locations.filter(location => location.type === 'externalOrigin');
     return {
       totalStock,
       warehouses: warehouses.length,
       externals: externals.length,
+      externalOrigins: externalOrigins.length,
       pending: pendingRequests.length
     };
   }, [locations, pendingRequests.length, stockByLocation]);
@@ -443,7 +445,9 @@ export default function DashboardPage() {
         <div className="metric-card">
           <h3>Destinos externos</h3>
           <p>{metrics.externals}</p>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Contactos logísticos registrados</span>
+          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+            Orígenes externos: {metrics.externalOrigins ?? 0}
+          </span>
         </div>
         <div className="metric-card">
           <h3>Solicitudes pendientes</h3>
@@ -527,7 +531,13 @@ export default function DashboardPage() {
                 {stockByLocation.map(entry => (
                   <tr key={entry.id}>
                     <td>{entry.name || 'Ubicación'}</td>
-                    <td>{entry.type === 'external' ? 'Destino externo' : 'Depósito interno'}</td>
+                    <td>
+                      {entry.type === 'external'
+                        ? 'Destino externo'
+                        : entry.type === 'externalOrigin'
+                        ? 'Origen externo'
+                        : 'Depósito interno'}
+                    </td>
                     <td>{formatQuantity(entry.total)}</td>
                   </tr>
                 ))}
