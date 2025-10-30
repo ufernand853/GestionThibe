@@ -11,6 +11,7 @@ const {
   findItemOrThrow,
   normalizeStoredQuantity
 } = require('../services/stockService');
+const { recordAuditEvent } = require('../services/auditService');
 const { parseDateBoundary } = require('../utils/dateRange');
 
 function serializeUserSummary(user) {
@@ -110,6 +111,21 @@ router.post(
 
     await movementRequest.save();
     await addMovementLog(movementRequest.id, 'requested', req.user.id, requestMetadata(req));
+    await recordAuditEvent({
+      action: 'movementRequest.created',
+      entityType: 'MovementRequest',
+      entityId: movementRequest.id,
+      actorUserId: req.user?.id,
+      metadata: {
+        type: movementType,
+        itemId: movementRequest.item?.toString(),
+        fromLocation: movementRequest.fromLocation?.toString(),
+        toLocation: movementRequest.toLocation?.toString(),
+        quantity
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || ''
+    });
 
     const populated = await movementRequest.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.status(201).json(serializeMovementRequest(populated));
@@ -133,6 +149,20 @@ router.post(
     request.approvedAt = new Date();
     await addMovementLog(request.id, 'approved', req.user.id, requestMetadata(req));
     await executeMovement(request, req.user.id, requestMetadata(req));
+    await recordAuditEvent({
+      action: 'movementRequest.approved',
+      entityType: 'MovementRequest',
+      entityId: request.id,
+      actorUserId: req.user?.id,
+      metadata: {
+        itemId: request.item?.toString(),
+        fromLocation: request.fromLocation?.toString(),
+        toLocation: request.toLocation?.toString(),
+        status: request.status
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || ''
+    });
     const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })
@@ -157,6 +187,21 @@ router.post(
     request.approvedAt = new Date();
     await request.save();
     await addMovementLog(request.id, 'rejected', req.user.id, requestMetadata(req));
+    await recordAuditEvent({
+      action: 'movementRequest.rejected',
+      entityType: 'MovementRequest',
+      entityId: request.id,
+      actorUserId: req.user?.id,
+      metadata: {
+        itemId: request.item?.toString(),
+        fromLocation: request.fromLocation?.toString(),
+        toLocation: request.toLocation?.toString(),
+        reason: reason || '',
+        status: request.status
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || ''
+    });
     const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })
@@ -226,6 +271,20 @@ router.post(
     request.rejectedReason = null;
     await request.save();
     await addMovementLog(request.id, 'resubmitted', req.user.id, requestMetadata(req));
+    await recordAuditEvent({
+      action: 'movementRequest.resubmitted',
+      entityType: 'MovementRequest',
+      entityId: request.id,
+      actorUserId: req.user?.id,
+      metadata: {
+        itemId: request.item?.toString(),
+        fromLocation: request.fromLocation?.toString(),
+        toLocation: request.toLocation?.toString(),
+        status: request.status
+      },
+      ip: req.ip,
+      userAgent: req.headers['user-agent'] || ''
+    });
     const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })
