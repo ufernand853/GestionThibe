@@ -5,7 +5,7 @@ const quantitySubSchema = require('./schemas/quantity');
 const movementRequestSchema = new Schema(
   {
     item: { type: Types.ObjectId, ref: 'Item', required: true },
-    type: { type: String, enum: ['transfer'], default: 'transfer' },
+    type: { type: String, enum: ['transfer', 'ingress', 'egress'], default: 'transfer' },
     fromLocation: { type: Types.ObjectId, ref: 'Location', required: true },
     toLocation: { type: Types.ObjectId, ref: 'Location', required: true },
     quantity: { type: quantitySubSchema, required: true, default: () => coerceQuantity() },

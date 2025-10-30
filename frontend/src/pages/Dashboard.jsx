@@ -63,15 +63,17 @@ export default function DashboardPage() {
   const [requests, setRequests] = useState([]);
   const [itemsSnapshot, setItemsSnapshot] = useState([]);
   const [topStartDate, setTopStartDate] = useState(() => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() - 6);
-    return formatDateForInput(date);
+    const startOfMonth = new Date();
+    startOfMonth.setHours(0, 0, 0, 0);
+    startOfMonth.setDate(1);
+    return formatDateForInput(startOfMonth);
   });
   const [topEndDate, setTopEndDate] = useState(() => {
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    return formatDateForInput(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    endOfMonth.setHours(0, 0, 0, 0);
+    return formatDateForInput(endOfMonth);
   });
   const [manualAttentionIds, setManualAttentionIds] = useState([]);
   const [savedManualAttentionIds, setSavedManualAttentionIds] = useState([]);
@@ -155,10 +157,12 @@ export default function DashboardPage() {
     );
     const warehouses = locations.filter(location => location.type === 'warehouse');
     const externals = locations.filter(location => location.type === 'external');
+    const externalOrigins = locations.filter(location => location.type === 'externalOrigin');
     return {
       totalStock,
       warehouses: warehouses.length,
       externals: externals.length,
+      externalOrigins: externalOrigins.length,
       pending: pendingRequests.length
     };
   }, [locations, pendingRequests.length, stockByLocation]);
@@ -563,7 +567,13 @@ export default function DashboardPage() {
                 {stockByLocation.map(entry => (
                   <tr key={entry.id}>
                     <td>{entry.name || 'Ubicación'}</td>
-                    <td>{entry.type === 'external' ? 'Destino externo' : 'Depósito interno'}</td>
+                    <td>
+                      {entry.type === 'external'
+                        ? 'Destino externo'
+                        : entry.type === 'externalOrigin'
+                        ? 'Origen externo'
+                        : 'Depósito interno'}
+                    </td>
                     <td>{formatQuantity(entry.total)}</td>
                   </tr>
                 ))}

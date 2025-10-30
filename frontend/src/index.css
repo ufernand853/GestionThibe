@@ -227,6 +227,40 @@ th {
   color: #b91c1c;
 }
 
+.quantity-with-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.input-group .quantity-with-flag {
+  width: 100%;
+}
+
+.quantity-with-flag input {
+  flex: 1 1 auto;
+}
+
+.quantity-with-flag .badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.badge.movement-transfer {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badge.movement-ingress {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.badge.movement-egress {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
 .stock-indicator {
   display: inline-flex;
   align-items: center;
