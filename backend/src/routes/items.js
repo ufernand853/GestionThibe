@@ -9,6 +9,7 @@ const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
 const { normalizeQuantityInput } = require('../services/stockService');
+const { recordAuditEvent } = require('../services/auditService');
 
 const { promises: fsPromises } = fs;
 
@@ -371,6 +372,11 @@ router.post(
       throw error;
     }
     const populated = await item.populate('group');
+    await recordAuditEvent({
+      action: 'Artículo',
+      request: 'Alta de artículo',
+      user: req.user?.username || 'Desconocido'
+    });
     res.status(201).json(serializeItem(populated));
   })
 );
@@ -515,6 +521,11 @@ router.put(
       throw error;
     }
     const populated = await item.populate('group');
+    await recordAuditEvent({
+      action: 'Artículo',
+      request: 'Actualización de artículo',
+      user: req.user?.username || 'Desconocido'
+    });
     res.json(serializeItem(populated));
   })
 );

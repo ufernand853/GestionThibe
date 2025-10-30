@@ -11,6 +11,7 @@ const {
   findItemOrThrow,
   normalizeStoredQuantity
 } = require('../services/stockService');
+const { recordAuditEvent } = require('../services/auditService');
 const { parseDateBoundary } = require('../utils/dateRange');
 
 function serializeUserSummary(user) {
@@ -110,6 +111,11 @@ router.post(
 
     await movementRequest.save();
     await addMovementLog(movementRequest.id, 'requested', req.user.id, requestMetadata(req));
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Nueva solicitud',
+      user: req.user?.username || 'Desconocido'
+    });
 
     const populated = await movementRequest.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.status(201).json(serializeMovementRequest(populated));
@@ -133,6 +139,11 @@ router.post(
     request.approvedAt = new Date();
     await addMovementLog(request.id, 'approved', req.user.id, requestMetadata(req));
     await executeMovement(request, req.user.id, requestMetadata(req));
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Aprobación de solicitud',
+      user: req.user?.username || 'Desconocido'
+    });
     const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })
@@ -157,6 +168,11 @@ router.post(
     request.approvedAt = new Date();
     await request.save();
     await addMovementLog(request.id, 'rejected', req.user.id, requestMetadata(req));
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Rechazo de solicitud',
+      user: req.user?.username || 'Desconocido'
+    });
     const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })
@@ -226,6 +242,11 @@ router.post(
     request.rejectedReason = null;
     await request.save();
     await addMovementLog(request.id, 'resubmitted', req.user.id, requestMetadata(req));
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Reenvío de solicitud',
+      user: req.user?.username || 'Desconocido'
+    });
     const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
     res.json(serializeMovementRequest(populated));
   })

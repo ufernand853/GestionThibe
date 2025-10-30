@@ -7,6 +7,7 @@ const { HttpError } = require('../utils/errors');
 const config = require('../config');
 const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
+const { recordAuditEvent } = require('../services/auditService');
 
 function serializeUser(userDoc) {
   const role = userDoc.role;
@@ -59,6 +60,12 @@ router.post(
       token: refreshTokenValue,
       user: user.id,
       expiresAt: new Date(Date.now() + config.refreshTokenTtl * 1000)
+    });
+
+    await recordAuditEvent({
+      action: 'Autenticación',
+      request: 'Inicio de sesión',
+      user: user.username
     });
 
     res.json({
