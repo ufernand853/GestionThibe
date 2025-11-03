@@ -37,6 +37,76 @@ npm start
 
 Por defecto el servidor se levanta en `http://localhost:3000` y se conecta a `mongodb://localhost:27017/gestionthibe`.
 
+#### Ejecutar el backend como servicio con PM2
+
+Para mantener el proceso activo en segundo plano y reiniciarlo automáticamente ante fallos o reinicios del sistema, puedes usar [PM2](https://pm2.keymetrics.io/). Si al ejecutar `pm2` ves el mensaje `command not found`, primero debes instalarlo (junto con Node.js si aún no está disponible en el servidor):
+
+```bash
+# Verifica que tengas Node.js y npm instalados
+node -v
+npm -v
+
+# Si no los tienes, en Ubuntu/Debian puedes instalarlos rápidamente con NodeSource
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Luego instala PM2 de forma global (requiere permisos de administrador)
+sudo npm install -g pm2
+```
+
+> Si prefieres evitar instalaciones globales, puedes agregar PM2 como dependencia del proyecto (`npm install pm2 --save-dev`) y ejecutarlo mediante `npx pm2 <comando>`. El resultado es el mismo; sólo cambia dónde queda ubicado el binario.
+
+Luego inicia la API con un nombre identificable y habilita el monitoreo básico:
+
+```bash
+pm2 start src/index.js --name gestionthibe
+pm2 status
+pm2 logs gestionthibe
+```
+
+Para detener o reanudar la instancia administrada por PM2 sin perder la configuración guardada:
+
+```bash
+pm2 stop gestionthibe     # Detiene el servicio
+pm2 restart gestionthibe  # Lo vuelve a iniciar cuando necesites
+```
+
+Si deseás dar de baja definitiva el proceso y eliminarlo de la lista administrada por PM2:
+
+```bash
+pm2 delete gestionthibe
+```
+
+Cuando necesites una vista en tiempo real del consumo y la salud de la aplicación puedes ejecutar `pm2 monitor`. Si quieres que el servicio se vuelva a levantar automáticamente tras reiniciar el sistema, guarda la configuración con `pm2 save` y habilita el servicio de inicio automático siguiendo la [guía oficial](https://pm2.keymetrics.io/docs/usage/startup/).
+
+##### Resolver errores `EADDRINUSE` (puerto ocupado)
+
+Si al iniciar la API ves un mensaje similar a `Error: listen EADDRINUSE: address already in use :::3000`, significa que ya existe
+un proceso escuchando en ese puerto (generalmente otra instancia previa del backend). Para solucionarlo:
+
+1. Revisa las aplicaciones administradas por PM2 y detén la que esté utilizando el mismo nombre o puerto:
+
+   ```bash
+   pm2 list
+   pm2 stop gestionthibe    # o el nombre que le hayas dado al proceso
+   pm2 delete gestionthibe  # si querés eliminarlo por completo
+   ```
+
+2. Si el puerto continúa ocupado, identifica qué proceso lo está utilizando desde el sistema operativo y termínalo manualmente:
+
+   ```bash
+   sudo ss -ltnp 'sport = :3000'
+   sudo kill <PID>
+   ```
+
+   (En macOS puedes usar `lsof -i :3000` para obtener el PID.)
+
+3. Como alternativa temporal, modifica el puerto del backend exportando la variable `PORT` antes de iniciar PM2, por ejemplo
+   `PORT=4000 pm2 start src/index.js --name gestionthibe`.
+
+Una vez liberado el puerto, vuelve a iniciar el servicio con `pm2 start` o `pm2 restart`.
+
+
 #### Variables de entorno soportadas
 
 | Variable | Descripción | Valor por defecto |
