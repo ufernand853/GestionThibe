@@ -1,14 +1,31 @@
 import { existsSync, rmSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+import { DEFAULT_OUT_DIR, FALLBACK_OUT_DIR, getMetaFilePath, getRootDir, loadOutDir } from './out-dir.mjs';
 
-const currentDir = dirname(fileURLToPath(import.meta.url));
-const distPath = resolve(currentDir, '..', 'dist');
+const rootDir = getRootDir();
+const metaPath = getMetaFilePath();
+const trackedOutDir = loadOutDir();
+const candidates = new Set([DEFAULT_OUT_DIR, FALLBACK_OUT_DIR, trackedOutDir.dirName]);
 
-if (!existsSync(distPath)) {
-  console.log('No se encontró la carpeta dist, nada para limpiar.');
-  process.exit(0);
+for (const candidate of candidates) {
+  const candidatePath = resolve(rootDir, candidate);
+  if (!existsSync(candidatePath)) {
+    continue;
+  }
+
+  try {
+    rmSync(candidatePath, { recursive: true, force: true });
+    console.log(`Carpeta limpia: ${candidatePath}`);
+  } catch (error) {
+    console.warn(`No se pudo eliminar ${candidatePath}: ${error.message}`);
+  }
 }
 
-rmSync(distPath, { recursive: true, force: true });
-console.log(`Carpeta limpia: ${distPath}`);
+if (existsSync(metaPath)) {
+  try {
+    rmSync(metaPath, { force: true });
+    console.log(`Archivo meta eliminado: ${metaPath}`);
+  } catch (error) {
+    console.warn(`No se pudo eliminar el archivo meta ${metaPath}: ${error.message}`);
+  }
+}

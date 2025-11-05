@@ -2,8 +2,10 @@ const express = require('express');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission, requireAuth } = require('../middlewares/auth');
+const { Types } = require('mongoose');
 const MovementRequest = require('../models/MovementRequest');
 const Location = require('../models/Location');
+const Item = require('../models/Item');
 const {
   validateMovementPayload,
   executeMovement,
@@ -13,6 +15,28 @@ const {
 } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { parseDateBoundary } = require('../utils/dateRange');
+
+function escapeRegex(value) {
+  return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
+function buildAttributeMatcher(rawValue) {
+  if (typeof rawValue !== 'string') {
+    return null;
+  }
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return new RegExp(`^\\s*${escapeRegex(trimmed)}\\s*$`, 'i');
+}
+
+function ensureStockAccess(req) {
+  const permissions = req.user?.permissions || [];
+  if (!permissions.includes('stock.request') && !permissions.includes('stock.approve')) {
+    throw new HttpError(403, 'Permiso denegado');
+  }
+}
 
 function serializeUserSummary(user) {
   if (!user) return null;
@@ -85,7 +109,87 @@ function requestMetadata(req) {
   };
 }
 
+async function resolveItemIdentifier(rawValue) {
+  if (typeof rawValue !== 'string') {
+    return null;
+  }
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (Types.ObjectId.isValid(trimmed)) {
+    return trimmed;
+  }
+  const item = await Item.findOne({ code: new RegExp(`^${escapeRegex(trimmed)}$`, 'i') })
+    .select('_id')
+    .lean();
+  return item ? item._id : null;
+}
+
 const router = express.Router();
+
+router.get(
+  '/items',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    ensureStockAccess(req);
+    const {
+      search,
+      groupId,
+      gender,
+      size,
+      color,
+      limit: rawLimit
+    } = req.query || {};
+
+    const filter = {};
+    const normalizedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
+    if (normalizedGroupId) {
+      filter.group = normalizedGroupId;
+    }
+
+    const attributeFilters = {};
+    const genderMatcher = buildAttributeMatcher(gender);
+    if (genderMatcher) {
+      attributeFilters['attributes.gender'] = genderMatcher;
+    }
+    const sizeMatcher = buildAttributeMatcher(size);
+    if (sizeMatcher) {
+      attributeFilters['attributes.size'] = sizeMatcher;
+    }
+    const colorMatcher = buildAttributeMatcher(color);
+    if (colorMatcher) {
+      attributeFilters['attributes.color'] = colorMatcher;
+    }
+    Object.assign(filter, attributeFilters);
+
+    const normalizedSearch = typeof search === 'string' ? search.trim() : '';
+    if (normalizedSearch) {
+      const regex = new RegExp(escapeRegex(normalizedSearch), 'i');
+      filter.$or = [{ code: regex }, { description: regex }];
+    }
+
+    const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 200, 1), 500);
+
+    const items = await Item.find(filter)
+      .sort({ code: 1 })
+      .limit(limit)
+      .select({ code: 1, description: 1, attributes: 1, group: 1 });
+
+    const serialized = items.map(item => ({
+      id: item.id,
+      code: item.code,
+      description: item.description,
+      groupId: item.group ? String(item.group) : null,
+      attributes:
+        item.attributes instanceof Map
+          ? Object.fromEntries(item.attributes)
+          : item.attributes || {}
+    }));
+
+    res.json(serialized);
+  })
+);
 
 router.post(
   '/request',
@@ -182,15 +286,35 @@ router.get(
   '/requests',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const permissions = req.user?.permissions || [];
-    if (!permissions.includes('stock.request') && !permissions.includes('stock.approve')) {
-      throw new HttpError(403, 'Permiso denegado');
-    }
-    const { status, type, from, to } = req.query || {};
+    ensureStockAccess(req);
+    const { status, type, from, to, itemId, itemCode } = req.query || {};
     const filter = {};
     const normalizedType = typeof type === 'string' ? type.trim() : '';
     if (status) {
       filter.status = status;
+    }
+    const normalizedItemId = typeof itemId === 'string' ? itemId.trim() : '';
+    const normalizedItemCode = typeof itemCode === 'string' ? itemCode.trim() : '';
+    if (normalizedItemId || normalizedItemCode) {
+      const resolvedFromId = normalizedItemId ? await resolveItemIdentifier(normalizedItemId) : null;
+      const resolvedFromCode = normalizedItemCode ? await resolveItemIdentifier(normalizedItemCode) : null;
+
+      if (normalizedItemId && !resolvedFromId) {
+        return res.json([]);
+      }
+
+      if (normalizedItemCode && !resolvedFromCode) {
+        return res.json([]);
+      }
+
+      let effectiveItem = resolvedFromId || resolvedFromCode;
+      if (resolvedFromId && resolvedFromCode && String(resolvedFromId) !== String(resolvedFromCode)) {
+        return res.json([]);
+      }
+
+      if (effectiveItem) {
+        filter.item = effectiveItem;
+      }
     }
     if (normalizedType) {
       if (['ingress', 'egress'].includes(normalizedType)) {
