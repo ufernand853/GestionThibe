@@ -2,6 +2,7 @@ const express = require('express');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission, requireAuth } = require('../middlewares/auth');
+const { Types } = require('mongoose');
 const MovementRequest = require('../models/MovementRequest');
 const Location = require('../models/Location');
 const {
@@ -186,11 +187,18 @@ router.get(
     if (!permissions.includes('stock.request') && !permissions.includes('stock.approve')) {
       throw new HttpError(403, 'Permiso denegado');
     }
-    const { status, type, from, to } = req.query || {};
+    const { status, type, from, to, itemId } = req.query || {};
     const filter = {};
     const normalizedType = typeof type === 'string' ? type.trim() : '';
     if (status) {
       filter.status = status;
+    }
+    const normalizedItemId = typeof itemId === 'string' ? itemId.trim() : '';
+    if (normalizedItemId) {
+      if (!Types.ObjectId.isValid(normalizedItemId)) {
+        throw new HttpError(400, 'Artículo inválido');
+      }
+      filter.item = normalizedItemId;
     }
     if (normalizedType) {
       if (['ingress', 'egress'].includes(normalizedType)) {
