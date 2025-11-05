@@ -530,4 +530,37 @@ router.put(
   })
 );
 
+router.delete(
+  '/:id',
+  requirePermission('items.write'),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      throw new HttpError(400, 'Artículo inválido');
+    }
+    const item = await Item.findById(id);
+    if (!item) {
+      throw new HttpError(404, 'Artículo no encontrado');
+    }
+
+    const imagesToRemove = Array.isArray(item.images)
+      ? item.images.map(sanitizeImagePath).filter(Boolean)
+      : [];
+
+    await item.deleteOne();
+
+    if (imagesToRemove.length > 0) {
+      await Promise.allSettled(imagesToRemove.map(removeFileSafe));
+    }
+
+    await recordAuditEvent({
+      action: 'Artículo',
+      request: 'Eliminación de artículo',
+      user: req.user?.username || 'Desconocido'
+    });
+
+    res.status(204).send();
+  })
+);
+
 module.exports = router;
