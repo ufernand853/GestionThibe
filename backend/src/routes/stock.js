@@ -2,8 +2,10 @@ const express = require('express');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission, requireAuth } = require('../middlewares/auth');
+const { Types } = require('mongoose');
 const MovementRequest = require('../models/MovementRequest');
 const Location = require('../models/Location');
+const Item = require('../models/Item');
 const {
   validateMovementPayload,
   executeMovement,
@@ -83,6 +85,21 @@ function requestMetadata(req) {
     ip: req.ip,
     userAgent: req.headers['user-agent'] || ''
   };
+}
+
+async function resolveItemIdentifier(rawValue) {
+  if (typeof rawValue !== 'string') {
+    return null;
+  }
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (Types.ObjectId.isValid(trimmed)) {
+    return trimmed;
+  }
+  const item = await Item.findOne({ code: trimmed }).select('_id').lean();
+  return item ? item._id : null;
 }
 
 const router = express.Router();
@@ -186,11 +203,34 @@ router.get(
     if (!permissions.includes('stock.request') && !permissions.includes('stock.approve')) {
       throw new HttpError(403, 'Permiso denegado');
     }
-    const { status, type, from, to } = req.query || {};
+    const { status, type, from, to, itemId, itemCode } = req.query || {};
     const filter = {};
     const normalizedType = typeof type === 'string' ? type.trim() : '';
     if (status) {
       filter.status = status;
+    }
+    const normalizedItemId = typeof itemId === 'string' ? itemId.trim() : '';
+    const normalizedItemCode = typeof itemCode === 'string' ? itemCode.trim() : '';
+    if (normalizedItemId || normalizedItemCode) {
+      const resolvedFromId = normalizedItemId ? await resolveItemIdentifier(normalizedItemId) : null;
+      const resolvedFromCode = normalizedItemCode ? await resolveItemIdentifier(normalizedItemCode) : null;
+
+      if (normalizedItemId && !resolvedFromId) {
+        return res.json([]);
+      }
+
+      if (normalizedItemCode && !resolvedFromCode) {
+        return res.json([]);
+      }
+
+      let effectiveItem = resolvedFromId || resolvedFromCode;
+      if (resolvedFromId && resolvedFromCode && String(resolvedFromId) !== String(resolvedFromCode)) {
+        return res.json([]);
+      }
+
+      if (effectiveItem) {
+        filter.item = effectiveItem;
+      }
     }
     if (normalizedType) {
       if (['ingress', 'egress'].includes(normalizedType)) {
