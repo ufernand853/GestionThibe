@@ -108,18 +108,22 @@ export default function MovementRequestsPage() {
     const loadMetadata = async () => {
       try {
         const [itemsResponse, locationsResponse] = await Promise.all([
-          api.get('/items', { query: { page: 1, pageSize: 500 } }),
-          api.get('/locations')
+          api.get('/stock/items', { query: { limit: 500 } }),
+          api.get('/stock/locations')
         ]);
         if (!active) return;
-        setItems(itemsResponse.items || []);
-        setAllLocations(Array.isArray(locationsResponse) ? locationsResponse : []);
+        const normalizedItems = Array.isArray(itemsResponse?.items)
+          ? itemsResponse.items
+          : Array.isArray(itemsResponse)
+          ? itemsResponse
+          : [];
+        setItems(normalizedItems);
+        const normalizedLocations = Array.isArray(locationsResponse) ? locationsResponse : [];
+        setAllLocations(normalizedLocations);
         setLocations(
-          Array.isArray(locationsResponse)
-            ? locationsResponse
-                .filter(location => location.status !== 'inactive')
-                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
-            : []
+          normalizedLocations
+            .filter(location => location.status !== 'inactive')
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
         );
       } catch (err) {
         console.warn('No se pudieron cargar recursos de apoyo', err);

@@ -293,7 +293,7 @@ function buildCaseInsensitiveExactFilter(value) {
   if (!trimmed) {
     return null;
   }
-  return new RegExp(`^${escapeRegex(trimmed)}$`, 'i');
+  return new RegExp(`^\\s*${escapeRegex(trimmed)}\\s*$`, 'i');
 }
 
 const router = express.Router();
