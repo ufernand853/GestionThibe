@@ -104,6 +104,7 @@ export default function ItemsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
   const [imageFiles, setImageFiles] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [imageError, setImageError] = useState('');
@@ -468,6 +469,55 @@ export default function ItemsPage() {
       season: item.attributes?.season || '',
       stockByLocation
     });
+  };
+
+  const handleDelete = async item => {
+    if (!item) return;
+    const confirmed = window.confirm(
+      `¿Seguro que deseas eliminar el artículo ${item.code}? Esta acción no se puede deshacer.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(item.id);
+    setError(null);
+    setSuccessMessage('');
+
+    try {
+      await api.delete(`/items/${item.id}`);
+
+      if (editingItem?.id === item.id) {
+        resetForm();
+      }
+
+      setSuccessMessage(`Artículo ${item.code} eliminado correctamente.`);
+
+      let nextPage = page;
+      let response = await api.get('/items', {
+        query: { ...filters, page: nextPage, pageSize }
+      });
+
+      let nextItems = response.items || [];
+      let nextTotal = response.total || 0;
+
+      if (nextItems.length === 0 && nextPage > 1) {
+        nextPage = nextPage - 1;
+        response = await api.get('/items', {
+          query: { ...filters, page: nextPage, pageSize }
+        });
+        nextItems = response.items || [];
+        nextTotal = response.total || 0;
+        setPage(nextPage);
+      }
+
+      setItems(nextItems);
+      setTotal(nextTotal);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -871,6 +921,14 @@ export default function ItemsPage() {
                         <div className="inline-actions">
                           <button type="button" className="secondary-button" onClick={() => handleEdit(item)}>
                             Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => handleDelete(item)}
+                            disabled={deletingId === item.id}
+                          >
+                            {deletingId === item.id ? 'Eliminando…' : 'Eliminar'}
                           </button>
                         </div>
                       </td>
