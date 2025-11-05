@@ -68,34 +68,77 @@ function determineMovementType(fromLocation, toLocation) {
   return 'transfer';
 }
 
+function extractReferenceId(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (value instanceof Types.ObjectId) {
+    return value.toString();
+  }
+  if (typeof value === 'object') {
+    if (typeof value.id === 'string') {
+      return value.id;
+    }
+    if (value._id) {
+      return extractReferenceId(value._id);
+    }
+  }
+  return null;
+}
+
+function isValuePopulated(value) {
+  if (!value) {
+    return false;
+  }
+  if (typeof value === 'string') {
+    return false;
+  }
+  if (value instanceof Types.ObjectId) {
+    return false;
+  }
+  if (typeof value === 'object') {
+    return true;
+  }
+  return false;
+}
+
 function serializeMovementRequest(doc) {
-  const populatedFrom = doc.populated('fromLocation') ? doc.fromLocation : null;
-  const populatedTo = doc.populated('toLocation') ? doc.toLocation : null;
+  const fromLocationValue = doc.fromLocation;
+  const toLocationValue = doc.toLocation;
+  const populatedFrom = isValuePopulated(fromLocationValue) ? fromLocationValue : null;
+  const populatedTo = isValuePopulated(toLocationValue) ? toLocationValue : null;
   const computedType = determineMovementType(populatedFrom, populatedTo);
   const type =
     doc.type && ['ingress', 'egress'].includes(doc.type) ? doc.type : computedType;
 
   return {
-    id: doc.id,
-    itemId: doc.item?.id || doc.item,
-    item: doc.populated('item')
+    id: doc.id || extractReferenceId(doc._id),
+    itemId: extractReferenceId(doc.item),
+    item: isValuePopulated(doc.item)
       ? {
-          id: doc.item.id,
+          id: extractReferenceId(doc.item),
           code: doc.item.code,
           description: doc.item.description
         }
       : null,
     type,
-    fromLocationId: doc.fromLocation?.id || doc.fromLocation,
-    fromLocation: doc.populated('fromLocation') ? serializeLocationSummary(doc.fromLocation) : null,
-    toLocationId: doc.toLocation?.id || doc.toLocation,
-    toLocation: doc.populated('toLocation') ? serializeLocationSummary(doc.toLocation) : null,
+    fromLocationId: extractReferenceId(fromLocationValue),
+    fromLocation: populatedFrom ? serializeLocationSummary(populatedFrom) : null,
+    toLocationId: extractReferenceId(toLocationValue),
+    toLocation: populatedTo ? serializeLocationSummary(populatedTo) : null,
     quantity: normalizeStoredQuantity(doc.quantity),
     reason: doc.reason,
-    requestedBy: doc.populated('requestedBy') ? serializeUserSummary(doc.requestedBy) : doc.requestedBy,
+    requestedBy: isValuePopulated(doc.requestedBy)
+      ? serializeUserSummary(doc.requestedBy)
+      : extractReferenceId(doc.requestedBy),
     requestedAt: doc.requestedAt,
     status: doc.status,
-    approvedBy: doc.populated('approvedBy') ? serializeUserSummary(doc.approvedBy) : doc.approvedBy,
+    approvedBy: isValuePopulated(doc.approvedBy)
+      ? serializeUserSummary(doc.approvedBy)
+      : extractReferenceId(doc.approvedBy),
     approvedAt: doc.approvedAt,
     executedAt: doc.executedAt,
     rejectedReason: doc.rejectedReason
