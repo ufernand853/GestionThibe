@@ -15,6 +15,7 @@ const {
 } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { parseDateBoundary } = require('../utils/dateRange');
+const { collectGroupAndDescendantIds } = require('../services/groupService');
 
 function escapeRegex(value) {
   return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
@@ -145,7 +146,11 @@ router.get(
     const filter = {};
     const normalizedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
     if (normalizedGroupId) {
-      filter.group = normalizedGroupId;
+      const groupIds = await collectGroupAndDescendantIds(normalizedGroupId);
+      if (groupIds.length === 0) {
+        return res.json([]);
+      }
+      filter.group = { $in: groupIds };
     }
 
     const attributeFilters = {};
