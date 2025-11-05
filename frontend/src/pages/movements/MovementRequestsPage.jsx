@@ -48,6 +48,7 @@ export default function MovementRequestsPage() {
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [itemFilter, setItemFilter] = useState('');
   const [dateFilters, setDateFilters] = useState({ from: '', to: '' });
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
   const [resubmittingId, setResubmittingId] = useState(null);
@@ -76,11 +77,14 @@ export default function MovementRequestsPage() {
     if (dateFilters.to) {
       query.to = dateFilters.to;
     }
+    if (itemFilter) {
+      query.itemId = itemFilter;
+    }
     const response = await api.get('/stock/requests', {
       query: Object.keys(query).length > 0 ? query : undefined
     });
     return Array.isArray(response) ? response : [];
-  }, [api, dateFilters.from, dateFilters.to, statusFilter, typeFilter]);
+  }, [api, dateFilters.from, dateFilters.to, itemFilter, statusFilter, typeFilter]);
 
   const refreshPendingSnapshot = useCallback(async () => {
     if (!canRequest) {
@@ -119,15 +123,32 @@ export default function MovementRequestsPage() {
         );
       } catch (err) {
         console.warn('No se pudieron cargar recursos de apoyo', err);
+        if (!active) return;
+        setItems([]);
+        setAllLocations([]);
+        setLocations([]);
       }
     };
     if (canRequest) {
       loadMetadata();
+    } else {
+      setItems([]);
+      setAllLocations([]);
+      setLocations([]);
     }
     return () => {
       active = false;
     };
   }, [api, canRequest]);
+
+  useEffect(() => {
+    if (!itemFilter) {
+      return;
+    }
+    if (!Array.isArray(items) || !items.some(item => item.id === itemFilter)) {
+      setItemFilter('');
+    }
+  }, [itemFilter, items]);
 
   const originOptions = useMemo(() => {
     const priorityMap = new Map(
@@ -166,6 +187,17 @@ export default function MovementRequestsPage() {
     () => (formValues.itemId ? items.find(item => item.id === formValues.itemId) : null),
     [formValues.itemId, items]
   );
+
+  const sortedItems = useMemo(() => {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+    return [...items].sort((a, b) => {
+      const codeA = String(a.code || '');
+      const codeB = String(b.code || '');
+      return codeA.localeCompare(codeB, 'es', { sensitivity: 'base', numeric: true });
+    });
+  }, [items]);
 
   const currentMovementType = useMemo(() => {
     if (!formValues.fromLocation || !formValues.toLocation) {
@@ -395,7 +427,7 @@ export default function MovementRequestsPage() {
             <label htmlFor="itemId">Artículo *</label>
             <select id="itemId" name="itemId" value={formValues.itemId} onChange={handleFormChange} required>
               <option value="">Seleccione artículo</option>
-              {items.map(item => (
+              {sortedItems.map(item => (
                 <option key={item.id} value={item.id}>
                   {item.code} · {item.description}
                 </option>
@@ -523,6 +555,17 @@ export default function MovementRequestsPage() {
                 {MOVEMENT_TYPE_OPTIONS.map(option => (
                   <option key={option.value || 'all'} value={option.value}>
                     {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="input-group" style={{ minWidth: '220px' }}>
+              <label htmlFor="itemFilter">Artículo</label>
+              <select id="itemFilter" value={itemFilter} onChange={event => setItemFilter(event.target.value)}>
+                <option value="">Todos</option>
+                {sortedItems.map(item => (
+                  <option key={item.id} value={item.id}>
+                    {item.code} · {item.description}
                   </option>
                 ))}
               </select>

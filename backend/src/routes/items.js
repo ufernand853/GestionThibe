@@ -281,6 +281,21 @@ function normalizeOptionalObjectId(value) {
   return value;
 }
 
+function escapeRegex(value) {
+  return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
+function buildCaseInsensitiveExactFilter(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return new RegExp(`^${escapeRegex(trimmed)}$`, 'i');
+}
+
 const router = express.Router();
 
 router.get(
@@ -291,13 +306,17 @@ router.get(
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
     const filter = {};
-    if (groupId) {
-      filter.group = groupId;
+    const normalizedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
+    if (normalizedGroupId) {
+      filter.group = normalizedGroupId;
     }
     const attributeFilters = {};
-    if (gender) attributeFilters['attributes.gender'] = gender;
-    if (size) attributeFilters['attributes.size'] = size;
-    if (color) attributeFilters['attributes.color'] = color;
+    const genderFilter = buildCaseInsensitiveExactFilter(gender);
+    if (genderFilter) attributeFilters['attributes.gender'] = genderFilter;
+    const sizeFilter = buildCaseInsensitiveExactFilter(size);
+    if (sizeFilter) attributeFilters['attributes.size'] = sizeFilter;
+    const colorFilter = buildCaseInsensitiveExactFilter(color);
+    if (colorFilter) attributeFilters['attributes.color'] = colorFilter;
     Object.assign(filter, attributeFilters);
     if (search) {
       const regex = new RegExp(search, 'i');
