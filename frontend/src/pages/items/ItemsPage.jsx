@@ -56,6 +56,50 @@ const ATTRIBUTE_KEYS = ATTRIBUTE_FIELDS.map(field => field.key);
 const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
+const GENDER_FILTER_OPTIONS = ['Caballero', 'Dama', 'Niños', 'Unisex'];
+const COLOR_FILTER_OPTIONS = [
+  'Arena',
+  'Azul cielo',
+  'Azul marino',
+  'Azul oscuro',
+  'Azul índigo',
+  'Blanco',
+  'Bordó',
+  'Celeste',
+  'Estampado floral',
+  'Gris',
+  'Gris vigoré',
+  'Gris/Coral',
+  'Lila',
+  'Marrón',
+  'Multicolor',
+  'Negro',
+  'Negro y nude',
+  'Surtido',
+  'Verde jade'
+];
+const SIZE_FILTER_OPTIONS = [
+  '180x30 cm',
+  '2 plazas',
+  '24-34',
+  '30-44',
+  '35-45',
+  '35L',
+  '36-44',
+  '36-45',
+  '38-48',
+  '4-16',
+  '6-14',
+  '6-16',
+  '90-110',
+  'Mediana',
+  'Queen',
+  'S-L',
+  'S-XL',
+  'S-XXL',
+  'Único'
+];
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -804,39 +848,57 @@ export default function ItemsPage() {
           </div>
           <div className="input-group">
             <label htmlFor="filterGender">Género</label>
-            <input
+            <select
               id="filterGender"
               value={filters.gender}
               onChange={event => {
                 setFilters(prev => ({ ...prev, gender: event.target.value }));
                 setPage(1);
               }}
-              placeholder="Dama, Caballero..."
-            />
+            >
+              <option value="">Todos</option>
+              {GENDER_FILTER_OPTIONS.map(option => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="input-group">
             <label htmlFor="filterSize">Talle</label>
-            <input
+            <select
               id="filterSize"
               value={filters.size}
               onChange={event => {
                 setFilters(prev => ({ ...prev, size: event.target.value }));
                 setPage(1);
               }}
-              placeholder="S, M, 36..."
-            />
+            >
+              <option value="">Todos</option>
+              {SIZE_FILTER_OPTIONS.map(option => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="input-group">
             <label htmlFor="filterColor">Color</label>
-            <input
+            <select
               id="filterColor"
               value={filters.color}
               onChange={event => {
                 setFilters(prev => ({ ...prev, color: event.target.value }));
                 setPage(1);
               }}
-              placeholder="Rojo, Azul..."
-            />
+            >
+              <option value="">Todos</option>
+              {COLOR_FILTER_OPTIONS.map(option => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
         </form>
 
