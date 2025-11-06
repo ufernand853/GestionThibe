@@ -10,6 +10,7 @@ const Item = require('../models/Item');
 const Group = require('../models/Group');
 const { normalizeQuantityInput } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
+const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
 
 const { promises: fsPromises } = fs;
 
@@ -308,7 +309,12 @@ router.get(
     const filter = {};
     const normalizedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
     if (normalizedGroupId) {
-      filter.group = normalizedGroupId;
+      const groupIds = await collectGroupAndDescendantIds(normalizedGroupId);
+      const groupFilterValues = buildGroupFilterValues(groupIds);
+      if (groupFilterValues.length === 0) {
+        return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
+      }
+      filter.group = { $in: groupFilterValues };
     }
     const attributeFilters = {};
     const genderFilter = buildCaseInsensitiveExactFilter(gender);
