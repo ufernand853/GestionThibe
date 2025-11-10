@@ -11,7 +11,8 @@ const itemSchema = new Schema(
     attributes: { type: Map, of: String, default: {} },
     stock: { type: Map, of: quantitySubSchema, default: () => ({}) },
     images: { type: [String], default: [] },
-    needsRecount: { type: Boolean, default: false }
+    needsRecount: { type: Boolean, default: false },
+    pDecimal: { type: Number, default: null }
   },
   {
     timestamps: true,
