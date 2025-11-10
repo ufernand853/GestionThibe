@@ -9,6 +9,7 @@ export default function UsersPage() {
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const isOperator = user?.role === 'Operador';
+  const isAdmin = user?.role === 'Administrador';
   const canRead = permissions.includes('users.read') && !isOperator;
   const canWrite = permissions.includes('users.write') && !isOperator;
 
@@ -118,9 +119,30 @@ export default function UsersPage() {
       return;
     }
     try {
+      setError(null);
+      setSuccessMessage('');
       await api.delete(`/users/${userId}`);
       setUsers(prev => prev.map(current => (current.id === userId ? { ...current, status: 'disabled' } : current)));
       setSuccessMessage('Usuario deshabilitado.');
+    } catch (err) {
+      setError(err);
+    }
+  };
+
+  const handleDelete = async userId => {
+    if (!canWrite || !isAdmin) return;
+    if (!window.confirm('¿Seguro desea eliminar este usuario de forma permanente?')) {
+      return;
+    }
+    try {
+      setError(null);
+      setSuccessMessage('');
+      await api.delete(`/users/${userId}/permanent`);
+      setUsers(prev => prev.filter(current => current.id !== userId));
+      if (selectedUser?.id === userId) {
+        resetForm();
+      }
+      setSuccessMessage('Usuario eliminado.');
     } catch (err) {
       setError(err);
     }
@@ -185,6 +207,15 @@ export default function UsersPage() {
                         <button type="button" className="secondary-button" onClick={() => handleEdit(current)}>
                           Editar
                         </button>
+                        {isAdmin && current.id !== user?.id && (
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => handleDelete(current.id)}
+                          >
+                            Eliminar
+                          </button>
+                        )}
                         {current.status !== 'disabled' && (
                           <button type="button" onClick={() => handleDisable(current.id)}>
                             Deshabilitar

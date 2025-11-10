@@ -71,6 +71,8 @@ export default function InventoryAlertsPage() {
   const [error, setError] = useState(null);
   const [itemsSnapshot, setItemsSnapshot] = useState([]);
   const [activeSection, setActiveSection] = useState('all');
+  const [recountSearch, setRecountSearch] = useState('');
+  const [outOfStockSearch, setOutOfStockSearch] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -85,11 +87,38 @@ export default function InventoryAlertsPage() {
       setLoading(true);
       setError(null);
       try {
-        const response = await api.get('/items', { query: { page: 1, pageSize: 1000 } });
-        if (!active) {
-          return;
+        const collectedItems = [];
+        const seenIds = new Set();
+        let pageNumber = 1;
+        const pageSize = 200;
+        let totalItems = null;
+        while (true) {
+          const response = await api.get('/items', { query: { page: pageNumber, pageSize } });
+          if (!active) {
+            return;
+          }
+          const pageItems = Array.isArray(response?.items) ? response.items : [];
+          pageItems.forEach(item => {
+            const id = item?.id;
+            if (id && !seenIds.has(id)) {
+              seenIds.add(id);
+              collectedItems.push(item);
+            }
+          });
+          const responseTotal = Number(response?.total);
+          if (Number.isFinite(responseTotal) && responseTotal >= 0) {
+            totalItems = responseTotal;
+          }
+          const effectivePageSize = Number(response?.pageSize) || pageSize;
+          if (pageItems.length < effectivePageSize) {
+            break;
+          }
+          if (totalItems !== null && collectedItems.length >= totalItems) {
+            break;
+          }
+          pageNumber += 1;
         }
-        setItemsSnapshot(Array.isArray(response?.items) ? response.items : []);
+        setItemsSnapshot(collectedItems);
       } catch (err) {
         if (!active) {
           return;
@@ -142,6 +171,28 @@ export default function InventoryAlertsPage() {
     [itemSummaries]
   );
 
+  const filteredRecountItems = useMemo(() => {
+    const query = recountSearch.trim().toLowerCase();
+    if (!query) {
+      return recountItems;
+    }
+    return recountItems.filter(item => {
+      const candidates = [item.code, item.description, item.group?.name];
+      return candidates.some(value => typeof value === 'string' && value.toLowerCase().includes(query));
+    });
+  }, [recountItems, recountSearch]);
+
+  const filteredOutOfStockItems = useMemo(() => {
+    const query = outOfStockSearch.trim().toLowerCase();
+    if (!query) {
+      return outOfStockItems;
+    }
+    return outOfStockItems.filter(item => {
+      const candidates = [item.code, item.description, item.group?.name];
+      return candidates.some(value => typeof value === 'string' && value.toLowerCase().includes(query));
+    });
+  }, [outOfStockItems, outOfStockSearch]);
+
   if (!canViewCatalog) {
     return (
       <div className="inventory-alerts-page">
@@ -183,32 +234,67 @@ export default function InventoryAlertsPage() {
                   No hay artículos pendientes de recuento.
                 </p>
               ) : (
-                <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Código</th>
-                        <th>Descripción</th>
-                        <th>Grupo</th>
-                        <th>Stock</th>
-                        <th>Motivo</th>
-                        <th>Última actualización</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recountItems.map(item => (
-                        <tr key={item.id}>
-                          <td>{item.code}</td>
-                          <td>{item.description}</td>
-                          <td>{item.group?.name || 'Sin grupo'}</td>
-                          <td>{formatQuantity(item.total)}</td>
-                          <td>{formatRecountReasons(item)}</td>
-                          <td>{formatUpdatedAt(item.updatedAt)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      marginTop: '1rem'
+                    }}
+                  >
+                    <div style={{ color: '#64748b', fontSize: '0.85rem' }}>
+                      Coincidencias: {filteredRecountItems.length} de {recountItems.length}
+                    </div>
+                    <input
+                      type="search"
+                      placeholder="Buscar por código, descripción o grupo"
+                      value={recountSearch}
+                      onChange={event => setRecountSearch(event.target.value)}
+                      style={{
+                        flex: '1 1 220px',
+                        minWidth: '200px',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #cbd5f5'
+                      }}
+                    />
+                  </div>
+                  {filteredRecountItems.length === 0 ? (
+                    <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '1rem' }}>
+                      No hay resultados que coincidan con la búsqueda actual.
+                    </p>
+                  ) : (
+                    <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Código</th>
+                            <th>Descripción</th>
+                            <th>Grupo</th>
+                            <th>Stock</th>
+                            <th>Motivo</th>
+                            <th>Última actualización</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRecountItems.map(item => (
+                            <tr key={item.id}>
+                              <td>{item.code}</td>
+                              <td>{item.description}</td>
+                              <td>{item.group?.name || 'Sin grupo'}</td>
+                              <td>{formatQuantity(item.total)}</td>
+                              <td>{formatRecountReasons(item)}</td>
+                              <td>{formatUpdatedAt(item.updatedAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
             </section>
           )}
@@ -229,30 +315,65 @@ export default function InventoryAlertsPage() {
                   No hay artículos agotados en este momento.
                 </p>
               ) : (
-                <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Código</th>
-                        <th>Descripción</th>
-                        <th>Grupo</th>
-                        <th>Stock</th>
-                        <th>Última actualización</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {outOfStockItems.map(item => (
-                        <tr key={item.id}>
-                          <td>{item.code}</td>
-                          <td>{item.description}</td>
-                          <td>{item.group?.name || 'Sin grupo'}</td>
-                          <td>{formatQuantity(item.total)}</td>
-                          <td>{formatUpdatedAt(item.updatedAt)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      marginTop: '1rem'
+                    }}
+                  >
+                    <div style={{ color: '#64748b', fontSize: '0.85rem' }}>
+                      Coincidencias: {filteredOutOfStockItems.length} de {outOfStockItems.length}
+                    </div>
+                    <input
+                      type="search"
+                      placeholder="Buscar por código, descripción o grupo"
+                      value={outOfStockSearch}
+                      onChange={event => setOutOfStockSearch(event.target.value)}
+                      style={{
+                        flex: '1 1 220px',
+                        minWidth: '200px',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #cbd5f5'
+                      }}
+                    />
+                  </div>
+                  {filteredOutOfStockItems.length === 0 ? (
+                    <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '1rem' }}>
+                      No hay resultados que coincidan con la búsqueda actual.
+                    </p>
+                  ) : (
+                    <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Código</th>
+                            <th>Descripción</th>
+                            <th>Grupo</th>
+                            <th>Stock</th>
+                            <th>Última actualización</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredOutOfStockItems.map(item => (
+                            <tr key={item.id}>
+                              <td>{item.code}</td>
+                              <td>{item.description}</td>
+                              <td>{item.group?.name || 'Sin grupo'}</td>
+                              <td>{formatQuantity(item.total)}</td>
+                              <td>{formatUpdatedAt(item.updatedAt)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
               )}
             </section>
           )}

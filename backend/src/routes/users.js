@@ -113,6 +113,26 @@ router.put(
 );
 
 router.delete(
+  '/:id/permanent',
+  requirePermission('users.write'),
+  asyncHandler(async (req, res) => {
+    if (req.user?.role !== 'Administrador') {
+      throw new HttpError(403, 'Solo un administrador puede eliminar usuarios');
+    }
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) {
+      throw new HttpError(404, 'Usuario no encontrado');
+    }
+    if (req.user?.id && String(req.user.id) === String(user.id)) {
+      throw new HttpError(400, 'No puede eliminar su propia cuenta');
+    }
+    await user.deleteOne();
+    res.status(204).send();
+  })
+);
+
+router.delete(
   '/:id',
   requirePermission('users.write'),
   asyncHandler(async (req, res) => {

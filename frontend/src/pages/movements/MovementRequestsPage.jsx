@@ -52,6 +52,7 @@ export default function MovementRequestsPage() {
   const [dateFilters, setDateFilters] = useState({ from: '', to: '' });
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
   const [resubmittingId, setResubmittingId] = useState(null);
+  const [itemSearchTerm, setItemSearchTerm] = useState('');
   const [formValues, setFormValues] = useState({
     itemId: '',
     fromLocation: '',
@@ -202,6 +203,25 @@ export default function MovementRequestsPage() {
       return codeA.localeCompare(codeB, 'es', { sensitivity: 'base', numeric: true });
     });
   }, [items]);
+
+  const filteredItems = useMemo(() => {
+    const query = itemSearchTerm.trim().toLowerCase();
+    let base = sortedItems;
+    if (query) {
+      base = sortedItems.filter(item => {
+        const code = String(item.code || '').toLowerCase();
+        const description = String(item.description || '').toLowerCase();
+        return code.includes(query) || description.includes(query);
+      });
+    }
+    if (formValues.itemId) {
+      const selected = sortedItems.find(item => item.id === formValues.itemId);
+      if (selected && !base.some(item => item.id === selected.id)) {
+        return [selected, ...base];
+      }
+    }
+    return base;
+  }, [formValues.itemId, itemSearchTerm, sortedItems]);
 
   const currentMovementType = useMemo(() => {
     if (!formValues.fromLocation || !formValues.toLocation) {
@@ -429,14 +449,28 @@ export default function MovementRequestsPage() {
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }} onSubmit={handleSubmit}>
           <div className="input-group">
             <label htmlFor="itemId">Artículo *</label>
+            <input
+              id="itemSearch"
+              type="search"
+              placeholder="Buscar por código o descripción"
+              value={itemSearchTerm}
+              onChange={event => setItemSearchTerm(event.target.value)}
+              aria-label="Buscar artículo"
+              style={{ marginBottom: '0.5rem' }}
+            />
             <select id="itemId" name="itemId" value={formValues.itemId} onChange={handleFormChange} required>
               <option value="">Seleccione artículo</option>
-              {sortedItems.map(item => (
+              {filteredItems.map(item => (
                 <option key={item.id} value={item.id}>
                   {item.code} · {item.description}
                 </option>
               ))}
             </select>
+            {itemSearchTerm.trim() && filteredItems.length === 0 && (
+              <p style={{ color: '#64748b', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                No hay artículos que coincidan con la búsqueda.
+              </p>
+            )}
           </div>
           {formValues.itemId && (
             <div className="input-group" style={{ gridColumn: '1 / -1' }}>

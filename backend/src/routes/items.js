@@ -205,6 +205,40 @@ function normalizeBooleanFlag(value, { fieldName = 'Flag', defaultValue } = {}) 
   throw new HttpError(400, `${fieldName} inválido`);
 }
 
+function normalizeDecimalField(value, { fieldName = 'Valor', allowNull = true, defaultValue } = {}) {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  if (value === null) {
+    if (allowNull) {
+      return null;
+    }
+    throw new HttpError(400, `${fieldName} inválido`);
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new HttpError(400, `${fieldName} inválido`);
+    }
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      if (allowNull) {
+        return null;
+      }
+      throw new HttpError(400, `${fieldName} inválido`);
+    }
+    const normalized = trimmed.replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+    if (!Number.isFinite(parsed)) {
+      throw new HttpError(400, `${fieldName} inválido`);
+    }
+    return parsed;
+  }
+  throw new HttpError(400, `${fieldName} inválido`);
+}
+
 function toPlainAttributes(attributes) {
   if (!attributes) return {};
   if (attributes instanceof Map) {
@@ -248,6 +282,7 @@ function serializeItem(doc) {
     stock: toPlainStock(doc.stock),
     images: Array.isArray(doc.images) ? doc.images : [],
     needsRecount: Boolean(doc.needsRecount),
+    pDecimal: doc.pDecimal !== undefined && doc.pDecimal !== null ? Number(doc.pDecimal) : null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt
   };

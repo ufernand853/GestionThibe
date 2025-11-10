@@ -398,6 +398,13 @@ export default function ItemsPage() {
       stock,
       images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
     };
+    const pDecimalValue = typeof formValues.pDecimal === 'string' ? formValues.pDecimal.trim() : '';
+    if (pDecimalValue) {
+      payload.pDecimal = pDecimalValue;
+    } else if (editingItem) {
+      payload.pDecimal = null;
+    }
+    return payload;
   };
 
   const handleImageSelect = async event => {
@@ -658,6 +665,18 @@ export default function ItemsPage() {
                     );
                   })}
                 </select>
+              </div>
+              <div className="input-group">
+                <label htmlFor="pDecimal">P Decimal</label>
+                <input
+                  id="pDecimal"
+                  name="pDecimal"
+                  type="number"
+                  step="0.01"
+                  value={formValues.pDecimal}
+                  onChange={handleFormChange}
+                  placeholder="Valor decimal"
+                />
               </div>
               <div className="input-group">
                 <label htmlFor="needsRecount">Recuento manual</label>
@@ -953,6 +972,7 @@ export default function ItemsPage() {
                   <th>Código</th>
                   <th>Descripción</th>
                   <th>Grupo</th>
+                  <th>P Decimal</th>
                   <th>Atributos</th>
                   <th>Unidades por caja</th>
                   <th>Imágenes</th>
@@ -972,6 +992,14 @@ export default function ItemsPage() {
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{item.group?.name || 'Sin grupo'}</td>
+                    <td>
+                      {item.pDecimal === null || item.pDecimal === undefined
+                        ? '-'
+                        : Number(item.pDecimal).toLocaleString('es-AR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                    </td>
                     <td>
                       <div className="chip-list">
                         {Object.entries(item.attributes || {}).map(([key, value]) => (
