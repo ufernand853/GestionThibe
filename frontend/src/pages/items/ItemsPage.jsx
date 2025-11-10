@@ -57,7 +57,7 @@ const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 const GENDER_FILTER_OPTIONS = ['Caballero', 'Dama', 'Niños', 'Unisex'];
-const COLOR_FILTER_OPTIONS = [
+const DEFAULT_COLOR_FILTER_OPTIONS = [
   'Arena',
   'Azul cielo',
   'Azul marino',
@@ -78,7 +78,7 @@ const COLOR_FILTER_OPTIONS = [
   'Surtido',
   'Verde jade'
 ];
-const SIZE_FILTER_OPTIONS = [
+const DEFAULT_SIZE_FILTER_OPTIONS = [
   '180x30 cm',
   '2 plazas',
   '24-34',
@@ -99,6 +99,54 @@ const SIZE_FILTER_OPTIONS = [
   'S-XXL',
   'Único'
 ];
+
+function normalizeAttributeValue(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  return trimmed;
+}
+
+function extractAttributeValues(items, attributeKey) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  const seen = new Set();
+  const values = [];
+  items.forEach(item => {
+    const raw = item?.attributes?.[attributeKey];
+    const normalized = normalizeAttributeValue(raw);
+    if (!normalized) {
+      return;
+    }
+    const key = normalized.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      values.push(normalized);
+    }
+  });
+  return values;
+}
+
+function mergeAttributeOptions(currentOptions = [], discoveredValues = []) {
+  const registry = new Map();
+  const register = value => {
+    const normalized = normalizeAttributeValue(value);
+    if (!normalized) {
+      return;
+    }
+    const key = normalized.toLowerCase();
+    if (!registry.has(key)) {
+      registry.set(key, normalized);
+    }
+  };
+
+  currentOptions.forEach(register);
+  discoveredValues.forEach(register);
+
+  return Array.from(registry.values());
+}
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -130,6 +178,8 @@ export default function ItemsPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
+  const [sizeFilterOptions, setSizeFilterOptions] = useState(DEFAULT_SIZE_FILTER_OPTIONS);
+  const [colorFilterOptions, setColorFilterOptions] = useState(DEFAULT_COLOR_FILTER_OPTIONS);
   const [groups, setGroups] = useState([]);
   const [locations, setLocations] = useState([]);
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
@@ -154,6 +204,13 @@ export default function ItemsPage() {
   const [existingImages, setExistingImages] = useState([]);
   const [imageError, setImageError] = useState('');
   const [editingItem, setEditingItem] = useState(null);
+
+  const updateAttributeOptionsFromItems = useCallback(itemsList => {
+    const sizeValues = extractAttributeValues(itemsList, 'size');
+    const colorValues = extractAttributeValues(itemsList, 'color');
+    setSizeFilterOptions(prev => mergeAttributeOptions(prev, sizeValues));
+    setColorFilterOptions(prev => mergeAttributeOptions(prev, colorValues));
+  }, []);
 
   const getGroupId = useCallback(group => {
     const rawId = group?.id ?? group?._id;
@@ -239,8 +296,10 @@ export default function ItemsPage() {
         };
         const response = await api.get('/items', { query });
         if (!active) return;
-        setItems(response.items || []);
+        const nextItems = Array.isArray(response.items) ? response.items : [];
+        setItems(nextItems);
         setTotal(response.total || 0);
+        updateAttributeOptionsFromItems(nextItems);
       } catch (err) {
         if (active) {
           setError(err);
@@ -255,7 +314,17 @@ export default function ItemsPage() {
     return () => {
       active = false;
     };
-  }, [api, filters.color, filters.gender, filters.groupId, filters.search, filters.size, page, pageSize]);
+  }, [
+    api,
+    filters.color,
+    filters.gender,
+    filters.groupId,
+    filters.search,
+    filters.size,
+    page,
+    pageSize,
+    updateAttributeOptionsFromItems
+  ]);
 
   const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
 
@@ -509,8 +578,10 @@ export default function ItemsPage() {
       const refreshed = await api.get('/items', {
         query: { ...filters, page: 1, pageSize }
       });
-      setItems(refreshed.items || []);
+      const nextItems = Array.isArray(refreshed.items) ? refreshed.items : [];
+      setItems(nextItems);
       setTotal(refreshed.total || 0);
+      updateAttributeOptionsFromItems(nextItems);
     } catch (err) {
       setError(err);
     } finally {
@@ -591,6 +662,7 @@ export default function ItemsPage() {
 
       setItems(nextItems);
       setTotal(nextTotal);
+      updateAttributeOptionsFromItems(nextItems);
     } catch (err) {
       setError(err);
     } finally {
@@ -935,7 +1007,7 @@ export default function ItemsPage() {
               }}
             >
               <option value="">Todos</option>
-              {SIZE_FILTER_OPTIONS.map(option => (
+              {sizeFilterOptions.map(option => (
                 <option key={option} value={option}>
                   {option}
                 </option>
@@ -953,7 +1025,7 @@ export default function ItemsPage() {
               }}
             >
               <option value="">Todos</option>
-              {COLOR_FILTER_OPTIONS.map(option => (
+              {colorFilterOptions.map(option => (
                 <option key={option} value={option}>
                   {option}
                 </option>
