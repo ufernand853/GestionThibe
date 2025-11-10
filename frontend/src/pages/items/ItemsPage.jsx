@@ -190,6 +190,7 @@ export default function ItemsPage() {
     groupId: '',
     needsRecount: false,
     unitsPerBox: '',
+    precio: '',
     gender: '',
     size: '',
     color: '',
@@ -354,6 +355,7 @@ export default function ItemsPage() {
       groupId: '',
       needsRecount: false,
       unitsPerBox: '',
+      precio: '',
       gender: '',
       size: '',
       color: '',
@@ -458,7 +460,7 @@ export default function ItemsPage() {
       unitsPerBoxPayload = null;
     }
 
-    return {
+    const payload = {
       description: formValues.description,
       groupId: formValues.groupId || null,
       needsRecount: Boolean(formValues.needsRecount),
@@ -467,10 +469,12 @@ export default function ItemsPage() {
       stock,
       images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
     };
-    const pDecimalValue = typeof formValues.pDecimal === 'string' ? formValues.pDecimal.trim() : '';
-    if (pDecimalValue) {
-      payload.pDecimal = pDecimalValue;
+    const precioValue = typeof formValues.precio === 'string' ? formValues.precio.trim() : '';
+    if (precioValue) {
+      payload.precio = precioValue;
+      payload.pDecimal = precioValue;
     } else if (editingItem) {
+      payload.precio = null;
       payload.pDecimal = null;
     }
     return payload;
@@ -604,6 +608,13 @@ export default function ItemsPage() {
       };
     });
 
+    const precioBase =
+      item.precio !== null && item.precio !== undefined
+        ? item.precio
+        : item.pDecimal !== null && item.pDecimal !== undefined
+          ? item.pDecimal
+          : null;
+
     setFormValues({
       code: item.code,
       description: item.description,
@@ -611,6 +622,7 @@ export default function ItemsPage() {
       needsRecount: Boolean(item.needsRecount),
       unitsPerBox:
         item.unitsPerBox === null || item.unitsPerBox === undefined ? '' : String(item.unitsPerBox),
+      precio: precioBase === null ? '' : Number(precioBase).toFixed(2),
       gender: item.attributes?.gender || '',
       size: item.attributes?.size || '',
       color: item.attributes?.color || '',
@@ -739,15 +751,16 @@ export default function ItemsPage() {
                 </select>
               </div>
               <div className="input-group">
-                <label htmlFor="pDecimal">P Decimal</label>
+                <label htmlFor="precio">Precio</label>
                 <input
-                  id="pDecimal"
-                  name="pDecimal"
+                  id="precio"
+                  name="precio"
                   type="number"
+                  min="0"
                   step="0.01"
-                  value={formValues.pDecimal}
+                  value={formValues.precio}
                   onChange={handleFormChange}
-                  placeholder="Valor decimal"
+                  placeholder="Precio unitario"
                 />
               </div>
               <div className="input-group">
@@ -1044,7 +1057,7 @@ export default function ItemsPage() {
                   <th>Código</th>
                   <th>Descripción</th>
                   <th>Grupo</th>
-                  <th>P Decimal</th>
+                  <th>Precio</th>
                   <th>Atributos</th>
                   <th>Unidades por caja</th>
                   <th>Imágenes</th>
@@ -1059,15 +1072,21 @@ export default function ItemsPage() {
                 {items.map(item => {
                   const totalQuantity = itemTotals.get(item.id) || { boxes: 0, units: 0 };
                   const stockStatus = itemStatusMap.get(item.id);
+                  const precioBase =
+                    item.precio !== null && item.precio !== undefined
+                      ? item.precio
+                      : item.pDecimal !== null && item.pDecimal !== undefined
+                        ? item.pDecimal
+                        : null;
                   return (
                     <tr key={item.id}>
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{item.group?.name || 'Sin grupo'}</td>
                     <td>
-                      {item.pDecimal === null || item.pDecimal === undefined
+                      {precioBase === null
                         ? '-'
-                        : Number(item.pDecimal).toLocaleString('es-AR', {
+                        : Number(precioBase).toLocaleString('es-AR', {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2
                           })}

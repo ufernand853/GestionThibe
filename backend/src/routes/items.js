@@ -268,6 +268,30 @@ function normalizeUnitsPerBox(value, { fieldName = 'unitsPerBox' } = {}) {
   return numeric;
 }
 
+function normalizePrecio(value, { fieldName = 'precio' } = {}) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    value = trimmed.replace(',', '.');
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    throw new HttpError(400, `${fieldName} debe ser un número válido`);
+  }
+  if (numeric < 0) {
+    throw new HttpError(400, `${fieldName} debe ser un número mayor o igual a 0`);
+  }
+  return Math.round(numeric * 100) / 100;
+}
+
 function serializeItem(doc) {
   const group = doc.group;
   return {
@@ -282,7 +306,8 @@ function serializeItem(doc) {
     stock: toPlainStock(doc.stock),
     images: Array.isArray(doc.images) ? doc.images : [],
     needsRecount: Boolean(doc.needsRecount),
-    pDecimal: doc.pDecimal !== undefined && doc.pDecimal !== null ? Number(doc.pDecimal) : null,
+    pDecimal: doc.pDecimal === undefined || doc.pDecimal === null ? null : Number(doc.pDecimal),
+    precio: doc.pDecimal !== undefined && doc.pDecimal !== null ? Number(doc.pDecimal) : null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt
   };
@@ -416,7 +441,9 @@ router.post(
       stock = {},
       images = [],
       needsRecount,
-      unitsPerBox
+      unitsPerBox,
+      precio,
+      pDecimal
     } = payload;
     if (!code || !description) {
       throw new HttpError(400, 'code y description son obligatorios');
@@ -449,6 +476,8 @@ router.post(
       defaultValue: false
     });
     const normalizedUnitsPerBox = normalizeUnitsPerBox(unitsPerBox, { fieldName: 'unitsPerBox' });
+    const precioInput = Object.prototype.hasOwnProperty.call(payload, 'precio') ? precio : pDecimal;
+    const normalizedPrecio = normalizePrecio(precioInput, { fieldName: 'precio' });
     let item;
     try {
       const itemData = {
@@ -462,6 +491,9 @@ router.post(
       };
       if (normalizedUnitsPerBox !== undefined) {
         itemData.unitsPerBox = normalizedUnitsPerBox;
+      }
+      if (normalizedPrecio !== undefined) {
+        itemData.pDecimal = normalizedPrecio;
       }
       item = await Item.create(itemData);
     } catch (error) {
@@ -499,7 +531,9 @@ router.put(
       images,
       imagesToKeep,
       needsRecount,
-      unitsPerBox
+      unitsPerBox,
+      precio,
+      pDecimal
     } = payload || {};
     if (typeof description === 'string' && description && description !== item.description) {
       item.description = description;
@@ -585,6 +619,24 @@ router.put(
         }
       } else if (item.unitsPerBox !== normalizedUnitsPerBox) {
         item.unitsPerBox = normalizedUnitsPerBox;
+      }
+    }
+
+    const precioWasProvided =
+      payload &&
+      (Object.prototype.hasOwnProperty.call(payload, 'precio') ||
+        Object.prototype.hasOwnProperty.call(payload, 'pDecimal'));
+    if (precioWasProvided) {
+      const precioInput = Object.prototype.hasOwnProperty.call(payload, 'precio') ? precio : pDecimal;
+      const normalizedPrecio = normalizePrecio(precioInput, { fieldName: 'precio' });
+      if (normalizedPrecio === undefined) {
+        // noop
+      } else if (normalizedPrecio === null) {
+        if (item.pDecimal !== null && item.pDecimal !== undefined) {
+          item.pDecimal = null;
+        }
+      } else if (item.pDecimal !== normalizedPrecio) {
+        item.pDecimal = normalizedPrecio;
       }
     }
 
