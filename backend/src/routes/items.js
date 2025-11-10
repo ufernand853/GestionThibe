@@ -213,6 +213,27 @@ function toPlainAttributes(attributes) {
   return attributes;
 }
 
+function normalizeUnitsPerBox(value, { fieldName = 'unitsPerBox' } = {}) {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    value = trimmed;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0 || !Number.isInteger(numeric)) {
+    throw new HttpError(400, `${fieldName} debe ser un número entero mayor o igual a 0`);
+  }
+  return numeric;
+}
+
 function serializeItem(doc) {
   const group = doc.group;
   return {
@@ -222,6 +243,8 @@ function serializeItem(doc) {
     groupId: group ? group.id : doc.group,
     group: group ? { id: group.id, name: group.name } : null,
     attributes: toPlainAttributes(doc.attributes),
+    unitsPerBox:
+      doc.unitsPerBox === undefined || doc.unitsPerBox === null ? null : Number(doc.unitsPerBox),
     stock: toPlainStock(doc.stock),
     images: Array.isArray(doc.images) ? doc.images : [],
     needsRecount: Boolean(doc.needsRecount),
@@ -350,7 +373,16 @@ router.post(
   requirePermission('items.write'),
   asyncHandler(async (req, res) => {
     const payload = parseItemPayload(req);
-    const { code, description, groupId, attributes = {}, stock = {}, images = [], needsRecount } = payload;
+    const {
+      code,
+      description,
+      groupId,
+      attributes = {},
+      stock = {},
+      images = [],
+      needsRecount,
+      unitsPerBox
+    } = payload;
     if (!code || !description) {
       throw new HttpError(400, 'code y description son obligatorios');
     }
@@ -381,9 +413,10 @@ router.post(
       fieldName: 'needsRecount',
       defaultValue: false
     });
+    const normalizedUnitsPerBox = normalizeUnitsPerBox(unitsPerBox, { fieldName: 'unitsPerBox' });
     let item;
     try {
-      item = await Item.create({
+      const itemData = {
         code,
         description,
         group: group ? group.id : null,
@@ -391,7 +424,11 @@ router.post(
         stock: stockData,
         images: sanitizedImages,
         needsRecount: normalizedNeedsRecount
-      });
+      };
+      if (normalizedUnitsPerBox !== undefined) {
+        itemData.unitsPerBox = normalizedUnitsPerBox;
+      }
+      item = await Item.create(itemData);
     } catch (error) {
       await cleanupNewFiles(createdPaths);
       throw error;
@@ -419,7 +456,16 @@ router.put(
       throw new HttpError(404, 'Artículo no encontrado');
     }
     const payload = parseItemPayload(req);
-    const { description, groupId, attributes, stock, images, imagesToKeep, needsRecount } = payload || {};
+    const {
+      description,
+      groupId,
+      attributes,
+      stock,
+      images,
+      imagesToKeep,
+      needsRecount,
+      unitsPerBox
+    } = payload || {};
     if (typeof description === 'string' && description && description !== item.description) {
       item.description = description;
     }
@@ -491,6 +537,19 @@ router.put(
       });
       if (normalizedNeedsRecount !== item.needsRecount) {
         item.needsRecount = normalizedNeedsRecount;
+      }
+    }
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, 'unitsPerBox')) {
+      const normalizedUnitsPerBox = normalizeUnitsPerBox(unitsPerBox, { fieldName: 'unitsPerBox' });
+      if (normalizedUnitsPerBox === undefined) {
+        // do nothing
+      } else if (normalizedUnitsPerBox === null) {
+        if (item.unitsPerBox !== null && item.unitsPerBox !== undefined) {
+          item.unitsPerBox = null;
+        }
+      } else if (item.unitsPerBox !== normalizedUnitsPerBox) {
+        item.unitsPerBox = normalizedUnitsPerBox;
       }
     }
 

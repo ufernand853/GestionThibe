@@ -9,6 +9,12 @@ const itemSchema = new Schema(
     description: { type: String, required: true, trim: true },
     group: { type: Types.ObjectId, ref: 'Group', default: null },
     attributes: { type: Map, of: String, default: {} },
+    unitsPerBox: {
+      type: Number,
+      min: 0,
+      default: null,
+      set: value => (value === null || value === undefined ? value : Math.trunc(value))
+    },
     stock: { type: Map, of: quantitySubSchema, default: () => ({}) },
     images: { type: [String], default: [] },
     needsRecount: { type: Boolean, default: false }

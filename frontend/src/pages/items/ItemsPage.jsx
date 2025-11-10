@@ -139,6 +139,7 @@ export default function ItemsPage() {
     description: '',
     groupId: '',
     needsRecount: false,
+    unitsPerBox: '',
     gender: '',
     size: '',
     color: '',
@@ -283,6 +284,7 @@ export default function ItemsPage() {
       description: '',
       groupId: '',
       needsRecount: false,
+      unitsPerBox: '',
       gender: '',
       size: '',
       color: '',
@@ -298,6 +300,18 @@ export default function ItemsPage() {
 
   const handleFormChange = event => {
     const { name, type, checked, value } = event.target;
+    if (name === 'unitsPerBox') {
+      if (value === '') {
+        setFormValues(prev => ({ ...prev, [name]: '' }));
+        return;
+      }
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric < 0) {
+        return;
+      }
+      setFormValues(prev => ({ ...prev, [name]: String(Math.trunc(numeric)) }));
+      return;
+    }
     const nextValue = type === 'checkbox' ? checked : value;
     setFormValues(prev => ({ ...prev, [name]: nextValue }));
   };
@@ -365,10 +379,21 @@ export default function ItemsPage() {
         attributes[attribute] = null;
       }
     });
+    let unitsPerBoxPayload;
+    if (formValues.unitsPerBox !== '') {
+      const numeric = Number(formValues.unitsPerBox);
+      if (Number.isFinite(numeric) && numeric >= 0) {
+        unitsPerBoxPayload = Math.trunc(numeric);
+      }
+    } else if (editingItem && editingItem.unitsPerBox !== null && editingItem.unitsPerBox !== undefined) {
+      unitsPerBoxPayload = null;
+    }
+
     return {
       description: formValues.description,
       groupId: formValues.groupId || null,
       needsRecount: Boolean(formValues.needsRecount),
+      ...(unitsPerBoxPayload !== undefined ? { unitsPerBox: unitsPerBoxPayload } : {}),
       attributes: Object.keys(attributes).length ? attributes : undefined,
       stock,
       images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
@@ -506,6 +531,8 @@ export default function ItemsPage() {
       description: item.description,
       groupId: item.groupId || '',
       needsRecount: Boolean(item.needsRecount),
+      unitsPerBox:
+        item.unitsPerBox === null || item.unitsPerBox === undefined ? '' : String(item.unitsPerBox),
       gender: item.attributes?.gender || '',
       size: item.attributes?.size || '',
       color: item.attributes?.color || '',
@@ -648,6 +675,20 @@ export default function ItemsPage() {
                 <p className="input-helper">
                   Los artículos marcados aparecerán priorizados en el tablero hasta que se actualice su stock.
                 </p>
+              </div>
+              <div className="input-group">
+                <label htmlFor="unitsPerBox">Unidades por caja</label>
+                <input
+                  id="unitsPerBox"
+                  name="unitsPerBox"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formValues.unitsPerBox}
+                  onChange={handleFormChange}
+                  placeholder="Ej: 12"
+                />
+                <p className="input-helper">Cantidad de unidades incluidas en una caja cerrada (opcional).</p>
               </div>
               {ATTRIBUTE_FIELDS.map(({ key, label, placeholder, type, options = [] }) => {
                 const selectedValue = formValues[key];
@@ -913,6 +954,7 @@ export default function ItemsPage() {
                   <th>Descripción</th>
                   <th>Grupo</th>
                   <th>Atributos</th>
+                  <th>Unidades por caja</th>
                   <th>Imágenes</th>
                   <th>Ubicaciones</th>
                   <th>Total</th>
@@ -940,6 +982,7 @@ export default function ItemsPage() {
                         {Object.keys(item.attributes || {}).length === 0 && <span>-</span>}
                       </div>
                     </td>
+                    <td>{item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : item.unitsPerBox}</td>
                     <td>{Array.isArray(item.images) ? item.images.length : 0}</td>
                     <td>
                       <div className="chip-list">
@@ -1000,7 +1043,7 @@ export default function ItemsPage() {
               })}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 10 : 9} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <td colSpan={canWrite ? 11 : 10} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No se encontraron artículos para los filtros seleccionados.
                   </td>
                 </tr>
