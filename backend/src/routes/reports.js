@@ -155,12 +155,19 @@ router.get(
   })
 );
 
+function isWarehouseLocation(location) {
+  return location?.type === 'warehouse';
+}
+
 async function respondStockByLocation(req, res) {
   const includeItems =
     typeof req.query.includeItems === 'string' && req.query.includeItems.toLowerCase() === 'true';
   const requestedLocationId = typeof req.query.locationId === 'string' ? req.query.locationId : null;
 
-  const [items, locations] = await Promise.all([Item.find(), Location.find()]);
+  const [items, locations] = await Promise.all([
+    Item.find(),
+    Location.find({ type: 'warehouse' })
+  ]);
   const locationsById = new Map(
     locations.map(location => [
       String(location.id),
@@ -191,6 +198,9 @@ async function respondStockByLocation(req, res) {
     let bucket = totals.get(key);
     if (!bucket) {
       const locationInfo = locationsById.get(key) || null;
+      if (!isWarehouseLocation(locationInfo)) {
+        return null;
+      }
       bucket = {
         id: key,
         name: locationInfo?.name || '',
@@ -211,7 +221,14 @@ async function respondStockByLocation(req, res) {
       if (!hasPositiveQuantity(normalized)) {
         return;
       }
+      const locationInfo = entry.location || locationsById.get(entry.locationId) || null;
+      if (!isWarehouseLocation(locationInfo)) {
+        return;
+      }
       const bucket = getBucket(entry.locationId);
+      if (!bucket) {
+        return;
+      }
       addQuantity(bucket.total, normalized);
 
       if (includeItems && Array.isArray(bucket.items)) {
@@ -219,18 +236,22 @@ async function respondStockByLocation(req, res) {
           id: item.id,
           code: item.code,
           description: item.description,
-          stockByLocation: stockEntries.map(locationEntry => ({
-            locationId: locationEntry.locationId,
-            quantity: ensureQuantity(locationEntry.quantity),
-            location: locationEntry.location
-              ? {
-                  id: locationEntry.location.id,
-                  name: locationEntry.location.name,
-                  status: locationEntry.location.status,
-                  type: locationEntry.location.type
-                }
-              : null
-          })),
+          stockByLocation: stockEntries
+            .filter(locationEntry =>
+              isWarehouseLocation(locationEntry.location || locationsById.get(locationEntry.locationId) || null)
+            )
+            .map(locationEntry => ({
+              locationId: locationEntry.locationId,
+              quantity: ensureQuantity(locationEntry.quantity),
+              location: locationEntry.location
+                ? {
+                    id: locationEntry.location.id,
+                    name: locationEntry.location.name,
+                    status: locationEntry.location.status,
+                    type: locationEntry.location.type
+                  }
+                : null
+            })),
           total: normalized
         });
       }
