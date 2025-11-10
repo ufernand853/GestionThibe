@@ -139,6 +139,7 @@ export default function ItemsPage() {
     description: '',
     groupId: '',
     needsRecount: false,
+    pDecimal: '',
     gender: '',
     size: '',
     color: '',
@@ -283,6 +284,7 @@ export default function ItemsPage() {
       description: '',
       groupId: '',
       needsRecount: false,
+      pDecimal: '',
       gender: '',
       size: '',
       color: '',
@@ -365,7 +367,7 @@ export default function ItemsPage() {
         attributes[attribute] = null;
       }
     });
-    return {
+    const payload = {
       description: formValues.description,
       groupId: formValues.groupId || null,
       needsRecount: Boolean(formValues.needsRecount),
@@ -373,6 +375,13 @@ export default function ItemsPage() {
       stock,
       images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
     };
+    const pDecimalValue = typeof formValues.pDecimal === 'string' ? formValues.pDecimal.trim() : '';
+    if (pDecimalValue) {
+      payload.pDecimal = pDecimalValue;
+    } else if (editingItem) {
+      payload.pDecimal = null;
+    }
+    return payload;
   };
 
   const handleImageSelect = async event => {
@@ -506,6 +515,7 @@ export default function ItemsPage() {
       description: item.description,
       groupId: item.groupId || '',
       needsRecount: Boolean(item.needsRecount),
+      pDecimal: item.pDecimal === null || item.pDecimal === undefined ? '' : String(item.pDecimal),
       gender: item.attributes?.gender || '',
       size: item.attributes?.size || '',
       color: item.attributes?.color || '',
@@ -631,6 +641,18 @@ export default function ItemsPage() {
                     );
                   })}
                 </select>
+              </div>
+              <div className="input-group">
+                <label htmlFor="pDecimal">P Decimal</label>
+                <input
+                  id="pDecimal"
+                  name="pDecimal"
+                  type="number"
+                  step="0.01"
+                  value={formValues.pDecimal}
+                  onChange={handleFormChange}
+                  placeholder="Valor decimal"
+                />
               </div>
               <div className="input-group">
                 <label htmlFor="needsRecount">Recuento manual</label>
@@ -912,6 +934,7 @@ export default function ItemsPage() {
                   <th>Código</th>
                   <th>Descripción</th>
                   <th>Grupo</th>
+                  <th>P Decimal</th>
                   <th>Atributos</th>
                   <th>Imágenes</th>
                   <th>Ubicaciones</th>
@@ -930,6 +953,14 @@ export default function ItemsPage() {
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{item.group?.name || 'Sin grupo'}</td>
+                    <td>
+                      {item.pDecimal === null || item.pDecimal === undefined
+                        ? '-'
+                        : Number(item.pDecimal).toLocaleString('es-AR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                    </td>
                     <td>
                       <div className="chip-list">
                         {Object.entries(item.attributes || {}).map(([key, value]) => (

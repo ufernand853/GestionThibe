@@ -205,6 +205,40 @@ function normalizeBooleanFlag(value, { fieldName = 'Flag', defaultValue } = {}) 
   throw new HttpError(400, `${fieldName} inválido`);
 }
 
+function normalizeDecimalField(value, { fieldName = 'Valor', allowNull = true, defaultValue } = {}) {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  if (value === null) {
+    if (allowNull) {
+      return null;
+    }
+    throw new HttpError(400, `${fieldName} inválido`);
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new HttpError(400, `${fieldName} inválido`);
+    }
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      if (allowNull) {
+        return null;
+      }
+      throw new HttpError(400, `${fieldName} inválido`);
+    }
+    const normalized = trimmed.replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+    if (!Number.isFinite(parsed)) {
+      throw new HttpError(400, `${fieldName} inválido`);
+    }
+    return parsed;
+  }
+  throw new HttpError(400, `${fieldName} inválido`);
+}
+
 function toPlainAttributes(attributes) {
   if (!attributes) return {};
   if (attributes instanceof Map) {
@@ -225,6 +259,7 @@ function serializeItem(doc) {
     stock: toPlainStock(doc.stock),
     images: Array.isArray(doc.images) ? doc.images : [],
     needsRecount: Boolean(doc.needsRecount),
+    pDecimal: doc.pDecimal !== undefined && doc.pDecimal !== null ? Number(doc.pDecimal) : null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt
   };
@@ -350,7 +385,16 @@ router.post(
   requirePermission('items.write'),
   asyncHandler(async (req, res) => {
     const payload = parseItemPayload(req);
-    const { code, description, groupId, attributes = {}, stock = {}, images = [], needsRecount } = payload;
+    const {
+      code,
+      description,
+      groupId,
+      attributes = {},
+      stock = {},
+      images = [],
+      needsRecount,
+      pDecimal
+    } = payload;
     if (!code || !description) {
       throw new HttpError(400, 'code y description son obligatorios');
     }
@@ -381,6 +425,11 @@ router.post(
       fieldName: 'needsRecount',
       defaultValue: false
     });
+    const normalizedPDecimal = normalizeDecimalField(pDecimal, {
+      fieldName: 'pDecimal',
+      allowNull: true,
+      defaultValue: null
+    });
     let item;
     try {
       item = await Item.create({
@@ -390,7 +439,8 @@ router.post(
         attributes,
         stock: stockData,
         images: sanitizedImages,
-        needsRecount: normalizedNeedsRecount
+        needsRecount: normalizedNeedsRecount,
+        pDecimal: normalizedPDecimal
       });
     } catch (error) {
       await cleanupNewFiles(createdPaths);
@@ -419,7 +469,7 @@ router.put(
       throw new HttpError(404, 'Artículo no encontrado');
     }
     const payload = parseItemPayload(req);
-    const { description, groupId, attributes, stock, images, imagesToKeep, needsRecount } = payload || {};
+    const { description, groupId, attributes, stock, images, imagesToKeep, needsRecount, pDecimal } = payload || {};
     if (typeof description === 'string' && description && description !== item.description) {
       item.description = description;
     }
@@ -491,6 +541,17 @@ router.put(
       });
       if (normalizedNeedsRecount !== item.needsRecount) {
         item.needsRecount = normalizedNeedsRecount;
+      }
+    }
+
+    if (payload && Object.prototype.hasOwnProperty.call(payload, 'pDecimal')) {
+      const normalizedPDecimal = normalizeDecimalField(pDecimal, {
+        fieldName: 'pDecimal',
+        allowNull: true,
+        defaultValue: item.pDecimal
+      });
+      if (normalizedPDecimal !== item.pDecimal) {
+        item.pDecimal = normalizedPDecimal;
       }
     }
 
