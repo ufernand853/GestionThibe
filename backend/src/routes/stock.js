@@ -32,6 +32,32 @@ function buildAttributeMatcher(rawValue) {
   return new RegExp(`^\\s*${escapeRegex(trimmed)}\\s*$`, 'i');
 }
 
+function serializeStock(stock) {
+  if (!stock || typeof stock !== 'object') {
+    return {};
+  }
+
+  const result = {};
+  if (stock instanceof Map) {
+    for (const [locationId, quantity] of stock.entries()) {
+      if (quantity === null || quantity === undefined) {
+        continue;
+      }
+      result[locationId] = normalizeStoredQuantity(quantity);
+    }
+    return result;
+  }
+
+  Object.entries(stock).forEach(([locationId, quantity]) => {
+    if (quantity === null || quantity === undefined) {
+      return;
+    }
+    result[locationId] = normalizeStoredQuantity(quantity);
+  });
+
+  return result;
+}
+
 function ensureStockAccess(req) {
   const permissions = req.user?.permissions || [];
   if (!permissions.includes('stock.request') && !permissions.includes('stock.approve')) {
@@ -223,7 +249,7 @@ router.get(
     const items = await Item.find(filter)
       .sort({ code: 1 })
       .limit(limit)
-      .select({ code: 1, description: 1, attributes: 1, group: 1 });
+      .select({ code: 1, description: 1, attributes: 1, group: 1, stock: 1 });
 
     const serialized = items.map(item => ({
       id: item.id,
@@ -233,7 +259,8 @@ router.get(
       attributes:
         item.attributes instanceof Map
           ? Object.fromEntries(item.attributes)
-          : item.attributes || {}
+          : item.attributes || {},
+      stock: serializeStock(item.stock)
     }));
 
     res.json(serialized);
