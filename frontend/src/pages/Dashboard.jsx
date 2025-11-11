@@ -92,30 +92,62 @@ export default function DashboardPage() {
           console.warn('No se pudieron cargar las preferencias del usuario', error);
           return null;
         });
+        const fetchAllItems = async () => {
+          if (!canViewCatalog) {
+            return [];
+          }
+          const collectedItems = [];
+          const seenIds = new Set();
+          let pageNumber = 1;
+          const pageSize = 200;
+          let totalItems = null;
+          while (true) {
+            const response = await api.get('/items', { query: { page: pageNumber, pageSize } });
+            if (!active) {
+              return collectedItems;
+            }
+            const pageItems = Array.isArray(response?.items) ? response.items : [];
+            pageItems.forEach(item => {
+              const id = item?.id;
+              if (id && !seenIds.has(id)) {
+                seenIds.add(id);
+                collectedItems.push(item);
+              }
+            });
+            const responseTotal = Number(response?.total);
+            if (Number.isFinite(responseTotal) && responseTotal >= 0) {
+              totalItems = responseTotal;
+            }
+            const effectivePageSize = Number(response?.pageSize) || pageSize;
+            if (pageItems.length < effectivePageSize) {
+              break;
+            }
+            if (totalItems !== null && collectedItems.length >= totalItems) {
+              break;
+            }
+            pageNumber += 1;
+          }
+          return collectedItems;
+        };
+
         const [
           locationTotals,
           locationsResponse,
           requestsResponse,
-          itemsResponse,
+          collectedItems,
           preferencesResponse
         ] = await Promise.all([
           shouldLoadStockSummary ? api.get('/reports/stock/by-location') : Promise.resolve([]),
           shouldLoadLocations ? api.get('/locations') : Promise.resolve([]),
           shouldLoadRequests ? api.get('/stock/requests') : Promise.resolve([]),
-          canViewCatalog
-            ? api.get('/items', { query: { page: 1, pageSize: 500 } })
-            : Promise.resolve(null),
+          fetchAllItems(),
           preferencesPromise
         ]);
         if (!active) return;
         setStockByLocation(Array.isArray(locationTotals) ? locationTotals : []);
         setLocations(Array.isArray(locationsResponse) ? locationsResponse : []);
         setRequests(Array.isArray(requestsResponse) ? requestsResponse : []);
-        if (itemsResponse && Array.isArray(itemsResponse.items)) {
-          setItemsSnapshot(itemsResponse.items);
-        } else {
-          setItemsSnapshot([]);
-        }
+        setItemsSnapshot(collectedItems);
         const normalizedManualIds = normalizeManualAttentionIds(
           preferencesResponse?.dashboard?.manualAttentionIds
         );
