@@ -100,12 +100,12 @@ const defaultLocations = [
 ];
 
 async function seedLocations() {
-  for (const location of defaultLocations) {
-    const existing = await Location.findOne({ name: location.name });
-    if (!existing) {
-      await Location.create(location);
-    }
+  const hasAnyLocation = await Location.exists({});
+  if (hasAnyLocation) {
+    return;
   }
+
+  await Location.insertMany(defaultLocations);
 }
 
 async function seed() {
