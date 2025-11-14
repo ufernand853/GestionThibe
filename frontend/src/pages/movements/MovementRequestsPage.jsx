@@ -645,7 +645,7 @@ export default function MovementRequestsPage() {
         ) : requests.length === 0 ? (
           <p style={{ color: '#64748b' }}>No hay solicitudes registradas con el filtro seleccionado.</p>
         ) : (
-          <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+          <div className="table-wrapper table-wrapper--compact" style={{ marginTop: '1rem' }}>
             <table>
               <thead>
                 <tr>
