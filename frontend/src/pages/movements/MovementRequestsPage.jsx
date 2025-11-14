@@ -325,7 +325,7 @@ export default function MovementRequestsPage() {
     if (!isOperatorWithRestrictions) {
       return locations;
     }
-    return locations.filter(location => location.type === 'warehouse');
+    return locations.filter(location => ['warehouse', 'external'].includes(location.type));
   }, [isOperatorWithRestrictions, locations]);
 
   const handleSubmit = async event => {
@@ -367,9 +367,11 @@ export default function MovementRequestsPage() {
 
       if (isOperatorWithRestrictions) {
         const isFromWarehouse = fromLocation?.type === 'warehouse';
-        const isToWarehouse = toLocation?.type === 'warehouse';
-        if (!isFromWarehouse || !isToWarehouse) {
-          setError('Como operador solo puede solicitar transferencias entre depósitos internos.');
+        const isToAllowed = ['warehouse', 'external'].includes(toLocation?.type);
+        if (!isFromWarehouse || !isToAllowed) {
+          setError(
+            'Como operador solo puede solicitar transferencias desde depósitos internos hacia depósitos internos o externos.'
+          );
           setSubmitting(false);
           return;
         }
