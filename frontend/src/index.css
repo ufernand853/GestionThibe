@@ -192,6 +192,20 @@ table {
   font-size: 0.9rem;
 }
 
+.table-wrapper--compact {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.table-wrapper--compact table {
+  width: max-content;
+}
+
+.table-wrapper--compact th,
+.table-wrapper--compact td {
+  white-space: nowrap;
+}
+
 thead {
   background-color: #e2e8f0;
 }
