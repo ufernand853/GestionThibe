@@ -244,7 +244,10 @@ router.get(
       filter.$or = [{ code: regex }, { description: regex }];
     }
 
-    const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 200, 1), 500);
+    // El tope anterior de 500 artículos impedía buscar códigos que quedaban
+    // fuera del lote inicial. Aumentamos el límite máximo para permitir
+    // listar artículos con stock que hoy no aparecían en los combos.
+    const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 200, 1), 2000);
 
     const items = await Item.find(filter)
       .sort({ code: 1 })
