@@ -329,10 +329,35 @@ export default function ItemsPage() {
 
   const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
 
+  const resolveLocationQuantity = useCallback(quantity => {
+    if (quantity && typeof quantity === 'object') {
+      if (quantity.available) {
+        return quantity.available;
+      }
+      if (quantity.quantity) {
+        if (quantity.quantity.available) {
+          return quantity.quantity.available;
+        }
+        return quantity.quantity;
+      }
+    }
+    return quantity;
+  }, []);
+
   const itemTotals = useMemo(() => {
     const map = new Map();
     (Array.isArray(items) ? items : []).forEach(item => {
-      map.set(item.id, computeTotalStockFromMap(item.stock));
+      const stockByLocation = item.stockByLocation || item.stock?.byLocation || item.stock;
+      map.set(item.id, computeTotalStockFromMap(stockByLocation));
+    });
+    return map;
+  }, [items]);
+
+  const itemPendingByStock = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(items) ? items : []).forEach(item => {
+      const stockByLocation = item.stockByLocation || item.stock?.byLocation || item.stock;
+      map.set(item.id, computeTotalStockFromMap(stockByLocation, { preferredField: 'pending' }));
     });
     return map;
   }, [items]);
@@ -341,10 +366,19 @@ export default function ItemsPage() {
     const map = new Map();
     itemTotals.forEach((total, itemId) => {
       const pendingInfo = pendingMap.get(itemId);
-      map.set(itemId, deriveStockStatus(total, pendingInfo));
+      const pendingFromStock = itemPendingByStock.get(itemId) || { boxes: 0, units: 0 };
+      const hasExplicitPending = pendingFromStock.boxes > 0 || pendingFromStock.units > 0;
+      map.set(
+        itemId,
+        deriveStockStatus(total, {
+          quantity: hasExplicitPending ? pendingFromStock : pendingInfo?.quantity,
+          count: pendingInfo?.count ?? 0,
+          subtractFromTotal: !hasExplicitPending
+        })
+      );
     });
     return map;
-  }, [itemTotals, pendingMap]);
+  }, [itemPendingByStock, itemTotals, pendingMap]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -1103,15 +1137,25 @@ export default function ItemsPage() {
                     </td>
                     <td>{item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : item.unitsPerBox}</td>
                     <td>{Array.isArray(item.images) ? item.images.length : 0}</td>
-                    <td>
+                  <td>
                       <div className="chip-list">
-                        {Object.entries(item.stock || {}).map(([locationId, quantity]) => (
-                          <span key={locationId} className="badge">
-                            {locations.find(location => location.id === locationId)?.name || 'Ubicación'} ·
-                            {formatQuantity(quantity, { compact: true })}
-                          </span>
-                        ))}
-                        {(!item.stock || Object.keys(item.stock).length === 0) && <span>-</span>}
+                        {(() => {
+                          const stockEntries = Object.entries(
+                            item.stockByLocation || item.stock?.byLocation || item.stock || {}
+                          );
+                          if (stockEntries.length === 0) {
+                            return <span>-</span>;
+                          }
+                          return stockEntries.map(([locationId, quantity]) => {
+                            const availableQuantity = resolveLocationQuantity(quantity);
+                            return (
+                              <span key={locationId} className="badge">
+                                {locations.find(location => location.id === locationId)?.name || 'Ubicación'} ·
+                                {formatQuantity(availableQuantity, { compact: true })}
+                              </span>
+                            );
+                          });
+                        })()}
                       </div>
                     </td>
                     <td>{formatQuantity(totalQuantity)}</td>

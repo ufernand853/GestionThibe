@@ -12,12 +12,33 @@ export const STOCK_STATUS_LABELS = Object.freeze({
   [STOCK_STATUS.EMPTY]: 'Agotado'
 });
 
-export function computeTotalStockFromMap(stock) {
+function extractQuantityByField(quantity, preferredField) {
+  if (!quantity || typeof quantity !== 'object') {
+    return quantity;
+  }
+
+  if (preferredField && Object.prototype.hasOwnProperty.call(quantity, preferredField)) {
+    return quantity[preferredField];
+  }
+
+  if (quantity.quantity && typeof quantity.quantity === 'object') {
+    if (preferredField && Object.prototype.hasOwnProperty.call(quantity.quantity, preferredField)) {
+      return quantity.quantity[preferredField];
+    }
+    return quantity.quantity;
+  }
+
+  return quantity;
+}
+
+export function computeTotalStockFromMap(stock, { preferredField = 'available' } = {}) {
   if (!stock || typeof stock !== 'object') {
     return { boxes: 0, units: 0 };
   }
-  return Object.values(stock).reduce(
-    (acc, quantity) => sumQuantities(acc, ensureQuantity(quantity)),
+  const values = stock instanceof Map ? Array.from(stock.values()) : Object.values(stock);
+  return values.reduce(
+    (acc, quantity) =>
+      sumQuantities(acc, ensureQuantity(extractQuantityByField(quantity, preferredField))),
     { boxes: 0, units: 0 }
   );
 }
@@ -49,11 +70,14 @@ export function aggregatePendingByItem(requests = []) {
 export function deriveStockStatus(totalQuantity, pendingInfo) {
   const total = ensureQuantity(totalQuantity);
   const pendingQuantity = ensureQuantity(pendingInfo?.quantity);
+  const subtractPending = pendingInfo?.subtractFromTotal ?? true;
   const pendingCount = pendingInfo?.count ?? 0;
   const hasStock = total.boxes > 0 || total.units > 0;
   const hasPending = pendingQuantity.boxes > 0 || pendingQuantity.units > 0;
-  const remainingBoxes = total.boxes - pendingQuantity.boxes;
-  const remainingUnits = total.units - pendingQuantity.units;
+  const pendingBoxes = subtractPending ? pendingQuantity.boxes : 0;
+  const pendingUnits = subtractPending ? pendingQuantity.units : 0;
+  const remainingBoxes = total.boxes - pendingBoxes;
+  const remainingUnits = total.units - pendingUnits;
   const remaining = {
     boxes: Math.max(0, remainingBoxes),
     units: Math.max(0, remainingUnits)
