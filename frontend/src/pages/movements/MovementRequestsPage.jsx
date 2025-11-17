@@ -35,6 +35,7 @@ export default function MovementRequestsPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
+  const isAdmin = user?.role === 'Administrador';
   const isOperator = user?.role === 'Operador';
   const hasRequestPermission = permissions.includes('stock.request');
   const canRequest = hasRequestPermission;
@@ -52,6 +53,7 @@ export default function MovementRequestsPage() {
   const [dateFilters, setDateFilters] = useState({ from: '', to: '' });
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
   const [resubmittingId, setResubmittingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [itemSearchTerm, setItemSearchTerm] = useState('');
   const [formValues, setFormValues] = useState({
     itemId: '',
@@ -432,6 +434,25 @@ export default function MovementRequestsPage() {
     }
   };
 
+  const handleDelete = async request => {
+    if (!isAdmin) return;
+    const confirmed = window.confirm('¿Está seguro de que desea eliminar esta solicitud?');
+    if (!confirmed) return;
+
+    setDeletingId(request.id);
+    setError(null);
+    setSuccessMessage('');
+    try {
+      await api.delete(`/stock/request/${request.id}`);
+      setRequests(prev => prev.filter(item => item.id !== request.id));
+      setPendingSnapshot(prev => prev.filter(item => item.id !== request.id));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (!canRequest) {
     return <ErrorMessage error="No cuenta con permisos para solicitar movimientos." />;
   }
@@ -713,6 +734,17 @@ export default function MovementRequestsPage() {
                             disabled={resubmittingId === request.id}
                           >
                             {resubmittingId === request.id ? 'Reenviando...' : 'Reenviar'}
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            className="danger-button"
+                            style={{ marginLeft: '0.5rem' }}
+                            onClick={() => handleDelete(request)}
+                            disabled={deletingId === request.id}
+                          >
+                            {deletingId === request.id ? 'Eliminando...' : 'Eliminar'}
                           </button>
                         )}
                       </td>
