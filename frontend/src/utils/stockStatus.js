@@ -13,14 +13,21 @@ export const STOCK_STATUS_LABELS = Object.freeze({
 });
 
 function extractQuantityByField(quantity, preferredField) {
-  if (
-    quantity &&
-    typeof quantity === 'object' &&
-    preferredField &&
-    Object.prototype.hasOwnProperty.call(quantity, preferredField)
-  ) {
+  if (!quantity || typeof quantity !== 'object') {
+    return quantity;
+  }
+
+  if (preferredField && Object.prototype.hasOwnProperty.call(quantity, preferredField)) {
     return quantity[preferredField];
   }
+
+  if (quantity.quantity && typeof quantity.quantity === 'object') {
+    if (preferredField && Object.prototype.hasOwnProperty.call(quantity.quantity, preferredField)) {
+      return quantity.quantity[preferredField];
+    }
+    return quantity.quantity;
+  }
+
   return quantity;
 }
 

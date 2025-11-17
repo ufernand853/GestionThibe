@@ -329,6 +329,21 @@ export default function ItemsPage() {
 
   const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
 
+  const resolveLocationQuantity = useCallback(quantity => {
+    if (quantity && typeof quantity === 'object') {
+      if (quantity.available) {
+        return quantity.available;
+      }
+      if (quantity.quantity) {
+        if (quantity.quantity.available) {
+          return quantity.quantity.available;
+        }
+        return quantity.quantity;
+      }
+    }
+    return quantity;
+  }, []);
+
   const itemTotals = useMemo(() => {
     const map = new Map();
     (Array.isArray(items) ? items : []).forEach(item => {
@@ -1132,7 +1147,7 @@ export default function ItemsPage() {
                             return <span>-</span>;
                           }
                           return stockEntries.map(([locationId, quantity]) => {
-                            const availableQuantity = quantity?.available ?? quantity;
+                            const availableQuantity = resolveLocationQuantity(quantity);
                             return (
                               <span key={locationId} className="badge">
                                 {locations.find(location => location.id === locationId)?.name || 'Ubicación'} ·
