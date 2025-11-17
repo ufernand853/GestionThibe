@@ -213,6 +213,16 @@ export default function ItemsPage() {
     setColorFilterOptions(prev => mergeAttributeOptions(prev, colorValues));
   }, []);
 
+  const normalizeLocationId = useCallback(id => {
+    if (id === null || id === undefined) return '';
+    return typeof id === 'string' ? id : String(id);
+  }, []);
+
+  const getLocationId = useCallback(location => {
+    const rawId = location?.id ?? location?._id;
+    return normalizeLocationId(rawId);
+  }, [normalizeLocationId]);
+
   const getGroupId = useCallback(group => {
     const rawId = group?.id ?? group?._id;
     if (!rawId) return '';
@@ -227,6 +237,22 @@ export default function ItemsPage() {
   const clearNewImages = useCallback(() => {
     setImageFiles([]);
   }, []);
+
+  const warehouseLocationIds = useMemo(() => {
+    const ids = new Set();
+    locations.forEach(location => {
+      const id = getLocationId(location);
+      if (id) {
+        ids.add(id);
+      }
+    });
+    return ids;
+  }, [getLocationId, locations]);
+
+  const shouldIncludeLocation = useCallback(locationId => {
+    if (warehouseLocationIds.size === 0) return true;
+    return warehouseLocationIds.has(normalizeLocationId(locationId));
+  }, [normalizeLocationId, warehouseLocationIds]);
 
   useEffect(() => {
     let active = true;
@@ -348,19 +374,30 @@ export default function ItemsPage() {
     const map = new Map();
     (Array.isArray(items) ? items : []).forEach(item => {
       const stockByLocation = item.stockByLocation || item.stock?.byLocation || item.stock;
-      map.set(item.id, computeTotalStockFromMap(stockByLocation));
+      map.set(
+        item.id,
+        computeTotalStockFromMap(stockByLocation, {
+          filterLocation: locationId => shouldIncludeLocation(locationId)
+        })
+      );
     });
     return map;
-  }, [items]);
+  }, [items, shouldIncludeLocation]);
 
   const itemPendingByStock = useMemo(() => {
     const map = new Map();
     (Array.isArray(items) ? items : []).forEach(item => {
       const stockByLocation = item.stockByLocation || item.stock?.byLocation || item.stock;
-      map.set(item.id, computeTotalStockFromMap(stockByLocation, { preferredField: 'pending' }));
+      map.set(
+        item.id,
+        computeTotalStockFromMap(stockByLocation, {
+          preferredField: 'pending',
+          filterLocation: locationId => shouldIncludeLocation(locationId)
+        })
+      );
     });
     return map;
-  }, [items]);
+  }, [items, shouldIncludeLocation]);
 
   const itemStatusMap = useMemo(() => {
     const map = new Map();
@@ -1142,15 +1179,21 @@ export default function ItemsPage() {
                         {(() => {
                           const stockEntries = Object.entries(
                             item.stockByLocation || item.stock?.byLocation || item.stock || {}
-                          );
+                          ).filter(([locationId]) => shouldIncludeLocation(locationId));
+
                           if (stockEntries.length === 0) {
                             return <span>-</span>;
                           }
+
                           return stockEntries.map(([locationId, quantity]) => {
                             const availableQuantity = resolveLocationQuantity(quantity);
+                            const normalizedId = normalizeLocationId(locationId);
+                            const locationName =
+                              locations.find(location => getLocationId(location) === normalizedId)?.name ||
+                              'Ubicación';
                             return (
                               <span key={locationId} className="badge">
-                                {locations.find(location => location.id === locationId)?.name || 'Ubicación'} ·
+                                {locationName} ·
                                 {formatQuantity(availableQuantity, { compact: true })}
                               </span>
                             );

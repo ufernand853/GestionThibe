@@ -31,16 +31,20 @@ function extractQuantityByField(quantity, preferredField) {
   return quantity;
 }
 
-export function computeTotalStockFromMap(stock, { preferredField = 'available' } = {}) {
+export function computeTotalStockFromMap(
+  stock,
+  { preferredField = 'available', filterLocation } = {}
+) {
   if (!stock || typeof stock !== 'object') {
     return { boxes: 0, units: 0 };
   }
-  const values = stock instanceof Map ? Array.from(stock.values()) : Object.values(stock);
-  return values.reduce(
-    (acc, quantity) =>
-      sumQuantities(acc, ensureQuantity(extractQuantityByField(quantity, preferredField))),
-    { boxes: 0, units: 0 }
-  );
+  const entries = stock instanceof Map ? Array.from(stock.entries()) : Object.entries(stock);
+  return entries.reduce((acc, [locationId, quantity]) => {
+    if (filterLocation && !filterLocation(locationId, quantity)) {
+      return acc;
+    }
+    return sumQuantities(acc, ensureQuantity(extractQuantityByField(quantity, preferredField)));
+  }, { boxes: 0, units: 0 });
 }
 
 export function aggregatePendingByItem(requests = []) {
