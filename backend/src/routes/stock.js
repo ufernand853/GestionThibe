@@ -4,6 +4,7 @@ const { HttpError } = require('../utils/errors');
 const { requirePermission, requireAuth } = require('../middlewares/auth');
 const { Types } = require('mongoose');
 const MovementRequest = require('../models/MovementRequest');
+const MovementLog = require('../models/MovementLog');
 const Location = require('../models/Location');
 const Item = require('../models/Item');
 const {
@@ -267,6 +268,35 @@ router.get(
     }));
 
     res.json(serialized);
+  })
+);
+
+router.delete(
+  '/request/:id',
+  requirePermission('stock.approve'),
+  asyncHandler(async (req, res) => {
+    if (req.user?.role !== 'Administrador') {
+      throw new HttpError(403, 'Solo un administrador puede eliminar solicitudes');
+    }
+
+    const { id } = req.params;
+    const request = await MovementRequest.findById(id);
+    if (!request) {
+      throw new HttpError(404, 'Solicitud no encontrada');
+    }
+
+    await Promise.all([
+      MovementLog.deleteMany({ movementRequest: request.id }),
+      request.deleteOne()
+    ]);
+
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Eliminación de solicitud',
+      user: req.user?.username || 'Desconocido'
+    });
+
+    res.status(204).send();
   })
 );
 
