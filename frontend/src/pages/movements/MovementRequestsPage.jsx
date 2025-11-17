@@ -109,7 +109,7 @@ export default function MovementRequestsPage() {
     const loadMetadata = async () => {
       try {
         const [itemsResponse, locationsResponse] = await Promise.all([
-          api.get('/stock/items', { query: { limit: 500 } }),
+          api.get('/stock/items', { query: { limit: 2000 } }),
           api.get('/stock/locations')
         ]);
         if (!active) return;
