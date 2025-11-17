@@ -144,6 +144,16 @@ async function addMovementLog(movementRequestId, action, actorUserId, metadata =
   });
 }
 
+function inferMovementType(fromLocation, toLocation) {
+  if (fromLocation?.type === 'externalOrigin') {
+    return 'ingress';
+  }
+  if (toLocation?.type === 'external') {
+    return 'egress';
+  }
+  return 'transfer';
+}
+
 async function executeMovement(request, actorUserId, metadata = {}) {
   const item = await findItemOrThrow(request.item);
   const quantity = normalizeStoredQuantity(request.quantity);
@@ -154,13 +164,23 @@ async function executeMovement(request, actorUserId, metadata = {}) {
     throw new HttpError(400, 'Los movimientos requieren ubicaciones de origen y destino válidas');
   }
 
-  const movementType = ['ingress', 'egress'].includes(request.type) ? request.type : 'transfer';
+  const [fromLocation, toLocation] = await Promise.all([
+    ensureLocationExists(fromLocationId),
+    ensureLocationExists(toLocationId)
+  ]);
+
+  const movementType = inferMovementType(fromLocation, toLocation);
+
+  // Actualizar el tipo almacenado en caso de que se haya guardado incorrectamente
+  request.type = movementType;
 
   if (movementType !== 'ingress') {
     adjustItemStock(item, fromLocationId, negateQuantity(quantity));
   }
 
-  adjustItemStock(item, toLocationId, quantity);
+  if (movementType !== 'egress') {
+    adjustItemStock(item, toLocationId, quantity);
+  }
   await item.save();
 
   request.status = 'executed';
