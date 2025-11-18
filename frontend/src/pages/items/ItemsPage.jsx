@@ -254,6 +254,16 @@ export default function ItemsPage() {
     return warehouseLocationIds.has(normalizeLocationId(locationId));
   }, [normalizeLocationId, warehouseLocationIds]);
 
+  const shouldCountPendingRequest = useCallback(
+    request => {
+      const originId =
+        getLocationId(request?.fromLocation) || normalizeLocationId(request?.fromLocationId);
+      if (!originId) return true;
+      return shouldIncludeLocation(originId);
+    },
+    [getLocationId, normalizeLocationId, shouldIncludeLocation]
+  );
+
   useEffect(() => {
     let active = true;
     const loadMetadata = async () => {
@@ -353,7 +363,10 @@ export default function ItemsPage() {
     updateAttributeOptionsFromItems
   ]);
 
-  const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
+  const pendingMap = useMemo(
+    () => aggregatePendingByItem(pendingSnapshot, { filter: shouldCountPendingRequest }),
+    [pendingSnapshot, shouldCountPendingRequest]
+  );
 
   const resolveLocationQuantity = useCallback(quantity => {
     if (quantity && typeof quantity === 'object') {

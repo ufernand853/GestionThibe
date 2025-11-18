@@ -47,10 +47,13 @@ export function computeTotalStockFromMap(
   }, { boxes: 0, units: 0 });
 }
 
-export function aggregatePendingByItem(requests = []) {
+export function aggregatePendingByItem(requests = [], { filter } = {}) {
   const map = new Map();
   requests.forEach(request => {
     if (!request || request.status !== 'pending') {
+      return;
+    }
+    if (typeof filter === 'function' && !filter(request)) {
       return;
     }
     const itemId = request.item?.id || request.itemId;
