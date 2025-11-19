@@ -162,11 +162,11 @@ export default function MovementRequestsPage() {
       ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
     );
     const availableLocations = Array.isArray(locations) ? locations : [];
-    const filteredLocations = isOperatorWithRestrictions
-      ? availableLocations.filter(location => location.type === 'warehouse')
-      : availableLocations;
-    return filteredLocations
-      .filter(location => location.type === 'warehouse')
+    const allowedOriginTypes = isOperatorWithRestrictions
+      ? ['warehouse']
+      : ['warehouse', 'externalOrigin'];
+    return availableLocations
+      .filter(location => allowedOriginTypes.includes(location.type))
       .slice()
       .sort((a, b) => {
         const aName = (a.name || '').toLowerCase();
@@ -321,14 +321,12 @@ export default function MovementRequestsPage() {
   };
 
   const availableDestinations = useMemo(() => {
+    const allowedDestinationTypes = ['warehouse', 'external'];
     if (!Array.isArray(locations)) {
       return [];
     }
-    if (!isOperatorWithRestrictions) {
-      return locations;
-    }
-    return locations.filter(location => ['warehouse', 'external'].includes(location.type));
-  }, [isOperatorWithRestrictions, locations]);
+    return locations.filter(location => allowedDestinationTypes.includes(location.type));
+  }, [locations]);
 
   const handleSubmit = async event => {
     event.preventDefault();
