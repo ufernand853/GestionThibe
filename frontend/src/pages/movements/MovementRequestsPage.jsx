@@ -164,7 +164,7 @@ export default function MovementRequestsPage() {
     const availableLocations = Array.isArray(locations) ? locations : [];
     const allowedOriginTypes = isOperatorWithRestrictions
       ? ['warehouse']
-      : ['warehouse', 'external'];
+      : ['warehouse', 'externalOrigin'];
     return availableLocations
       .filter(location => allowedOriginTypes.includes(location.type))
       .slice()
@@ -321,14 +321,12 @@ export default function MovementRequestsPage() {
   };
 
   const availableDestinations = useMemo(() => {
+    const allowedDestinationTypes = ['warehouse', 'external'];
     if (!Array.isArray(locations)) {
       return [];
     }
-    if (!isOperatorWithRestrictions) {
-      return locations;
-    }
-    return locations.filter(location => ['warehouse', 'external'].includes(location.type));
-  }, [isOperatorWithRestrictions, locations]);
+    return locations.filter(location => allowedDestinationTypes.includes(location.type));
+  }, [locations]);
 
   const handleSubmit = async event => {
     event.preventDefault();
