@@ -248,6 +248,10 @@ export default function DashboardPage() {
       if (request.status !== 'executed') {
         return;
       }
+      const requestType = String(request.type || request.movementType || 'transfer').toLowerCase();
+      if (requestType !== 'egress') {
+        return;
+      }
       const executedAt = request.executedAt || request.approvedAt || request.requestedAt;
       if (!executedAt) {
         return;
