@@ -117,9 +117,11 @@ export function deriveStockStatus(totalQuantity, pendingInfo) {
       code: STOCK_STATUS.EMPTY,
       label: STOCK_STATUS_LABELS[STOCK_STATUS.EMPTY],
       detail:
-        pendingCount === 1
-          ? 'Reservado en 1 solicitud pendiente'
-          : `Reservado en ${pendingCount} solicitudes pendientes`,
+        pendingCount === 0
+          ? 'Sin stock disponible'
+          : pendingCount === 1
+            ? 'Reservado en 1 solicitud pendiente'
+            : `Reservado en ${pendingCount} solicitudes pendientes`,
       pendingCount,
       remaining,
       pendingQuantity
@@ -127,12 +129,14 @@ export function deriveStockStatus(totalQuantity, pendingInfo) {
   }
 
   return {
-    code: STOCK_STATUS.PENDING,
-    label: STOCK_STATUS_LABELS[STOCK_STATUS.PENDING],
+    code: STOCK_STATUS.UPDATED,
+    label: STOCK_STATUS_LABELS[STOCK_STATUS.UPDATED],
     detail:
-      pendingCount === 1
-        ? 'Existe 1 solicitud pendiente para este artículo'
-        : `Existen ${pendingCount} solicitudes pendientes`,
+      pendingCount === 0
+        ? 'Stock disponible'
+        : pendingCount === 1
+          ? 'Stock disponible con 1 solicitud pendiente'
+          : `Stock disponible con ${pendingCount} solicitudes pendientes`,
     pendingCount,
     remaining,
     pendingQuantity

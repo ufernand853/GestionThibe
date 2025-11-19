@@ -7,10 +7,8 @@ Este documento resume, en español, los ajustes hechos en el front para que el e
 - **Agregación de pendientes:** Las solicitudes `/stock/requests?status=pending` se agrupan por artículo (`aggregatePendingByItem`) sumando sus cantidades y contando cuántas solicitudes afectan a cada ítem.
 - **Pendientes explícitos en stock:** Si un depósito declara `pending` en su stock, ese valor se respeta y no se descuenta del stock, pero igual marca al ítem como pendiente.
 - **Derivación del estado:** `deriveStockStatus` define el estado final:
-  - *Agotado* si el stock total es 0.
-  - *Actualizado* si hay stock y no hay pendientes.
-  - *Agotado (reservado)* si los pendientes consumen todo el stock.
-  - *Pendiente* si queda stock pero existen cantidades pendientes.
+  - *Agotado* si el stock total es 0 o si los pendientes consumen todo el stock.
+  - *Actualizado* si queda stock disponible (aunque existan pendientes). En ese caso el detalle aclara cuántas solicitudes siguen abiertas.
 
 ## Ajuste aplicado para reflejar la realidad
 Antes, todas las solicitudes pendientes se contaban siempre, aunque provinieran de depósitos ajenos al contexto que el usuario estaba mirando. Esto hacía que muchos ítems aparecieran como "Pendiente" aunque no tuvieran movimientos relevantes.
