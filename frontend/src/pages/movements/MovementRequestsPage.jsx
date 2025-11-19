@@ -162,11 +162,11 @@ export default function MovementRequestsPage() {
       ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
     );
     const availableLocations = Array.isArray(locations) ? locations : [];
-    const filteredLocations = isOperatorWithRestrictions
-      ? availableLocations.filter(location => location.type === 'warehouse')
-      : availableLocations;
-    return filteredLocations
-      .filter(location => location.type === 'warehouse')
+    const allowedOriginTypes = isOperatorWithRestrictions
+      ? ['warehouse']
+      : ['warehouse', 'external'];
+    return availableLocations
+      .filter(location => allowedOriginTypes.includes(location.type))
       .slice()
       .sort((a, b) => {
         const aName = (a.name || '').toLowerCase();
