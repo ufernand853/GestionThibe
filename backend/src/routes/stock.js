@@ -7,6 +7,8 @@ const MovementRequest = require('../models/MovementRequest');
 const MovementLog = require('../models/MovementLog');
 const Location = require('../models/Location');
 const Item = require('../models/Item');
+const User = require('../models/User');
+const Role = require('../models/Role');
 const {
   validateMovementPayload,
   executeMovement,
@@ -68,10 +70,14 @@ function ensureStockAccess(req) {
 
 function serializeUserSummary(user) {
   if (!user) return null;
+  const roleId = extractReferenceId(user.role);
+  const roleName = user.role && typeof user.role === 'object' ? user.role.name : null;
   return {
     id: user.id,
     username: user.username,
-    email: user.email
+    email: user.email,
+    role: roleName,
+    roleId: roleId || null
   };
 }
 
@@ -330,7 +336,13 @@ router.post(
       user: req.user?.username || 'Desconocido'
     });
 
-    const populated = await movementRequest.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
+    const populated = await movementRequest.populate([
+      'item',
+      { path: 'requestedBy', populate: 'role' },
+      { path: 'approvedBy', populate: 'role' },
+      'fromLocation',
+      'toLocation'
+    ]);
     res.status(201).json(serializeMovementRequest(populated));
   })
 );
@@ -357,7 +369,13 @@ router.post(
       request: 'Aprobación de solicitud',
       user: req.user?.username || 'Desconocido'
     });
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
+    const populated = await request.populate([
+      'item',
+      { path: 'requestedBy', populate: 'role' },
+      { path: 'approvedBy', populate: 'role' },
+      'fromLocation',
+      'toLocation'
+    ]);
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -386,7 +404,13 @@ router.post(
       request: 'Rechazo de solicitud',
       user: req.user?.username || 'Desconocido'
     });
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
+    const populated = await request.populate([
+      'item',
+      { path: 'requestedBy', populate: 'role' },
+      { path: 'approvedBy', populate: 'role' },
+      'fromLocation',
+      'toLocation'
+    ]);
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -396,7 +420,7 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     ensureStockAccess(req);
-    const { status, type, from, to, itemId, itemCode } = req.query || {};
+    const { status, type, from, to, itemId, itemCode, requestedBy, profile } = req.query || {};
     const filter = {};
     const normalizedType = typeof type === 'string' ? type.trim() : '';
     if (status) {
@@ -444,8 +468,72 @@ router.get(
     if (Object.keys(range).length > 0) {
       filter.requestedAt = range;
     }
+    const normalizedRequester = typeof requestedBy === 'string' ? requestedBy.trim() : '';
+    const normalizedProfile = typeof profile === 'string' ? profile.trim() : '';
+
+    let requesterFilter = null;
+    if (normalizedRequester) {
+      if (Types.ObjectId.isValid(normalizedRequester)) {
+        requesterFilter = normalizedRequester;
+      } else {
+        const requesterDoc = await User.findOne({
+          $or: [
+            { username: new RegExp(`^${escapeRegex(normalizedRequester)}$`, 'i') },
+            { email: new RegExp(`^${escapeRegex(normalizedRequester)}$`, 'i') }
+          ]
+        })
+          .select('_id')
+          .lean();
+        if (!requesterDoc) {
+          return res.json([]);
+        }
+        requesterFilter = requesterDoc._id;
+      }
+    }
+
+    if (normalizedProfile) {
+      let roleId = null;
+      if (Types.ObjectId.isValid(normalizedProfile)) {
+        roleId = normalizedProfile;
+      } else {
+        const roleDoc = await Role.findOne({ name: new RegExp(`^${escapeRegex(normalizedProfile)}$`, 'i') })
+          .select('_id')
+          .lean();
+        roleId = roleDoc?._id || null;
+      }
+
+      if (!roleId) {
+        return res.json([]);
+      }
+
+      const roleUserIds = await User.find({ role: roleId })
+        .select('_id')
+        .lean();
+      const allowedIds = new Set(roleUserIds.map(doc => String(doc._id)));
+
+      if (requesterFilter) {
+        if (!allowedIds.has(String(requesterFilter))) {
+          return res.json([]);
+        }
+        filter.requestedBy = requesterFilter;
+      } else {
+        if (allowedIds.size === 0) {
+          return res.json([]);
+        }
+        filter.requestedBy = { $in: Array.from(allowedIds) };
+      }
+    } else if (requesterFilter) {
+      filter.requestedBy = requesterFilter;
+    }
+
     const requests = await MovementRequest.find(filter)
-      .populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation'])
+      .populate([
+        'item',
+        { path: 'requestedBy', populate: 'role' },
+        { path: 'approvedBy', populate: 'role' },
+        'fromLocation',
+        'toLocation'
+      ])
       .sort({ requestedAt: -1 });
     const serialized = requests.map(serializeMovementRequest);
     const filteredByType =
@@ -480,7 +568,13 @@ router.post(
       request: 'Reenvío de solicitud',
       user: req.user?.username || 'Desconocido'
     });
-    const populated = await request.populate(['item', 'requestedBy', 'approvedBy', 'fromLocation', 'toLocation']);
+    const populated = await request.populate([
+      'item',
+      { path: 'requestedBy', populate: 'role' },
+      { path: 'approvedBy', populate: 'role' },
+      'fromLocation',
+      'toLocation'
+    ]);
     res.json(serializeMovementRequest(populated));
   })
 );

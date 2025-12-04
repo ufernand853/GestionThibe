@@ -54,7 +54,7 @@ export default function DashboardPage() {
   const canViewCatalog = permissions.includes('items.read');
   const shouldLoadStockSummary = canViewReports && !isOperator;
   const shouldLoadLocations = canViewCatalog && !isOperator;
-  const shouldLoadRequests = canManageRequests && !isOperator;
+  const shouldLoadRequests = canManageRequests;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -88,8 +88,8 @@ export default function DashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const preferencesPromise = api.get('/preferences').catch(error => {
-          console.warn('No se pudieron cargar las preferencias del usuario', error);
+        const attentionConfigPromise = api.get('/preferences/dashboard/attention').catch(error => {
+          console.warn('No se pudieron cargar las preferencias de atención', error);
           return null;
         });
         const fetchAllItems = async () => {
@@ -135,22 +135,20 @@ export default function DashboardPage() {
           locationsResponse,
           requestsResponse,
           collectedItems,
-          preferencesResponse
+          attentionConfigResponse
         ] = await Promise.all([
           shouldLoadStockSummary ? api.get('/reports/stock/by-location') : Promise.resolve([]),
           shouldLoadLocations ? api.get('/locations') : Promise.resolve([]),
           shouldLoadRequests ? api.get('/stock/requests') : Promise.resolve([]),
           fetchAllItems(),
-          preferencesPromise
+          attentionConfigPromise
         ]);
         if (!active) return;
         setStockByLocation(Array.isArray(locationTotals) ? locationTotals : []);
         setLocations(Array.isArray(locationsResponse) ? locationsResponse : []);
         setRequests(Array.isArray(requestsResponse) ? requestsResponse : []);
         setItemsSnapshot(collectedItems);
-        const normalizedManualIds = normalizeManualAttentionIds(
-          preferencesResponse?.dashboard?.manualAttentionIds
-        );
+        const normalizedManualIds = normalizeManualAttentionIds(attentionConfigResponse?.manualAttentionIds);
         setManualAttentionIds(normalizedManualIds);
         setSavedManualAttentionIds(normalizedManualIds);
         setManualAttentionFeedback(null);
@@ -404,7 +402,7 @@ export default function DashboardPage() {
     return undefined;
   }, [manualAttentionFeedback]);
 
-  const attentionHelperText = 'Personalizá la lista eligiendo hasta cinco artículos.';
+  const attentionHelperText = 'Personalizá la lista compartida eligiendo hasta cinco artículos.';
 
   const manualSelectionDisabled =
     manualAttentionIds.length >= ATTENTION_MANUAL_LIMIT || filteredAttentionOptions.length === 0;
@@ -437,12 +435,10 @@ export default function DashboardPage() {
     setManualAttentionSaving(true);
     setManualAttentionFeedback(null);
     try {
-      const response = await api.put('/preferences', {
-        dashboard: { manualAttentionIds }
+      const response = await api.put('/preferences/dashboard/attention', {
+        manualAttentionIds
       });
-      const normalizedManualIds = normalizeManualAttentionIds(
-        response?.dashboard?.manualAttentionIds
-      );
+      const normalizedManualIds = normalizeManualAttentionIds(response?.manualAttentionIds);
       setManualAttentionIds(normalizedManualIds);
       setSavedManualAttentionIds(normalizedManualIds);
       setManualAttentionFeedback({ type: 'success', message: 'Configuración guardada.' });
@@ -696,8 +692,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {!isOperator && (
-        <div className="section-card">
+      <div className="section-card">
         <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
           <div>
             <h2>Atención</h2>
@@ -771,7 +766,6 @@ export default function DashboardPage() {
                     </p>
                   )}
                 </div>
-              </div>
               {attentionSearch.trim() && filteredAttentionOptions.length === 0 && (
                 <p className="input-helper">No hay resultados para la búsqueda actual.</p>
               )}
@@ -793,7 +787,8 @@ export default function DashboardPage() {
                   ))}
                 </ul>
               )}
-            </>
+            </div>
+          </>
           ) : (
             <p style={{ color: '#64748b', margin: '1rem 0 0' }}>
               Necesitás permisos de catálogo para configurar esta lista.
@@ -832,7 +827,7 @@ export default function DashboardPage() {
           </div>
         )}
         </div>
-      )}
+      </div>
 
       {!isOperator && pendingRequests.length > 0 && (
         <div className="section-card">
