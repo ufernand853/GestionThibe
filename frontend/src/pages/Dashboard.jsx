@@ -764,8 +764,8 @@ export default function DashboardPage() {
                     <p className={manualAttentionStatusClass} role={manualAttentionStatusRole}>
                       {manualAttentionFeedback.message}
                     </p>
-          )}
-        </div>
+                  )}
+                </div>
               {attentionSearch.trim() && filteredAttentionOptions.length === 0 && (
                 <p className="input-helper">No hay resultados para la búsqueda actual.</p>
               )}
@@ -787,7 +787,8 @@ export default function DashboardPage() {
                   ))}
                 </ul>
               )}
-            </>
+            </div>
+          </>
           ) : (
             <p style={{ color: '#64748b', margin: '1rem 0 0' }}>
               Necesitás permisos de catálogo para configurar esta lista.
