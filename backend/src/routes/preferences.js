@@ -5,6 +5,7 @@ const { HttpError } = require('../utils/errors');
 const { requireAuth } = require('../middlewares/auth');
 const User = require('../models/User');
 const Item = require('../models/Item');
+const DashboardConfig = require('../models/DashboardConfig');
 
 const ATTENTION_MANUAL_LIMIT = 5;
 
@@ -18,6 +19,22 @@ function normalizeManualAttentionIds(ids) {
     .map(value => String(value))
     .filter((value, index, array) => array.indexOf(value) === index)
     .slice(0, ATTENTION_MANUAL_LIMIT);
+}
+
+function serializeDashboardConfig(configDoc) {
+  if (!configDoc) {
+    return { manualAttentionIds: [] };
+  }
+  return {
+    manualAttentionIds: normalizeManualAttentionIds(configDoc.manualAttentionIds),
+    updatedAt: configDoc.updatedAt || null,
+    updatedBy: configDoc.updatedBy
+      ? {
+          id: String(configDoc.updatedBy.id || configDoc.updatedBy._id || ''),
+          username: configDoc.updatedBy.username || null
+        }
+      : null
+  };
 }
 
 router.get(
@@ -66,6 +83,48 @@ router.put(
 
     await user.save();
     res.json(user.preferences || {});
+  })
+);
+
+router.get(
+  '/dashboard/attention',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const config = await DashboardConfig.getSingleton();
+    await config.populate('updatedBy');
+    res.json(serializeDashboardConfig(config));
+  })
+);
+
+router.put(
+  '/dashboard/attention',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { manualAttentionIds } = req.body || {};
+    const incomingIds = normalizeManualAttentionIds(manualAttentionIds);
+
+    if (incomingIds.length > ATTENTION_MANUAL_LIMIT) {
+      throw new HttpError(400, `Solo se permiten ${ATTENTION_MANUAL_LIMIT} artículos.`);
+    }
+
+    for (const id of incomingIds) {
+      if (!Types.ObjectId.isValid(id)) {
+        throw new HttpError(400, 'Identificador de artículo inválido.');
+      }
+    }
+
+    const existingCount = await Item.countDocuments({ _id: { $in: incomingIds } });
+    if (existingCount !== incomingIds.length) {
+      throw new HttpError(400, 'Algunos artículos seleccionados no existen.');
+    }
+
+    const config = await DashboardConfig.getSingleton();
+    config.manualAttentionIds = incomingIds;
+    config.updatedBy = req.user.id;
+    await config.save();
+    await config.populate('updatedBy');
+
+    res.json(serializeDashboardConfig(config));
   })
 );
 

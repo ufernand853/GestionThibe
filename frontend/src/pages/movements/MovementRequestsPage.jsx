@@ -50,6 +50,9 @@ export default function MovementRequestsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [itemFilter, setItemFilter] = useState('');
+  const [itemFilterSearchTerm, setItemFilterSearchTerm] = useState('');
+  const [profileFilter, setProfileFilter] = useState('');
+  const [requesterFilter, setRequesterFilter] = useState('');
   const [dateFilters, setDateFilters] = useState({ from: '', to: '' });
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
   const [resubmittingId, setResubmittingId] = useState(null);
@@ -83,11 +86,26 @@ export default function MovementRequestsPage() {
     if (itemFilter) {
       query.itemId = itemFilter;
     }
+    if (profileFilter.trim()) {
+      query.profile = profileFilter.trim();
+    }
+    if (requesterFilter) {
+      query.requestedBy = requesterFilter;
+    }
     const response = await api.get('/stock/requests', {
       query: Object.keys(query).length > 0 ? query : undefined
     });
     return Array.isArray(response) ? response : [];
-  }, [api, dateFilters.from, dateFilters.to, itemFilter, statusFilter, typeFilter]);
+  }, [
+    api,
+    dateFilters.from,
+    dateFilters.to,
+    itemFilter,
+    profileFilter,
+    requesterFilter,
+    statusFilter,
+    typeFilter
+  ]);
 
   const refreshPendingSnapshot = useCallback(async () => {
     if (!canRequest) {
@@ -157,6 +175,15 @@ export default function MovementRequestsPage() {
     }
   }, [itemFilter, items]);
 
+  useEffect(() => {
+    if (!requesterFilter) {
+      return;
+    }
+    if (!requesterOptions.some(option => option.id === requesterFilter)) {
+      setRequesterFilter('');
+    }
+  }, [requesterFilter, requesterOptions]);
+
   const originOptions = useMemo(() => {
     const priorityMap = new Map(
       ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
@@ -205,6 +232,25 @@ export default function MovementRequestsPage() {
       return codeA.localeCompare(codeB, 'es', { sensitivity: 'base', numeric: true });
     });
   }, [items]);
+
+  const filteredItemFilterOptions = useMemo(() => {
+    const query = itemFilterSearchTerm.trim().toLowerCase();
+    let base = sortedItems;
+    if (query) {
+      base = sortedItems.filter(item => {
+        const code = String(item.code || '').toLowerCase();
+        const description = String(item.description || '').toLowerCase();
+        return code.includes(query) || description.includes(query);
+      });
+    }
+    if (itemFilter) {
+      const selected = sortedItems.find(item => item.id === itemFilter);
+      if (selected && !base.some(item => item.id === selected.id)) {
+        return [selected, ...base];
+      }
+    }
+    return base;
+  }, [itemFilter, itemFilterSearchTerm, sortedItems]);
 
   const filteredItems = useMemo(() => {
     const query = itemSearchTerm.trim().toLowerCase();
@@ -276,6 +322,28 @@ export default function MovementRequestsPage() {
     });
     return map;
   }, [itemTotals, pendingMap]);
+
+  const requesterOptions = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(requests) ? requests : []).forEach(request => {
+      const requester = request.requestedBy;
+      if (requester?.id) {
+        const label = requester.username || requester.email || requester.id;
+        map.set(requester.id, label);
+      }
+    });
+    return Array.from(map.entries()).map(([id, label]) => ({ id, label }));
+  }, [requests]);
+
+  const profileOptions = useMemo(() => {
+    const set = new Set();
+    (Array.isArray(requests) ? requests : []).forEach(request => {
+      if (request.requestedBy?.role) {
+        set.add(request.requestedBy.role);
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [requests]);
 
   useEffect(() => {
     let active = true;
@@ -619,12 +687,58 @@ export default function MovementRequestsPage() {
               </select>
             </div>
             <div className="input-group" style={{ minWidth: '220px' }}>
+              <label htmlFor="itemFilterSearch">Buscar artículo</label>
+              <input
+                id="itemFilterSearch"
+                type="search"
+                placeholder="Código o descripción"
+                value={itemFilterSearchTerm}
+                onChange={event => setItemFilterSearchTerm(event.target.value)}
+              />
+            </div>
+            <div className="input-group" style={{ minWidth: '220px' }}>
               <label htmlFor="itemFilter">Artículo</label>
               <select id="itemFilter" value={itemFilter} onChange={event => setItemFilter(event.target.value)}>
                 <option value="">Todos</option>
-                {sortedItems.map(item => (
+                {filteredItemFilterOptions.map(item => (
                   <option key={item.id} value={item.id}>
                     {item.code} · {item.description}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {itemFilterSearchTerm.trim() && filteredItemFilterOptions.length === 0 && (
+              <p className="input-helper">No hay artículos que coincidan con la búsqueda.</p>
+            )}
+            <div className="input-group" style={{ minWidth: '200px' }}>
+              <label htmlFor="profileFilter">Perfil</label>
+              <input
+                id="profileFilter"
+                type="search"
+                placeholder="Rol o perfil"
+                value={profileFilter}
+                onChange={event => setProfileFilter(event.target.value)}
+                list="profileFilterOptions"
+              />
+              {profileOptions.length > 0 && (
+                <datalist id="profileFilterOptions">
+                  {profileOptions.map(profile => (
+                    <option key={profile} value={profile} />
+                  ))}
+                </datalist>
+              )}
+            </div>
+            <div className="input-group" style={{ minWidth: '200px' }}>
+              <label htmlFor="requesterFilter">Solicitante</label>
+              <select
+                id="requesterFilter"
+                value={requesterFilter}
+                onChange={event => setRequesterFilter(event.target.value)}
+              >
+                <option value="">Todos</option>
+                {requesterOptions.map(option => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -672,6 +786,7 @@ export default function MovementRequestsPage() {
                   <th>Origen</th>
                   <th>Destino</th>
                   <th>Cantidad</th>
+                  <th>Motivo</th>
                   <th>Disponibilidad</th>
                   <th>Estado</th>
                   <th>Solicitado por</th>
@@ -702,6 +817,9 @@ export default function MovementRequestsPage() {
                           <span className={`badge ${movementBadgeClass}`}>{movementLabel}</span>
                         </div>
                       </td>
+                      <td title={request.reason || 'Sin motivo'} style={{ maxWidth: '220px' }}>
+                        {request.reason ? request.reason : <span style={{ color: '#94a3b8' }}>Sin motivo</span>}
+                      </td>
                       <td>
                         {stockStatus ? (
                           <div className="stock-status-cell">
@@ -721,7 +839,16 @@ export default function MovementRequestsPage() {
                       <td>
                         <span className={`badge ${request.status}`}>{request.status}</span>
                       </td>
-                      <td>{request.requestedBy?.username || 'N/D'}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                          <span>{request.requestedBy?.username || 'N/D'}</span>
+                          {request.requestedBy?.role && (
+                            <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+                              {request.requestedBy.role}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
                       <td>
                         {request.status === 'rejected' && (
