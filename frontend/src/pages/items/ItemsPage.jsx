@@ -204,6 +204,8 @@ export default function ItemsPage() {
   const [imageFiles, setImageFiles] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
   const [imageError, setImageError] = useState('');
+  const [previewImages, setPreviewImages] = useState([]);
+  const [previewIndex, setPreviewIndex] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
 
   const updateAttributeOptionsFromItems = useCallback(itemsList => {
@@ -643,6 +645,62 @@ export default function ItemsPage() {
     return `${API_ROOT_URL}/${path.replace(/^\/+/, '')}`;
   };
 
+  const buildPreviewList = useCallback(() => {
+    const existing = existingImages.map(path => ({
+      src: getImageUrl(path),
+      alt: 'Imagen del artículo',
+      key: path
+    }));
+    const news = imageFiles.map((image, index) => ({
+      src: image.dataUrl,
+      alt: image.name || `Nueva imagen ${index + 1}`,
+      key: `new-${index}`
+    }));
+    return [...existing, ...news];
+  }, [existingImages, getImageUrl, imageFiles]);
+
+  const handlePreviewOpen = (source, index) => {
+    const gallery = buildPreviewList();
+    const baseIndex = source === 'existing' ? 0 : existingImages.length;
+    const targetIndex = baseIndex + index;
+    if (targetIndex < 0 || targetIndex >= gallery.length) {
+      return;
+    }
+    setPreviewImages(gallery);
+    setPreviewIndex(targetIndex);
+  };
+
+  const handlePreviewClose = () => {
+    setPreviewImages([]);
+    setPreviewIndex(null);
+  };
+
+  const handlePreviewStep = direction => {
+    if (previewIndex === null || previewImages.length === 0) {
+      return;
+    }
+    setPreviewIndex(prev => {
+      if (prev === null) return prev;
+      const next = (prev + direction + previewImages.length) % previewImages.length;
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (previewIndex === null) {
+      return;
+    }
+    const gallery = buildPreviewList();
+    if (gallery.length === 0) {
+      handlePreviewClose();
+      return;
+    }
+    setPreviewImages(gallery);
+    if (previewIndex >= gallery.length) {
+      setPreviewIndex(gallery.length - 1);
+    }
+  }, [buildPreviewList, previewIndex]);
+
   const handleSubmit = async event => {
     event.preventDefault();
     if (!canWrite) return;
@@ -782,6 +840,38 @@ export default function ItemsPage() {
 
       {error && <ErrorMessage error={error} />}
       {successMessage && <div className="success-message">{successMessage}</div>}
+
+      {previewIndex !== null && previewImages[previewIndex] && (
+        <div className="image-lightbox" onClick={handlePreviewClose} role="dialog" aria-modal="true">
+          <div className="image-lightbox__content" onClick={event => event.stopPropagation()}>
+            <img
+              src={previewImages[previewIndex].src}
+              alt={previewImages[previewIndex].alt || 'Vista ampliada de la imagen'}
+            />
+            <div className="image-lightbox__actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => handlePreviewStep(-1)}
+                disabled={previewImages.length <= 1}
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => handlePreviewStep(1)}
+                disabled={previewImages.length <= 1}
+              >
+                Siguiente
+              </button>
+              <button type="button" onClick={handlePreviewClose}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="section-card">
         <form className="item-form" onSubmit={handleSubmit}>
@@ -940,9 +1030,14 @@ export default function ItemsPage() {
                   <div className="image-preview-group">
                     <h4>Imágenes actuales</h4>
                     <div className="image-preview-grid">
-                      {existingImages.map(image => (
+                      {existingImages.map((image, index) => (
                         <div key={image} className="image-preview-item">
-                          <img src={getImageUrl(image)} alt="Imagen del artículo" />
+                          <img
+                            src={getImageUrl(image)}
+                            alt="Imagen del artículo"
+                            onClick={() => handlePreviewOpen('existing', index)}
+                            style={{ cursor: 'zoom-in' }}
+                          />
                           <button type="button" className="secondary-button" onClick={() => handleRemoveExistingImage(image)}>
                             Quitar
                           </button>
@@ -957,7 +1052,12 @@ export default function ItemsPage() {
                     <div className="image-preview-grid">
                       {imageFiles.map((image, index) => (
                         <div key={image.dataUrl || index} className="image-preview-item">
-                          <img src={image.dataUrl} alt={image.name || `Nueva imagen ${index + 1}`} />
+                          <img
+                            src={image.dataUrl}
+                            alt={image.name || `Nueva imagen ${index + 1}`}
+                            onClick={() => handlePreviewOpen('new', index)}
+                            style={{ cursor: 'zoom-in' }}
+                          />
                           <button type="button" className="secondary-button" onClick={() => handleRemoveNewImage(index)}>
                             Quitar
                           </button>
