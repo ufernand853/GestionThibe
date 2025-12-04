@@ -766,29 +766,29 @@ export default function DashboardPage() {
                     </p>
                   )}
                 </div>
-              {attentionSearch.trim() && filteredAttentionOptions.length === 0 && (
-                <p className="input-helper">No hay resultados para la búsqueda actual.</p>
-              )}
-              {manualAttentionItems.length > 0 && (
-                <ul className="selection-chips">
-                  {manualAttentionItems.map(item => (
-                    <li key={item.id} className="selection-chip">
-                      <span>
-                        {item.code} · {item.description}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleManualAttentionRemove(item.id)}
-                        aria-label={`Quitar ${item.code}`}
-                      >
-                        ×
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </>
+                {attentionSearch.trim() && filteredAttentionOptions.length === 0 && (
+                  <p className="input-helper">No hay resultados para la búsqueda actual.</p>
+                )}
+                {manualAttentionItems.length > 0 && (
+                  <ul className="selection-chips">
+                    {manualAttentionItems.map(item => (
+                      <li key={item.id} className="selection-chip">
+                        <span>
+                          {item.code} · {item.description}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleManualAttentionRemove(item.id)}
+                          aria-label={`Quitar ${item.code}`}
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
           ) : (
             <p style={{ color: '#64748b', margin: '1rem 0 0' }}>
               Necesitás permisos de catálogo para configurar esta lista.
@@ -826,7 +826,6 @@ export default function DashboardPage() {
             </table>
           </div>
         )}
-        </div>
       </div>
 
       {!isOperator && pendingRequests.length > 0 && (
