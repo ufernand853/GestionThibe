@@ -175,15 +175,6 @@ export default function MovementRequestsPage() {
     }
   }, [itemFilter, items]);
 
-  useEffect(() => {
-    if (!requesterFilter) {
-      return;
-    }
-    if (!requesterOptions.some(option => option.id === requesterFilter)) {
-      setRequesterFilter('');
-    }
-  }, [requesterFilter, requesterOptions]);
-
   const originOptions = useMemo(() => {
     const priorityMap = new Map(
       ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
@@ -344,6 +335,15 @@ export default function MovementRequestsPage() {
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
   }, [requests]);
+
+  useEffect(() => {
+    if (!requesterFilter) {
+      return;
+    }
+    if (!requesterOptions.some(option => option.id === requesterFilter)) {
+      setRequesterFilter('');
+    }
+  }, [requesterFilter, requesterOptions]);
 
   useEffect(() => {
     let active = true;
