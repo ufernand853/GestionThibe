@@ -55,7 +55,7 @@ export default function DashboardPage() {
   const shouldLoadStockSummary = canViewReports && !isOperator;
   const shouldLoadLocations = canViewCatalog && !isOperator;
   const shouldLoadRequests = canManageRequests;
-  const [recountThresholdDays, setRecountThresholdDays] = useState(RECOUNT_THRESHOLD_DAYS);
+  const recountThresholdDays = RECOUNT_THRESHOLD_DAYS;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -165,10 +165,6 @@ export default function DashboardPage() {
         const normalizedManualIds = normalizeManualAttentionIds(attentionConfigResponse?.manualAttentionIds);
         setManualAttentionIds(normalizedManualIds);
         setSavedManualAttentionIds(normalizedManualIds);
-        const normalizedThreshold = Number.isFinite(attentionConfigResponse?.recountThresholdDays)
-          ? Math.max(0, Math.round(attentionConfigResponse.recountThresholdDays))
-          : RECOUNT_THRESHOLD_DAYS;
-        setRecountThresholdDays(normalizedThreshold);
         setManualAttentionFeedback(null);
       } catch (err) {
         if (!active) return;
