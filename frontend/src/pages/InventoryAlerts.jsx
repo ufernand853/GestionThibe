@@ -66,7 +66,6 @@ export default function InventoryAlertsPage() {
   const location = useLocation();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canViewCatalog = permissions.includes('items.read');
-  const isAdmin = user?.role === 'Administrador';
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -74,10 +73,7 @@ export default function InventoryAlertsPage() {
   const [activeSection, setActiveSection] = useState('all');
   const [recountSearch, setRecountSearch] = useState('');
   const [outOfStockSearch, setOutOfStockSearch] = useState('');
-  const [recountThresholdDays, setRecountThresholdDays] = useState(RECOUNT_THRESHOLD_DAYS);
-  const [thresholdInput, setThresholdInput] = useState(String(RECOUNT_THRESHOLD_DAYS));
-  const [configSaving, setConfigSaving] = useState(false);
-  const [configMessage, setConfigMessage] = useState(null);
+  const recountThresholdDays = RECOUNT_THRESHOLD_DAYS;
 
   useEffect(() => {
     let active = true;
@@ -92,10 +88,6 @@ export default function InventoryAlertsPage() {
       setLoading(true);
       setError(null);
       try {
-        const configPromise = api.get('/preferences/dashboard/attention').catch(error => {
-          console.warn('No se pudo obtener la configuración de alertas', error);
-          return null;
-        });
         const collectedItems = [];
         const seenIds = new Set();
         let pageNumber = 1;
@@ -128,12 +120,6 @@ export default function InventoryAlertsPage() {
           pageNumber += 1;
         }
         setItemsSnapshot(collectedItems);
-        const attentionConfig = await configPromise;
-        const normalizedThreshold = Number.isFinite(attentionConfig?.recountThresholdDays)
-          ? Math.max(0, Math.round(attentionConfig.recountThresholdDays))
-          : RECOUNT_THRESHOLD_DAYS;
-        setRecountThresholdDays(normalizedThreshold);
-        setThresholdInput(String(normalizedThreshold));
       } catch (err) {
         if (!active) {
           return;
@@ -213,36 +199,6 @@ export default function InventoryAlertsPage() {
       ? `Incluye artículos marcados manualmente o sin actualización en ${recountThresholdDays}+ días.`
       : 'Incluye artículos marcados manualmente o sin registro de actualización automática.';
 
-  const handleThresholdSubmit = async event => {
-    event.preventDefault();
-    setConfigMessage(null);
-    const parsedThreshold = Number(thresholdInput);
-    if (!Number.isFinite(parsedThreshold) || parsedThreshold < 0) {
-      setConfigMessage({ type: 'error', message: 'Ingresá un número válido mayor o igual a 0.' });
-      return;
-    }
-    setConfigSaving(true);
-    try {
-      const response = await api.put('/preferences/dashboard/attention', {
-        recountThresholdDays: parsedThreshold
-      });
-      const normalizedThreshold = Number.isFinite(response?.recountThresholdDays)
-        ? Math.max(0, Math.round(response.recountThresholdDays))
-        : RECOUNT_THRESHOLD_DAYS;
-      setRecountThresholdDays(normalizedThreshold);
-      setThresholdInput(String(normalizedThreshold));
-      setConfigMessage({ type: 'success', message: 'Configuración actualizada.' });
-    } catch (err) {
-      setConfigMessage({ type: 'error', message: err?.message || 'No se pudo guardar la configuración.' });
-    } finally {
-      setConfigSaving(false);
-    }
-  };
-
-  const configStatusClass = configMessage
-    ? `attention-actions__status attention-actions__status--${configMessage.type}`
-    : null;
-
   if (!canViewCatalog) {
     return (
       <div className="inventory-alerts-page">
@@ -268,42 +224,6 @@ export default function InventoryAlertsPage() {
         <LoadingIndicator message="Cargando alertas de inventario..." />
       ) : (
         <>
-          {isAdmin && (
-            <section className="section-card" style={{ marginBottom: '1rem' }}>
-              <h3>Administración</h3>
-              <p style={{ color: '#475569', marginTop: '-0.5rem' }}>
-                Configurá los días sin actualización necesarios para generar la alarma automática de recuento pendiente.
-              </p>
-              <form
-                onSubmit={handleThresholdSubmit}
-                className="form-grid"
-                style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', alignItems: 'flex-end' }}
-              >
-                <div className="input-group">
-                  <label htmlFor="recountThreshold">Días de inactividad</label>
-                  <input
-                    id="recountThreshold"
-                    type="number"
-                    min="0"
-                    value={thresholdInput}
-                    onChange={event => setThresholdInput(event.target.value)}
-                  />
-                  <p className="input-helper">Ingresá 0 para desactivar la alarma automática.</p>
-                </div>
-                <div className="attention-actions__field attention-actions__field--buttons">
-                  <button type="submit" disabled={configSaving}>
-                    {configSaving ? 'Guardando…' : 'Guardar'}
-                  </button>
-                  {configMessage && configStatusClass && (
-                    <p className={configStatusClass} role={configMessage.type === 'error' ? 'alert' : 'status'}>
-                      {configMessage.message}
-                    </p>
-                  )}
-                </div>
-              </form>
-            </section>
-          )}
-
           {(activeSection === 'all' || activeSection === 'recount') && (
             <section className="section-card" id="recount" tabIndex={-1}>
               <div className="flex-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
