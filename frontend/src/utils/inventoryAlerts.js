@@ -1,6 +1,6 @@
 import { computeTotalStockFromMap } from './stockStatus.js';
 
-export const RECOUNT_THRESHOLD_DAYS = 30;
+export const RECOUNT_THRESHOLD_DAYS = 0;
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
