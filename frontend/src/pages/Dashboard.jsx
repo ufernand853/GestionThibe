@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import useApi from '../hooks/useApi.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -55,6 +55,7 @@ export default function DashboardPage() {
   const shouldLoadStockSummary = canViewReports && !isOperator;
   const shouldLoadLocations = canViewCatalog && !isOperator;
   const shouldLoadRequests = canManageRequests;
+  const [recountThresholdDays, setRecountThresholdDays] = useState(RECOUNT_THRESHOLD_DAYS);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -81,6 +82,19 @@ export default function DashboardPage() {
   const [manualAttentionFeedback, setManualAttentionFeedback] = useState(null);
   const [manualSelectionValue, setManualSelectionValue] = useState('');
   const [attentionSearch, setAttentionSearch] = useState('');
+  const [attentionStartDate, setAttentionStartDate] = useState(() => {
+    const startOfMonth = new Date();
+    startOfMonth.setHours(0, 0, 0, 0);
+    startOfMonth.setDate(1);
+    return formatDateForInput(startOfMonth);
+  });
+  const [attentionEndDate, setAttentionEndDate] = useState(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    endOfMonth.setHours(0, 0, 0, 0);
+    return formatDateForInput(endOfMonth);
+  });
 
   useEffect(() => {
     let active = true;
@@ -151,6 +165,10 @@ export default function DashboardPage() {
         const normalizedManualIds = normalizeManualAttentionIds(attentionConfigResponse?.manualAttentionIds);
         setManualAttentionIds(normalizedManualIds);
         setSavedManualAttentionIds(normalizedManualIds);
+        const normalizedThreshold = Number.isFinite(attentionConfigResponse?.recountThresholdDays)
+          ? Math.max(0, Math.round(attentionConfigResponse.recountThresholdDays))
+          : RECOUNT_THRESHOLD_DAYS;
+        setRecountThresholdDays(normalizedThreshold);
         setManualAttentionFeedback(null);
       } catch (err) {
         if (!active) return;
@@ -234,85 +252,101 @@ export default function DashboardPage() {
     });
   }, [itemSummaries]);
 
-  const inventoryAlerts = useMemo(() => computeInventoryAlerts(itemSummaries), [itemSummaries]);
+  const inventoryAlerts = useMemo(
+    () => computeInventoryAlerts(itemSummaries, { thresholdDays: recountThresholdDays }),
+    [itemSummaries, recountThresholdDays]
+  );
 
-  const rankedWithdrawals = useMemo(() => {
-    const startDate = parseDateFromInput(topStartDate);
-    const endDate = parseDateFromInput(topEndDate);
-    const startMs = startDate ? startDate.setHours(0, 0, 0, 0) : null;
-    const endMs = endDate ? endDate.setHours(23, 59, 59, 999) : null;
-    const aggregated = new Map();
-    (Array.isArray(requests) ? requests : []).forEach(request => {
-      if (request.status !== 'executed') {
-        return;
-      }
-      const requestType = String(request.type || request.movementType || 'transfer').toLowerCase();
-      if (requestType !== 'egress') {
-        return;
-      }
-      const executedAt = request.executedAt || request.approvedAt || request.requestedAt;
-      if (!executedAt) {
-        return;
-      }
-      const executedTime = new Date(executedAt).getTime();
-      if (Number.isNaN(executedTime)) {
-        return;
-      }
-      if (startMs !== null && executedTime < startMs) {
-        return;
-      }
-      if (endMs !== null && executedTime > endMs) {
-        return;
-      }
-      const itemId = request.item?.id || request.itemId;
-      if (!itemId) {
-        return;
-      }
-      const referenceItem = itemsById.get(itemId);
-      const existing = aggregated.get(itemId) || {
-        id: itemId,
-        code: referenceItem?.code || request.item?.code || itemId,
-        description: referenceItem?.description || request.item?.description || 'Artículo',
-        group: referenceItem?.group || request.item?.group || null,
-        groupId:
-          referenceItem?.group?.id ||
-          referenceItem?.group?._id ||
-          request.item?.groupId ||
-          (typeof request.item?.group === 'object'
-            ? request.item?.group?.id || request.item?.group?._id
-            : null) ||
-          null,
-        total: { boxes: 0, units: 0 },
-        lastWithdrawal: null,
-        currentStock: referenceItem?.total || null
-      };
-      existing.total = sumQuantities(existing.total, ensureQuantity(request.quantity));
-      if (!existing.lastWithdrawal || executedTime > new Date(existing.lastWithdrawal).getTime()) {
-        existing.lastWithdrawal = executedAt;
-      }
-      if (!existing.currentStock && referenceItem?.total) {
-        existing.currentStock = referenceItem.total;
-      }
-      if (!existing.group && referenceItem?.group) {
-        existing.group = referenceItem.group;
-      }
-      if (!existing.groupId && (referenceItem?.group?.id || referenceItem?.group?._id)) {
-        existing.groupId = referenceItem.group.id || referenceItem.group._id;
-      }
-      aggregated.set(itemId, existing);
-    });
-    return Array.from(aggregated.values()).sort((a, b) => {
-      if (a.total.boxes !== b.total.boxes) {
-        return b.total.boxes - a.total.boxes;
-      }
-      if (a.total.units !== b.total.units) {
-        return b.total.units - a.total.units;
-      }
-      const aDate = a.lastWithdrawal ? new Date(a.lastWithdrawal).getTime() : 0;
-      const bDate = b.lastWithdrawal ? new Date(b.lastWithdrawal).getTime() : 0;
-      return bDate - aDate;
-    });
-  }, [itemsById, requests, topEndDate, topStartDate]);
+  const buildRankedWithdrawals = useCallback(
+    (startDateValue, endDateValue) => {
+      const startDate = parseDateFromInput(startDateValue);
+      const endDate = parseDateFromInput(endDateValue);
+      const startMs = startDate ? startDate.setHours(0, 0, 0, 0) : null;
+      const endMs = endDate ? endDate.setHours(23, 59, 59, 999) : null;
+      const aggregated = new Map();
+      (Array.isArray(requests) ? requests : []).forEach(request => {
+        if (request.status !== 'executed') {
+          return;
+        }
+        const requestType = String(request.type || request.movementType || 'transfer').toLowerCase();
+        if (requestType !== 'egress') {
+          return;
+        }
+        const executedAt = request.executedAt || request.approvedAt || request.requestedAt;
+        if (!executedAt) {
+          return;
+        }
+        const executedTime = new Date(executedAt).getTime();
+        if (Number.isNaN(executedTime)) {
+          return;
+        }
+        if (startMs !== null && executedTime < startMs) {
+          return;
+        }
+        if (endMs !== null && executedTime > endMs) {
+          return;
+        }
+        const itemId = request.item?.id || request.itemId;
+        if (!itemId) {
+          return;
+        }
+        const referenceItem = itemsById.get(itemId);
+        const existing = aggregated.get(itemId) || {
+          id: itemId,
+          code: referenceItem?.code || request.item?.code || itemId,
+          description: referenceItem?.description || request.item?.description || 'Artículo',
+          group: referenceItem?.group || request.item?.group || null,
+          groupId:
+            referenceItem?.group?.id ||
+            referenceItem?.group?._id ||
+            request.item?.groupId ||
+            (typeof request.item?.group === 'object'
+              ? request.item?.group?.id || request.item?.group?._id
+              : null) ||
+            null,
+          total: { boxes: 0, units: 0 },
+          lastWithdrawal: null,
+          currentStock: referenceItem?.total || null
+        };
+        existing.total = sumQuantities(existing.total, ensureQuantity(request.quantity));
+        if (!existing.lastWithdrawal || executedTime > new Date(existing.lastWithdrawal).getTime()) {
+          existing.lastWithdrawal = executedAt;
+        }
+        if (!existing.currentStock && referenceItem?.total) {
+          existing.currentStock = referenceItem.total;
+        }
+        if (!existing.group && referenceItem?.group) {
+          existing.group = referenceItem.group;
+        }
+        if (!existing.groupId && (referenceItem?.group?.id || referenceItem?.group?._id)) {
+          existing.groupId = referenceItem.group.id || referenceItem.group._id;
+        }
+        aggregated.set(itemId, existing);
+      });
+      return Array.from(aggregated.values()).sort((a, b) => {
+        if (a.total.boxes !== b.total.boxes) {
+          return b.total.boxes - a.total.boxes;
+        }
+        if (a.total.units !== b.total.units) {
+          return b.total.units - a.total.units;
+        }
+        const aDate = a.lastWithdrawal ? new Date(a.lastWithdrawal).getTime() : 0;
+        const bDate = b.lastWithdrawal ? new Date(b.lastWithdrawal).getTime() : 0;
+        return bDate - aDate;
+      });
+    },
+    [itemsById, requests]
+  );
+
+  const rankedWithdrawals = useMemo(
+    () => buildRankedWithdrawals(topStartDate, topEndDate),
+    [buildRankedWithdrawals, topEndDate, topStartDate]
+  );
+
+  const attentionWithdrawals = useMemo(
+    () => buildRankedWithdrawals(attentionStartDate, attentionEndDate),
+    [attentionEndDate, attentionStartDate, buildRankedWithdrawals]
+  );
 
   const rankedWithdrawalsMap = useMemo(() => {
     const map = new Map();
@@ -321,6 +355,14 @@ export default function DashboardPage() {
     });
     return map;
   }, [rankedWithdrawals]);
+
+  const attentionWithdrawalsMap = useMemo(() => {
+    const map = new Map();
+    attentionWithdrawals.forEach(item => {
+      map.set(item.id, item);
+    });
+    return map;
+  }, [attentionWithdrawals]);
 
   const topItems = useMemo(() => rankedWithdrawals.slice(0, 5), [rankedWithdrawals]);
 
@@ -348,7 +390,7 @@ export default function DashboardPage() {
     }
     return manualAttentionIds
       .map(id => {
-        const ranked = rankedWithdrawalsMap.get(id);
+        const ranked = attentionWithdrawalsMap.get(id);
         if (ranked) {
           if (!ranked.currentStock) {
             const reference = itemsById.get(id);
@@ -372,7 +414,7 @@ export default function DashboardPage() {
         return null;
       })
       .filter(Boolean);
-  }, [itemsById, manualAttentionIds, rankedWithdrawalsMap]);
+  }, [attentionWithdrawalsMap, itemsById, manualAttentionIds]);
 
   const hasManualAttentionChanges = useMemo(() => {
     if (manualAttentionIds.length !== savedManualAttentionIds.length) {
@@ -402,7 +444,8 @@ export default function DashboardPage() {
     return undefined;
   }, [manualAttentionFeedback]);
 
-  const attentionHelperText = 'Personalizá la lista compartida eligiendo hasta cinco artículos.';
+  const attentionHelperText =
+    'Personalizá la lista compartida eligiendo hasta cinco artículos y filtra los retiros con su propio rango de fechas.';
 
   const manualSelectionDisabled =
     manualAttentionIds.length >= ATTENTION_MANUAL_LIMIT || filteredAttentionOptions.length === 0;
@@ -464,6 +507,11 @@ export default function DashboardPage() {
   }
 
   const { recount: recountItems, outOfStock: outOfStockItems } = inventoryAlerts;
+
+  const recountHelperText =
+    recountThresholdDays > 0
+      ? `Requieren recuento quienes estén marcados manualmente o lleven ${recountThresholdDays}+ días sin actualización.`
+      : 'Requieren recuento los artículos marcados manualmente o sin registro de actualización.';
 
   const summaryCards = [
     {
@@ -531,7 +579,7 @@ export default function DashboardPage() {
             <p>
               {recountItems.length === 0
                 ? 'Todos los artículos registran recuentos recientes.'
-                : `${recountItems.length} artículos requieren recuento (marcados manualmente o sin actualización en ${RECOUNT_THRESHOLD_DAYS}+ días).`}
+                : `${recountItems.length} artículos requieren recuento. ${recountHelperText}`}
             </p>
             {recountItems.length > 0 && (
               <ul>
@@ -615,8 +663,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {!isOperator && (
-        <div className="section-card">
+      <div className="section-card">
         <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
           <div>
             <h2>Top 5</h2>
@@ -689,14 +736,47 @@ export default function DashboardPage() {
             </table>
           </div>
         )}
-        </div>
-      )}
+      </div>
 
       <div className="section-card">
         <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
           <div>
             <h2>Atención</h2>
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{attentionHelperText}</span>
+          </div>
+          <div className="inline-actions" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+            <label htmlFor="attentionStartDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
+              Desde
+            </label>
+            <input
+              id="attentionStartDate"
+              type="date"
+              value={attentionStartDate}
+              max={attentionEndDate || undefined}
+              onChange={event => {
+                const value = event.target.value;
+                setAttentionStartDate(value);
+                if (attentionEndDate && value && value > attentionEndDate) {
+                  setAttentionEndDate(value);
+                }
+              }}
+            />
+            <label htmlFor="attentionEndDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
+              Hasta
+            </label>
+            <input
+              id="attentionEndDate"
+              type="date"
+              value={attentionEndDate}
+              min={attentionStartDate || undefined}
+              onChange={event => {
+                const value = event.target.value;
+                setAttentionEndDate(value);
+                if (attentionStartDate && value && value < attentionStartDate) {
+                  setAttentionStartDate(value);
+                }
+              }}
+            />
           </div>
         </div>
         <div className="attention-selection">
@@ -729,7 +809,7 @@ export default function DashboardPage() {
                     ))}
                   </select>
                   <p className="input-helper">
-                    Hasta {ATTENTION_MANUAL_LIMIT} artículos. Los valores muestran retiros en el rango elegido.
+                    Hasta {ATTENTION_MANUAL_LIMIT} artículos. Los valores muestran retiros en el rango de atención seleccionado.
                   </p>
                 </div>
                 <div className="attention-actions__field attention-actions__field--buttons">

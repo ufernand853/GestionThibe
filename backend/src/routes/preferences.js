@@ -23,10 +23,14 @@ function normalizeManualAttentionIds(ids) {
 
 function serializeDashboardConfig(configDoc) {
   if (!configDoc) {
-    return { manualAttentionIds: [] };
+    return { manualAttentionIds: [], recountThresholdDays: 0 };
   }
   return {
     manualAttentionIds: normalizeManualAttentionIds(configDoc.manualAttentionIds),
+    recountThresholdDays:
+      typeof configDoc.recountThresholdDays === 'number' && Number.isFinite(configDoc.recountThresholdDays)
+        ? Math.max(0, Math.round(configDoc.recountThresholdDays))
+        : 0,
     updatedAt: configDoc.updatedAt || null,
     updatedBy: configDoc.updatedBy
       ? {
@@ -100,26 +104,38 @@ router.put(
   '/dashboard/attention',
   requireAuth,
   asyncHandler(async (req, res) => {
-    const { manualAttentionIds } = req.body || {};
-    const incomingIds = normalizeManualAttentionIds(manualAttentionIds);
+    const { manualAttentionIds, recountThresholdDays } = req.body || {};
+    const manualAttentionProvided = manualAttentionIds !== undefined;
+    const incomingIds = manualAttentionProvided ? normalizeManualAttentionIds(manualAttentionIds) : [];
 
-    if (incomingIds.length > ATTENTION_MANUAL_LIMIT) {
-      throw new HttpError(400, `Solo se permiten ${ATTENTION_MANUAL_LIMIT} artículos.`);
-    }
+    if (manualAttentionProvided) {
+      if (incomingIds.length > ATTENTION_MANUAL_LIMIT) {
+        throw new HttpError(400, `Solo se permiten ${ATTENTION_MANUAL_LIMIT} artículos.`);
+      }
 
-    for (const id of incomingIds) {
-      if (!Types.ObjectId.isValid(id)) {
-        throw new HttpError(400, 'Identificador de artículo inválido.');
+      for (const id of incomingIds) {
+        if (!Types.ObjectId.isValid(id)) {
+          throw new HttpError(400, 'Identificador de artículo inválido.');
+        }
+      }
+
+      const existingCount = await Item.countDocuments({ _id: { $in: incomingIds } });
+      if (existingCount !== incomingIds.length) {
+        throw new HttpError(400, 'Algunos artículos seleccionados no existen.');
       }
     }
 
-    const existingCount = await Item.countDocuments({ _id: { $in: incomingIds } });
-    if (existingCount !== incomingIds.length) {
-      throw new HttpError(400, 'Algunos artículos seleccionados no existen.');
-    }
-
     const config = await DashboardConfig.getSingleton();
-    config.manualAttentionIds = incomingIds;
+    if (recountThresholdDays !== undefined) {
+      const numericThreshold = Number(recountThresholdDays);
+      if (!Number.isFinite(numericThreshold) || numericThreshold < 0) {
+        throw new HttpError(400, 'El umbral debe ser un número mayor o igual a 0.');
+      }
+      config.recountThresholdDays = Math.round(numericThreshold);
+    }
+    if (manualAttentionProvided) {
+      config.manualAttentionIds = incomingIds;
+    }
     config.updatedBy = req.user.id;
     await config.save();
     await config.populate('updatedBy');
