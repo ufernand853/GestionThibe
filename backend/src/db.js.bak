@@ -8,10 +8,7 @@ async function connectDatabase() {
     return mongoose.connection;
   }
   const connectionOptions = {
-    autoIndex: true,
-    user: 'adminulifer',
-    pass: 'ID)&Gv-Wxbc6',
-    authSource: 'admin'
+    autoIndex: true
   };
 
   if (config.mongo) {
