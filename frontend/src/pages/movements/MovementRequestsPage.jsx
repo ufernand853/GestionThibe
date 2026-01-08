@@ -286,6 +286,9 @@ export default function MovementRequestsPage() {
           return null;
         }
         const location = locationMap.get(locationId);
+        if (location?.type && location.type !== 'warehouse') {
+          return null;
+        }
         return {
           locationId,
           locationName: location?.name || `Depósito ${locationId.slice(-4)}`,
