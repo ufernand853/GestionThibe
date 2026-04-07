@@ -6,6 +6,7 @@ const quantitySubSchema = require('./schemas/quantity');
 const itemSchema = new Schema(
   {
     code: { type: String, required: true, trim: true, unique: true },
+    sku: { type: String, trim: true, unique: true, sparse: true, immutable: true },
     description: { type: String, required: true, trim: true },
     group: { type: Types.ObjectId, ref: 'Group', default: null },
     attributes: { type: Map, of: String, default: {} },

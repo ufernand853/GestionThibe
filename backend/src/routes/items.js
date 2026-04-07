@@ -11,6 +11,7 @@ const Group = require('../models/Group');
 const { normalizeQuantityInput } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
+const { assignSkuToNewItemData } = require('../services/skuService');
 
 const { promises: fsPromises } = fs;
 
@@ -297,6 +298,7 @@ function serializeItem(doc) {
   return {
     id: doc.id,
     code: doc.code,
+    sku: doc.sku || null,
     description: doc.description,
     groupId: group ? group.id : doc.group,
     group: group ? { id: group.id, name: group.name } : null,
@@ -480,7 +482,7 @@ router.post(
     const normalizedPrecio = normalizePrecio(precioInput, { fieldName: 'precio' });
     let item;
     try {
-      const itemData = {
+      let itemData = {
         code,
         description,
         group: group ? group.id : null,
@@ -495,6 +497,7 @@ router.post(
       if (normalizedPrecio !== undefined) {
         itemData.pDecimal = normalizedPrecio;
       }
+      itemData = await assignSkuToNewItemData(itemData);
       item = await Item.create(itemData);
     } catch (error) {
       await cleanupNewFiles(createdPaths);
