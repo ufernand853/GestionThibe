@@ -895,8 +895,14 @@ export default function ItemsPage() {
                     value={formValues.code}
                     onChange={handleFormChange}
                     required
-                    placeholder="SKU"
+                    placeholder="Código interno"
                   />
+                </div>
+              )}
+              {editingItem && (
+                <div className="input-group">
+                  <label htmlFor="sku">SKU</label>
+                  <input id="sku" name="sku" value={editingItem.sku || ''} readOnly disabled />
                 </div>
               )}
               <div className="input-group">
@@ -1238,6 +1244,7 @@ export default function ItemsPage() {
             <table>
               <thead>
                 <tr>
+                  <th>SKU</th>
                   <th>Código</th>
                   <th>Descripción</th>
                   <th>Grupo</th>
@@ -1264,6 +1271,7 @@ export default function ItemsPage() {
                         : null;
                   return (
                     <tr key={item.id}>
+                    <td>{item.sku || "-"}</td>
                     <td>{item.code}</td>
                     <td>{item.description}</td>
                     <td>{item.group?.name || 'Sin grupo'}</td>
