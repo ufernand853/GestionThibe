@@ -7,7 +7,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "test": "node -e \"console.log('No hay pruebas automatizadas definidas')\"",
-    "seed:sample": "node scripts/import-sample-dataset.js"
+    "seed:sample": "node scripts/import-sample-dataset.js",
+    "sku:sync": "node scripts/sync-item-skus.js"
   },
   "keywords": [],
   "author": "",
