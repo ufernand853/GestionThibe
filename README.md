@@ -137,6 +137,17 @@ Al primer arranque se crean los roles `Administrador`, `Operador` y `Consulta`, 
 
 Se recomienda cambiar la contraseña apenas se acceda al sistema y ajustar los permisos según la operación real.
 
+### Política de SKU de artículos
+
+El backend genera SKU automáticamente para artículos nuevos y también completa SKU faltantes en artículos existentes:
+
+- **Formato**: numérico de 6 dígitos con ceros a la izquierda (por ejemplo `000123`).
+- **Nuevos artículos**: al crear un artículo, si no se envía SKU, se reserva el siguiente valor correlativo y se persiste junto al documento.
+- **Artículos existentes sin SKU**: en cada arranque del backend se sincroniza el contador con el mayor SKU existente y luego se hace un *backfill* de artículos que no tienen SKU (`null`, vacío o inexistente), asignando valores correlativos.
+- **Cuándo se ejecuta la actualización**: en `npm start`/`npm run dev` se ejecuta durante el arranque del backend. Si importas productos con el servidor ya levantado, puedes forzarla manualmente con `npm run sku:sync`.
+- **Desde dónde correrlo**: ejecútalo dentro de la carpeta `backend/` (`cd backend && npm run sku:sync`) o desde la raíz con `npm --prefix backend run sku:sync`.
+- **Persistencia y restricciones**: el campo `sku` queda guardado en MongoDB, es único y marcado como inmutable en el modelo (`immutable: true`), por lo que no debería modificarse luego del alta.
+
 ### Datos de ejemplo
 
 En `backend/docs/sample-dataset.json` se incluye un juego de datos genérico que cubre roles, usuarios, grupos, artículos, depósitos,

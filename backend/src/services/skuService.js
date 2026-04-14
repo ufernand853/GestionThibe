@@ -55,7 +55,7 @@ async function backfillMissingSkus() {
 
   for (const item of missingItems) {
     const nextValue = await reserveNextSkuValue();
-    await Item.updateOne(
+    await Item.collection.updateOne(
       {
         _id: item._id,
         $or: [{ sku: { $exists: false } }, { sku: null }, { sku: '' }]
