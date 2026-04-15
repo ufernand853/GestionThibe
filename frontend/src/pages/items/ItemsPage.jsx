@@ -839,6 +839,32 @@ export default function ItemsPage() {
 
   const handlePrintFilteredItems = async () => {
     if (printing) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setError(new Error('No se pudo abrir la ventana de impresión. Verificá si el navegador bloqueó la ventana emergente.'));
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(`
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Preparando impresión…</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+            p { color: #334155; }
+          </style>
+        </head>
+        <body>
+          <h1>Preparando impresión…</h1>
+          <p>Estamos generando el listado filtrado. Este proceso puede tardar unos segundos.</p>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
     setPrinting(true);
     setError(null);
     try {
@@ -867,11 +893,6 @@ export default function ItemsPage() {
         }
         collectedItems.push(...nextItems);
         nextPage += 1;
-      }
-
-      const printWindow = window.open('', '_blank', 'noopener,noreferrer');
-      if (!printWindow) {
-        throw new Error('No se pudo abrir la ventana de impresión. Verificá si el navegador bloqueó la ventana emergente.');
       }
 
       const printedAt = new Date().toLocaleString('es-AR', {
@@ -996,6 +1017,21 @@ export default function ItemsPage() {
       }
     } catch (err) {
       setError(err);
+      printWindow.document.open();
+      printWindow.document.write(`
+        <!doctype html>
+        <html lang="es">
+          <head>
+            <meta charset="utf-8" />
+            <title>Error al imprimir</title>
+          </head>
+          <body>
+            <h1>No se pudo generar la impresión</h1>
+            <p>${escapeHtml(err?.message || 'Ocurrió un error inesperado.')}</p>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     } finally {
       setPrinting(false);
     }
