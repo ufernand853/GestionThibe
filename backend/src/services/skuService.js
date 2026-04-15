@@ -24,6 +24,7 @@ async function assignSkuToNewItemData(itemData, { session } = {}) {
   if (itemData.sku) {
     return itemData;
   }
+  await syncSkuCounterWithExistingItems();
   const nextValue = await reserveNextSkuValue({ session });
   return { ...itemData, sku: formatSku(nextValue) };
 }

@@ -142,10 +142,11 @@ Se recomienda cambiar la contraseña apenas se acceda al sistema y ajustar los p
 El backend genera SKU automáticamente para artículos nuevos y también completa SKU faltantes en artículos existentes:
 
 - **Formato**: numérico de 6 dígitos con ceros a la izquierda (por ejemplo `000123`).
-- **Nuevos artículos**: al crear un artículo, si no se envía SKU, se reserva el siguiente valor correlativo y se persiste junto al documento.
-- **Artículos existentes sin SKU**: en cada arranque del backend se sincroniza el contador con el mayor SKU existente y luego se hace un *backfill* de artículos que no tienen SKU (`null`, vacío o inexistente), asignando valores correlativos.
-- **Cuándo se ejecuta la actualización**: en `npm start`/`npm run dev` se ejecuta durante el arranque del backend. Si importas productos con el servidor ya levantado, puedes forzarla manualmente con `npm run sku:sync`.
-- **Desde dónde correrlo**: ejecútalo dentro de la carpeta `backend/` (`cd backend && npm run sku:sync`) o desde la raíz con `npm --prefix backend run sku:sync`.
+- **Nuevos artículos**: al crear un artículo, si no se envía SKU, se sincroniza el contador contra el SKU más alto existente y luego se reserva el siguiente correlativo.
+- **Sin auto-backfill en arranque/listados**: no se ejecutan actualizaciones automáticas de SKU al iniciar el servidor ni al consultar listados.
+- **Backfill manual (si lo necesitas)**: ejecuta `npm run sku:sync` (o `npm --prefix backend run sku:sync`) para completar SKU faltantes en artículos existentes.
+- **Por qué pueden verse SKU “altos” (ej. `031800`)**: el sistema siempre continúa desde el mayor SKU existente para evitar duplicados. Puedes revisar el estado actual con `npm run sku:status` (o `npm --prefix backend run sku:status`).
+- **Si quieres reiniciar desde `000001`**: ejecuta `npm run sku:reindex` (o `npm --prefix backend run sku:reindex`). Este comando **reasigna TODOS los SKU** de forma correlativa según `createdAt` + `_id` y deja el contador ajustado al total de artículos.
 - **Persistencia y restricciones**: el campo `sku` queda guardado en MongoDB, es único y marcado como inmutable en el modelo (`immutable: true`), por lo que no debería modificarse luego del alta.
 
 ### Datos de ejemplo
