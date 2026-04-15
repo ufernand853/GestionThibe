@@ -55,6 +55,7 @@ const ATTRIBUTE_KEYS = ATTRIBUTE_FIELDS.map(field => field.key);
 
 const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const PRINT_PAGE_SIZE = 200;
 
 const GENDER_FILTER_OPTIONS = ['Caballero', 'Dama', 'Niños', 'Unisex'];
 const DEFAULT_COLOR_FILTER_OPTIONS = [
@@ -148,6 +149,15 @@ function mergeAttributeOptions(currentOptions = [], discoveredValues = []) {
   return Array.from(registry.values());
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -207,6 +217,7 @@ export default function ItemsPage() {
   const [previewImages, setPreviewImages] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [printing, setPrinting] = useState(false);
 
   const updateAttributeOptionsFromItems = useCallback(itemsList => {
     const sizeValues = extractAttributeValues(itemsList, 'size');
@@ -826,6 +837,160 @@ export default function ItemsPage() {
     }
   };
 
+  const handlePrintFilteredItems = async () => {
+    if (printing) return;
+    setPrinting(true);
+    setError(null);
+    try {
+      const query = {
+        page: 1,
+        pageSize: PRINT_PAGE_SIZE,
+        search: filters.search,
+        sku: filters.sku,
+        groupId: filters.groupId,
+        gender: filters.gender,
+        size: filters.size,
+        color: filters.color
+      };
+      const firstResponse = await api.get('/items', { query });
+      const expectedTotal = firstResponse?.total || 0;
+      const collectedItems = Array.isArray(firstResponse?.items) ? [...firstResponse.items] : [];
+      let nextPage = 2;
+
+      while (collectedItems.length < expectedTotal) {
+        const nextResponse = await api.get('/items', {
+          query: { ...query, page: nextPage }
+        });
+        const nextItems = Array.isArray(nextResponse?.items) ? nextResponse.items : [];
+        if (nextItems.length === 0) {
+          break;
+        }
+        collectedItems.push(...nextItems);
+        nextPage += 1;
+      }
+
+      const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+      if (!printWindow) {
+        throw new Error('No se pudo abrir la ventana de impresión. Verificá si el navegador bloqueó la ventana emergente.');
+      }
+
+      const printedAt = new Date().toLocaleString('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+      });
+
+      const filtersSummary = [
+        ['Búsqueda', filters.search],
+        ['SKU', filters.sku],
+        ['Grupo', groups.find(group => getGroupId(group) === filters.groupId)?.name || filters.groupId],
+        ['Género', filters.gender],
+        ['Talle', filters.size],
+        ['Color', filters.color]
+      ]
+        .filter(([, value]) => Boolean(value))
+        .map(([label, value]) => `<span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`)
+        .join(' · ');
+
+      const tableRows = collectedItems
+        .map(item => {
+          const precioBase =
+            item.precio !== null && item.precio !== undefined
+              ? item.precio
+              : item.pDecimal !== null && item.pDecimal !== undefined
+                ? item.pDecimal
+                : null;
+
+          const attributesText = Object.entries(item.attributes || {})
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ');
+
+          return `
+            <tr>
+              <td>${escapeHtml(item.sku || '-')}</td>
+              <td>${escapeHtml(item.code || '-')}</td>
+              <td>${escapeHtml(item.description || '-')}</td>
+              <td>${escapeHtml(item.group?.name || 'Sin grupo')}</td>
+              <td>${
+                precioBase === null
+                  ? '-'
+                  : escapeHtml(
+                      Number(precioBase).toLocaleString('es-AR', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })
+                    )
+              }</td>
+              <td>${escapeHtml(attributesText || '-')}</td>
+              <td>${escapeHtml(
+                item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : String(item.unitsPerBox)
+              )}</td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      const printableContent = `
+        <!doctype html>
+        <html lang="es">
+          <head>
+            <meta charset="utf-8" />
+            <title>Artículos filtrados</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+              h1 { margin: 0 0 8px; font-size: 22px; }
+              p { margin: 0 0 6px; color: #334155; }
+              .meta { margin-bottom: 14px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+              th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
+              th { background: #f8fafc; }
+              @media print {
+                body { margin: 12mm; }
+              }
+            </style>
+          </head>
+          <body>
+            <h1>Listado de artículos filtrados</h1>
+            <div class="meta">
+              <p><strong>Total:</strong> ${collectedItems.length}</p>
+              <p><strong>Fecha de impresión:</strong> ${escapeHtml(printedAt)}</p>
+              ${filtersSummary ? `<p><strong>Filtros:</strong> ${filtersSummary}</p>` : '<p><strong>Filtros:</strong> Sin filtros</p>'}
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Código</th>
+                  <th>Descripción</th>
+                  <th>Grupo</th>
+                  <th>Precio</th>
+                  <th>Atributos</th>
+                  <th>Unidades por caja</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${
+                  tableRows ||
+                  '<tr><td colspan="7" style="text-align:center">No se encontraron artículos para los filtros seleccionados.</td></tr>'
+                }
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      printWindow.document.open();
+      printWindow.document.write(printableContent);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex-between">
@@ -1148,7 +1313,12 @@ export default function ItemsPage() {
       </div>
 
       <div className="section-card">
-        <h2>Buscar artículos</h2>
+        <div className="flex-between">
+          <h2>Buscar artículos</h2>
+          <button type="button" className="secondary-button" onClick={handlePrintFilteredItems} disabled={printing}>
+            {printing ? 'Preparando impresión…' : 'Imprimir filtrados'}
+          </button>
+        </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <div className="input-group">
             <label htmlFor="search">Buscar</label>
