@@ -1400,18 +1400,6 @@ export default function ItemsPage() {
             </select>
           </div>
           <div className="input-group">
-            <label htmlFor="filterSku">SKU</label>
-            <input
-              id="filterSku"
-              value={filters.sku}
-              onChange={event => {
-                setFilters(prev => ({ ...prev, sku: event.target.value }));
-                setPage(1);
-              }}
-              placeholder="SKU"
-            />
-          </div>
-          <div className="input-group">
             <label htmlFor="filterGender">Género</label>
             <select
               id="filterGender"
