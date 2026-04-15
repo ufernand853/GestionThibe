@@ -183,7 +183,7 @@ export default function ItemsPage() {
   const [groups, setGroups] = useState([]);
   const [locations, setLocations] = useState([]);
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
-  const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
+  const [filters, setFilters] = useState({ search: '', sku: '', groupId: '', gender: '', size: '', color: '' });
   const [formValues, setFormValues] = useState({
     code: '',
     description: '',
@@ -328,6 +328,7 @@ export default function ItemsPage() {
           page,
           pageSize,
           search: filters.search,
+          sku: filters.sku,
           groupId: filters.groupId,
           gender: filters.gender,
           size: filters.size,
@@ -359,6 +360,7 @@ export default function ItemsPage() {
     filters.gender,
     filters.groupId,
     filters.search,
+    filters.sku,
     filters.size,
     page,
     pageSize,
@@ -1180,6 +1182,18 @@ export default function ItemsPage() {
                 );
               })}
             </select>
+          </div>
+          <div className="input-group">
+            <label htmlFor="filterSku">SKU</label>
+            <input
+              id="filterSku"
+              value={filters.sku}
+              onChange={event => {
+                setFilters(prev => ({ ...prev, sku: event.target.value }));
+                setPage(1);
+              }}
+              placeholder="SKU"
+            />
           </div>
           <div className="input-group">
             <label htmlFor="filterGender">Género</label>
