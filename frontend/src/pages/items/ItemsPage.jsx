@@ -955,37 +955,11 @@ export default function ItemsPage() {
 
       const tableRows = collectedItems
         .map(item => {
-          const precioBase =
-            item.precio !== null && item.precio !== undefined
-              ? item.precio
-              : item.pDecimal !== null && item.pDecimal !== undefined
-                ? item.pDecimal
-                : null;
-
-          const attributesText = Object.entries(item.attributes || {})
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ');
-
           return `
             <tr>
               <td>${escapeHtml(item.sku || '-')}</td>
               <td>${escapeHtml(item.code || '-')}</td>
               <td>${escapeHtml(item.description || '-')}</td>
-              <td>${escapeHtml(item.groupName || 'Sin grupo')}</td>
-              <td>${
-                precioBase === null
-                  ? '-'
-                  : escapeHtml(
-                      Number(precioBase).toLocaleString('es-AR', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })
-                    )
-              }</td>
-              <td>${escapeHtml(attributesText || '-')}</td>
-              <td>${escapeHtml(
-                item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : String(item.unitsPerBox)
-              )}</td>
             </tr>
           `;
         })
@@ -1022,16 +996,12 @@ export default function ItemsPage() {
                   <th>SKU</th>
                   <th>Código</th>
                   <th>Descripción</th>
-                  <th>Grupo</th>
-                  <th>Precio</th>
-                  <th>Atributos</th>
-                  <th>Unidades por caja</th>
                 </tr>
               </thead>
               <tbody>
                 ${
                   tableRows ||
-                  '<tr><td colspan="7" style="text-align:center">No hay artículos seleccionados para imprimir.</td></tr>'
+                  '<tr><td colspan="3" style="text-align:center">No hay artículos seleccionados para imprimir.</td></tr>'
                 }
               </tbody>
             </table>
