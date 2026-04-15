@@ -1319,7 +1319,19 @@ export default function ItemsPage() {
             {printing ? 'Preparando impresión…' : 'Imprimir filtrados'}
           </button>
         </div>
-        <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+        <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(126px, 1fr))' }}>
+          <div className="input-group">
+            <label htmlFor="filterSku">SKU</label>
+            <input
+              id="filterSku"
+              value={filters.sku}
+              onChange={event => {
+                setFilters(prev => ({ ...prev, sku: event.target.value }));
+                setPage(1);
+              }}
+              placeholder="SKU"
+            />
+          </div>
           <div className="input-group">
             <label htmlFor="search">Buscar</label>
             <input
@@ -1352,18 +1364,6 @@ export default function ItemsPage() {
                 );
               })}
             </select>
-          </div>
-          <div className="input-group">
-            <label htmlFor="filterSku">SKU</label>
-            <input
-              id="filterSku"
-              value={filters.sku}
-              onChange={event => {
-                setFilters(prev => ({ ...prev, sku: event.target.value }));
-                setPage(1);
-              }}
-              placeholder="SKU"
-            />
           </div>
           <div className="input-group">
             <label htmlFor="filterGender">Género</label>
