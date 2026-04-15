@@ -4,7 +4,6 @@ const User = require('./models/User');
 const Group = require('./models/Group');
 const config = require('./config');
 const Location = require('./models/Location');
-const { ensureItemSkus } = require('./services/skuService');
 
 const defaultRoles = [
   {
@@ -114,7 +113,6 @@ async function seed() {
   await seedGroups();
   await seedLocations();
   await seedAdminUser();
-  await ensureItemSkus();
 }
 
 module.exports = seed;

@@ -24,6 +24,7 @@ async function assignSkuToNewItemData(itemData, { session } = {}) {
   if (itemData.sku) {
     return itemData;
   }
+  await syncSkuCounterWithExistingItems();
   const nextValue = await reserveNextSkuValue({ session });
   return { ...itemData, sku: formatSku(nextValue) };
 }
@@ -55,7 +56,7 @@ async function backfillMissingSkus() {
 
   for (const item of missingItems) {
     const nextValue = await reserveNextSkuValue();
-    await Item.updateOne(
+    await Item.collection.updateOne(
       {
         _id: item._id,
         $or: [{ sku: { $exists: false } }, { sku: null }, { sku: '' }]
