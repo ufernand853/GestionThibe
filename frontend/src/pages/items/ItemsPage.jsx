@@ -1486,10 +1486,10 @@ export default function ItemsPage() {
         <div className="flex-between" style={{ marginTop: '0.75rem', gap: '0.75rem', alignItems: 'center' }}>
           <div>
             <span style={{ color: '#475569', fontSize: '0.9rem' }}>
-              Seleccionados para PDF: <strong>{selectedItemsList.length}</strong>
+              Seleccionados para descarga: <strong>{selectedItemsList.length}</strong>
             </span>
             <p style={{ margin: '0.15rem 0 0', color: '#64748b', fontSize: '0.78rem' }}>
-              Podés marcar artículo por artículo con el check de cada línea (columna PDF).
+              Podés marcar artículo por artículo con el check de cada línea (columna Descargar).
             </p>
           </div>
           <div className="inline-actions">
@@ -1527,7 +1527,7 @@ export default function ItemsPage() {
               <thead>
                 <tr>
                   <th>
-                    PDF (línea)
+                    Descargar
                   </th>
                   <th>SKU</th>
                   <th>Código</th>
