@@ -55,7 +55,6 @@ const ATTRIBUTE_KEYS = ATTRIBUTE_FIELDS.map(field => field.key);
 
 const MAX_IMAGES = 5;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const PRINT_PAGE_SIZE = 200;
 
 const GENDER_FILTER_OPTIONS = ['Caballero', 'Dama', 'Niños', 'Unisex'];
 const DEFAULT_COLOR_FILTER_OPTIONS = [
@@ -218,6 +217,7 @@ export default function ItemsPage() {
   const [previewIndex, setPreviewIndex] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [printing, setPrinting] = useState(false);
+  const [selectedItemsForPrint, setSelectedItemsForPrint] = useState({});
 
   const updateAttributeOptionsFromItems = useCallback(itemsList => {
     const sizeValues = extractAttributeValues(itemsList, 'size');
@@ -837,6 +837,81 @@ export default function ItemsPage() {
     }
   };
 
+  const selectedItemsList = useMemo(() => Object.values(selectedItemsForPrint), [selectedItemsForPrint]);
+
+  const isSelectedForPrint = useCallback(
+    itemId => Boolean(selectedItemsForPrint[itemId]),
+    [selectedItemsForPrint]
+  );
+
+  const toggleItemSelectionForPrint = useCallback(item => {
+    if (!item?.id) return;
+    setSelectedItemsForPrint(prev => {
+      if (prev[item.id]) {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      }
+      return {
+        ...prev,
+        [item.id]: {
+          id: item.id,
+          sku: item.sku || '-',
+          code: item.code || '-',
+          description: item.description || '-',
+          groupName: item.group?.name || 'Sin grupo',
+          precio: item.precio !== null && item.precio !== undefined ? item.precio : item.pDecimal,
+          attributes: { ...(item.attributes || {}) },
+          unitsPerBox: item.unitsPerBox
+        }
+      };
+    });
+  }, []);
+
+  const clearSelectionForPrint = useCallback(() => {
+    setSelectedItemsForPrint({});
+  }, []);
+
+  const selectVisibleItemsForPrint = useCallback(() => {
+    setSelectedItemsForPrint(prev => {
+      const next = { ...prev };
+      items.forEach(item => {
+        if (!item?.id) return;
+        next[item.id] = {
+          id: item.id,
+          sku: item.sku || '-',
+          code: item.code || '-',
+          description: item.description || '-',
+          groupName: item.group?.name || 'Sin grupo',
+          precio: item.precio !== null && item.precio !== undefined ? item.precio : item.pDecimal,
+          attributes: { ...(item.attributes || {}) },
+          unitsPerBox: item.unitsPerBox
+        };
+      });
+      return next;
+    });
+  }, [items]);
+
+  const visibleSelectionState = useMemo(() => {
+    const visibleIds = items.filter(item => item?.id).map(item => item.id);
+    const selectedVisibleCount = visibleIds.filter(itemId => Boolean(selectedItemsForPrint[itemId])).length;
+    const totalVisible = visibleIds.length;
+    return {
+      totalVisible,
+      selectedVisibleCount,
+      allSelected: totalVisible > 0 && selectedVisibleCount === totalVisible,
+      someSelected: selectedVisibleCount > 0 && selectedVisibleCount < totalVisible
+    };
+  }, [items, selectedItemsForPrint]);
+
+  const handleToggleVisibleSelection = useCallback(() => {
+    if (visibleSelectionState.allSelected || visibleSelectionState.someSelected) {
+      clearSelectionForPrint();
+      return;
+    }
+    selectVisibleItemsForPrint();
+  }, [clearSelectionForPrint, selectVisibleItemsForPrint, visibleSelectionState.allSelected, visibleSelectionState.someSelected]);
+
   const handlePrintFilteredItems = async () => {
     if (printing) return;
     const printWindow = window.open('', '_blank');
@@ -859,7 +934,7 @@ export default function ItemsPage() {
         </head>
         <body>
           <h1>Preparando impresión…</h1>
-          <p>Estamos generando el listado filtrado. Este proceso puede tardar unos segundos.</p>
+          <p>Estamos generando el listado de artículos seleccionados. Este proceso puede tardar unos segundos.</p>
         </body>
       </html>
     `);
@@ -868,49 +943,15 @@ export default function ItemsPage() {
     setPrinting(true);
     setError(null);
     try {
-      const query = {
-        page: 1,
-        pageSize: PRINT_PAGE_SIZE,
-        search: filters.search,
-        sku: filters.sku,
-        groupId: filters.groupId,
-        gender: filters.gender,
-        size: filters.size,
-        color: filters.color
-      };
-      const firstResponse = await api.get('/items', { query });
-      const expectedTotal = firstResponse?.total || 0;
-      const collectedItems = Array.isArray(firstResponse?.items) ? [...firstResponse.items] : [];
-      let nextPage = 2;
-
-      while (collectedItems.length < expectedTotal) {
-        const nextResponse = await api.get('/items', {
-          query: { ...query, page: nextPage }
-        });
-        const nextItems = Array.isArray(nextResponse?.items) ? nextResponse.items : [];
-        if (nextItems.length === 0) {
-          break;
-        }
-        collectedItems.push(...nextItems);
-        nextPage += 1;
+      const collectedItems = [...selectedItemsList];
+      if (collectedItems.length === 0) {
+        throw new Error('Seleccioná al menos un artículo para generar el PDF.');
       }
 
       const printedAt = new Date().toLocaleString('es-AR', {
         dateStyle: 'short',
         timeStyle: 'short'
       });
-
-      const filtersSummary = [
-        ['Búsqueda', filters.search],
-        ['SKU', filters.sku],
-        ['Grupo', groups.find(group => getGroupId(group) === filters.groupId)?.name || filters.groupId],
-        ['Género', filters.gender],
-        ['Talle', filters.size],
-        ['Color', filters.color]
-      ]
-        .filter(([, value]) => Boolean(value))
-        .map(([label, value]) => `<span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`)
-        .join(' · ');
 
       const tableRows = collectedItems
         .map(item => {
@@ -930,7 +971,7 @@ export default function ItemsPage() {
               <td>${escapeHtml(item.sku || '-')}</td>
               <td>${escapeHtml(item.code || '-')}</td>
               <td>${escapeHtml(item.description || '-')}</td>
-              <td>${escapeHtml(item.group?.name || 'Sin grupo')}</td>
+              <td>${escapeHtml(item.groupName || 'Sin grupo')}</td>
               <td>${
                 precioBase === null
                   ? '-'
@@ -955,7 +996,7 @@ export default function ItemsPage() {
         <html lang="es">
           <head>
             <meta charset="utf-8" />
-            <title>Artículos filtrados</title>
+            <title>Artículos seleccionados</title>
             <style>
               body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
               h1 { margin: 0 0 8px; font-size: 22px; }
@@ -970,11 +1011,10 @@ export default function ItemsPage() {
             </style>
           </head>
           <body>
-            <h1>Listado de artículos filtrados</h1>
+            <h1>Listado de artículos seleccionados</h1>
             <div class="meta">
               <p><strong>Total:</strong> ${collectedItems.length}</p>
               <p><strong>Fecha de impresión:</strong> ${escapeHtml(printedAt)}</p>
-              ${filtersSummary ? `<p><strong>Filtros:</strong> ${filtersSummary}</p>` : '<p><strong>Filtros:</strong> Sin filtros</p>'}
             </div>
             <table>
               <thead>
@@ -991,7 +1031,7 @@ export default function ItemsPage() {
               <tbody>
                 ${
                   tableRows ||
-                  '<tr><td colspan="7" style="text-align:center">No se encontraron artículos para los filtros seleccionados.</td></tr>'
+                  '<tr><td colspan="7" style="text-align:center">No hay artículos seleccionados para imprimir.</td></tr>'
                 }
               </tbody>
             </table>
@@ -1361,8 +1401,14 @@ export default function ItemsPage() {
       <div className="section-card">
         <div className="flex-between">
           <h2>Buscar artículos</h2>
-          <button type="button" className="secondary-button" onClick={handlePrintFilteredItems} disabled={printing}>
-            {printing ? 'Preparando impresión…' : 'Imprimir filtrados'}
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handlePrintFilteredItems}
+            disabled={printing || selectedItemsList.length === 0}
+            title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : undefined}
+          >
+            {printing ? 'Preparando impresión…' : 'Descargar filtrados'}
           </button>
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
@@ -1467,6 +1513,42 @@ export default function ItemsPage() {
           </div>
         </form>
 
+        <div className="flex-between" style={{ marginTop: '0.75rem', gap: '0.75rem', alignItems: 'center' }}>
+          <div>
+            <span style={{ color: '#475569', fontSize: '0.9rem' }}>
+              Seleccionados para PDF: <strong>{selectedItemsList.length}</strong>
+            </span>
+            <p style={{ margin: '0.15rem 0 0', color: '#64748b', fontSize: '0.78rem' }}>
+              Podés marcar artículo por artículo con el check de cada línea (columna PDF).
+            </p>
+          </div>
+          <div className="inline-actions">
+            <label style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center', color: '#475569', fontSize: '0.85rem' }}>
+              <input
+                type="checkbox"
+                checked={visibleSelectionState.allSelected}
+                onChange={handleToggleVisibleSelection}
+                disabled={visibleSelectionState.totalVisible === 0}
+                ref={input => {
+                  if (input) {
+                    input.indeterminate = visibleSelectionState.someSelected;
+                  }
+                }}
+              />
+              Check general (seleccionar visibles / resetear lista)
+            </label>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={clearSelectionForPrint}
+              disabled={selectedItemsList.length === 0}
+            >
+              Limpiar selección
+            </button>
+          </div>
+        </div>
+
+
         {loading ? (
           <LoadingIndicator message="Cargando artículos..." />
         ) : (
@@ -1474,6 +1556,9 @@ export default function ItemsPage() {
             <table>
               <thead>
                 <tr>
+                  <th>
+                    PDF (línea)
+                  </th>
                   <th>SKU</th>
                   <th>Código</th>
                   <th>Descripción</th>
@@ -1501,6 +1586,15 @@ export default function ItemsPage() {
                         : null;
                   return (
                     <tr key={item.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={isSelectedForPrint(item.id)}
+                        onChange={() => toggleItemSelectionForPrint(item)}
+                        title="Seleccionar esta línea para PDF"
+                        aria-label={`Seleccionar ${item.code || item.sku || 'artículo'} para PDF`}
+                      />
+                    </td>
                     <td>{item.sku || "-"}</td>
                     <td>{item.code}</td>
                     <td>{item.description}</td>
@@ -1600,7 +1694,7 @@ export default function ItemsPage() {
               })}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 11 : 10} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <td colSpan={canWrite ? 14 : 13} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No se encontraron artículos para los filtros seleccionados.
                   </td>
                 </tr>
