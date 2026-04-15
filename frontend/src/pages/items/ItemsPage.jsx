@@ -981,9 +981,19 @@ export default function ItemsPage() {
       printWindow.document.open();
       printWindow.document.write(printableContent);
       printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
+
+      const triggerPrint = () => {
+        printWindow.focus();
+        printWindow.print();
+      };
+
+      if (printWindow.document.readyState === 'complete') {
+        triggerPrint();
+      } else {
+        printWindow.onload = () => {
+          triggerPrint();
+        };
+      }
     } catch (err) {
       setError(err);
     } finally {
@@ -1319,19 +1329,7 @@ export default function ItemsPage() {
             {printing ? 'Preparando impresión…' : 'Imprimir filtrados'}
           </button>
         </div>
-        <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(126px, 1fr))' }}>
-          <div className="input-group">
-            <label htmlFor="filterSku">SKU</label>
-            <input
-              id="filterSku"
-              value={filters.sku}
-              onChange={event => {
-                setFilters(prev => ({ ...prev, sku: event.target.value }));
-                setPage(1);
-              }}
-              placeholder="SKU"
-            />
-          </div>
+        <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <div className="input-group">
             <label htmlFor="search">Buscar</label>
             <input
