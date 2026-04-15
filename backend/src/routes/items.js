@@ -11,7 +11,7 @@ const Group = require('../models/Group');
 const { normalizeQuantityInput } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
-const { assignSkuToNewItemData } = require('../services/skuService');
+const { assignSkuToNewItemData, ensureItemSkus } = require('../services/skuService');
 
 const { promises: fsPromises } = fs;
 
@@ -388,7 +388,14 @@ router.get(
   '/',
   requirePermission('items.read'),
   asyncHandler(async (req, res) => {
-    const { page = '1', pageSize = '20', groupId, search, gender, size, color } = req.query || {};
+    const hasMissingSku = await Item.exists({
+      $or: [{ sku: { $exists: false } }, { sku: null }, { sku: '' }]
+    });
+    if (hasMissingSku) {
+      await ensureItemSkus();
+    }
+
+    const { page = '1', pageSize = '20', groupId, search, sku, gender, size, color } = req.query || {};
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
     const filter = {};
@@ -412,6 +419,9 @@ router.get(
     if (search) {
       const regex = new RegExp(search, 'i');
       filter.$or = [{ code: regex }, { description: regex }];
+    }
+    if (typeof sku === 'string' && sku.trim()) {
+      filter.sku = new RegExp(escapeRegex(sku.trim()), 'i');
     }
     const [total, items] = await Promise.all([
       Item.countDocuments(filter),
