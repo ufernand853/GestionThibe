@@ -17,16 +17,14 @@ function computeCheckDigit(base12) {
   return String((10 - (sum % 10)) % 10);
 }
 
-export function buildItemEan13(sku, unitsPerBox) {
+export function buildItemEan13(sku, _unitsPerBox) {
   const skuDigits = onlyDigits(sku);
   if (!skuDigits) {
     return '';
   }
 
-  const skuSegment = skuDigits.padStart(7, '0').slice(-7);
-  const unitsValue = Number(unitsPerBox);
-  const normalizedUnits = Number.isFinite(unitsValue) ? Math.max(0, Math.trunc(unitsValue)) : 0;
-  const unitsSegment = String(Math.min(normalizedUnits, 999)).padStart(3, '0');
+  const skuSegment = skuDigits.padStart(6, '0').slice(-6);
+  const unitsSegment = '0000';
   const base12 = `04${skuSegment}${unitsSegment}`;
   const checkDigit = computeCheckDigit(base12);
 
