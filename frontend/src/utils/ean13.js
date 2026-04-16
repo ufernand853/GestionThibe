@@ -23,8 +23,8 @@ export function buildItemEan13(sku, _unitsPerBox) {
     return '';
   }
 
-  const skuSegment = skuDigits.padStart(7, '0').slice(-7);
-  const unitsSegment = '000';
+  const skuSegment = skuDigits.padStart(6, '0').slice(-6);
+  const unitsSegment = '0000';
   const base12 = `04${skuSegment}${unitsSegment}`;
   const checkDigit = computeCheckDigit(base12);
 
