@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 const NAV_ITEMS = [
   { to: '/', label: 'Resumen' },
   { to: '/items', label: 'Artículos', permission: 'items.read', hiddenForRoles: ['Operador'] },
+  { to: '/items/download', label: 'Descarga PDF', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/groups', label: 'Grupos', permission: 'items.write', hiddenForRoles: ['Operador'] },
   { to: '/requests', label: 'Solicitudes', permission: 'stock.request' },
   { to: '/approvals', label: 'Aprobaciones', permission: 'stock.approve', hiddenForRoles: ['Operador'] },
