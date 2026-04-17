@@ -214,11 +214,7 @@ export default function ItemsDownloadPage() {
           sku: item.sku || '-',
           ean13: buildItemEan13(item.sku, item.unitsPerBox),
           code: item.code || '-',
-          description: item.description || '-',
-          groupName: item.group?.name || 'Sin grupo',
-          precio: item.precio !== null && item.precio !== undefined ? item.precio : item.pDecimal,
-          attributes: { ...(item.attributes || {}) },
-          unitsPerBox: item.unitsPerBox
+          description: item.description || '-'
         }
       };
     });
@@ -238,11 +234,7 @@ export default function ItemsDownloadPage() {
           sku: item.sku || '-',
           ean13: buildItemEan13(item.sku, item.unitsPerBox),
           code: item.code || '-',
-          description: item.description || '-',
-          groupName: item.group?.name || 'Sin grupo',
-          precio: item.precio !== null && item.precio !== undefined ? item.precio : item.pDecimal,
-          attributes: { ...(item.attributes || {}) },
-          unitsPerBox: item.unitsPerBox
+          description: item.description || '-'
         };
       });
       return next;
@@ -312,38 +304,12 @@ export default function ItemsDownloadPage() {
 
       const tableRows = collectedItems
         .map(item => {
-          const precioBase =
-            item.precio !== null && item.precio !== undefined
-              ? item.precio
-              : item.pDecimal !== null && item.pDecimal !== undefined
-                ? item.pDecimal
-                : null;
-
-          const attributesText = Object.entries(item.attributes || {})
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ');
-
           return `
             <tr>
               <td>${escapeHtml(item.sku || '-')}</td>
               <td>${escapeHtml(item.ean13 || '-')}</td>
               <td>${escapeHtml(item.code || '-')}</td>
               <td>${escapeHtml(item.description || '-')}</td>
-              <td>${escapeHtml(item.groupName || 'Sin grupo')}</td>
-              <td>${
-                precioBase === null
-                  ? '-'
-                  : escapeHtml(
-                      Number(precioBase).toLocaleString('es-AR', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })
-                    )
-              }</td>
-              <td>${escapeHtml(attributesText || '-')}</td>
-              <td>${escapeHtml(
-                item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : String(item.unitsPerBox)
-              )}</td>
             </tr>
           `;
         })
@@ -379,18 +345,14 @@ export default function ItemsDownloadPage() {
                 <tr>
                   <th>SKU</th>
                   <th>EAN13</th>
-                  <th>Código</th>
+                  <th>Artículo</th>
                   <th>Descripción</th>
-                  <th>Grupo</th>
-                  <th>Precio</th>
-                  <th>Atributos</th>
-                  <th>Unidades por caja</th>
                 </tr>
               </thead>
               <tbody>
                 ${
                   tableRows ||
-                  '<tr><td colspan="8" style="text-align:center">No hay artículos seleccionados para imprimir.</td></tr>'
+                  '<tr><td colspan="4" style="text-align:center">No hay artículos seleccionados para imprimir.</td></tr>'
                 }
               </tbody>
             </table>
@@ -613,22 +575,12 @@ export default function ItemsDownloadPage() {
                   <th>Descargar</th>
                   <th>SKU</th>
                   <th>EAN13</th>
-                  <th>Código</th>
+                  <th>Artículo</th>
                   <th>Descripción</th>
-                  <th>Grupo</th>
-                  <th>Precio</th>
-                  <th>Atributos</th>
-                  <th>Unidades por caja</th>
                 </tr>
               </thead>
               <tbody>
                 {items.map(item => {
-                  const precioBase =
-                    item.precio !== null && item.precio !== undefined
-                      ? item.precio
-                      : item.pDecimal !== null && item.pDecimal !== undefined
-                        ? item.pDecimal
-                        : null;
                   return (
                     <tr key={item.id}>
                       <td>
@@ -644,32 +596,12 @@ export default function ItemsDownloadPage() {
                       <td>{buildItemEan13(item.sku, item.unitsPerBox) || '-'}</td>
                       <td>{item.code}</td>
                       <td>{item.description}</td>
-                      <td>{item.group?.name || 'Sin grupo'}</td>
-                      <td>
-                        {precioBase === null
-                          ? '-'
-                          : Number(precioBase).toLocaleString('es-AR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })}
-                      </td>
-                      <td>
-                        <div className="chip-list">
-                          {Object.entries(item.attributes || {}).map(([key, value]) => (
-                            <span key={key} className="badge">
-                              {key}: {value}
-                            </span>
-                          ))}
-                          {Object.keys(item.attributes || {}).length === 0 && <span>-</span>}
-                        </div>
-                      </td>
-                      <td>{item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : item.unitsPerBox}</td>
                     </tr>
                   );
                 })}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron artículos para los filtros seleccionados.
                     </td>
                   </tr>
