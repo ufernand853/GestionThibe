@@ -7,7 +7,6 @@ import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
-import { buildItemEan13 } from '../../utils/ean13.js';
 
 const ATTRIBUTE_FIELDS = [
   {
@@ -184,7 +183,7 @@ export default function ItemsPage() {
   const [groups, setGroups] = useState([]);
   const [locations, setLocations] = useState([]);
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
-  const [filters, setFilters] = useState({ search: '', sku: '', groupId: '', gender: '', size: '', color: '' });
+  const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
   const [formValues, setFormValues] = useState({
     code: '',
     description: '',
@@ -329,7 +328,6 @@ export default function ItemsPage() {
           page,
           pageSize,
           search: filters.search,
-          sku: filters.sku,
           groupId: filters.groupId,
           gender: filters.gender,
           size: filters.size,
@@ -361,7 +359,6 @@ export default function ItemsPage() {
     filters.gender,
     filters.groupId,
     filters.search,
-    filters.sku,
     filters.size,
     page,
     pageSize,
@@ -1154,18 +1151,6 @@ export default function ItemsPage() {
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <div className="input-group">
-            <label htmlFor="filterSku">SKU</label>
-            <input
-              id="filterSku"
-              value={filters.sku}
-              onChange={event => {
-                setFilters(prev => ({ ...prev, sku: event.target.value }));
-                setPage(1);
-              }}
-              placeholder="Filtrar por SKU"
-            />
-          </div>
-          <div className="input-group">
             <label htmlFor="search">Buscar</label>
             <input
               id="search"
@@ -1261,8 +1246,6 @@ export default function ItemsPage() {
             <table>
               <thead>
                 <tr>
-                  <th>SKU</th>
-                  <th>EAN13</th>
                   <th>Código</th>
                   <th>Descripción</th>
                   <th>Grupo</th>
@@ -1289,32 +1272,30 @@ export default function ItemsPage() {
                         : null;
                   return (
                     <tr key={item.id}>
-                    <td>{item.sku || "-"}</td>
-                    <td>{buildItemEan13(item.sku, item.unitsPerBox) || '-'}</td>
-                    <td>{item.code}</td>
-                    <td>{item.description}</td>
-                    <td>{item.group?.name || 'Sin grupo'}</td>
-                    <td>
-                      {precioBase === null
-                        ? '-'
-                        : Number(precioBase).toLocaleString('es-AR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                          })}
-                    </td>
-                    <td>
-                      <div className="chip-list">
-                        {Object.entries(item.attributes || {}).map(([key, value]) => (
-                          <span key={key} className="badge">
-                            {key}: {value}
-                          </span>
-                        ))}
-                        {Object.keys(item.attributes || {}).length === 0 && <span>-</span>}
-                      </div>
-                    </td>
-                    <td>{item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : item.unitsPerBox}</td>
-                    <td>{Array.isArray(item.images) ? item.images.length : 0}</td>
-                  <td>
+                      <td>{item.code}</td>
+                      <td>{item.description}</td>
+                      <td>{item.group?.name || 'Sin grupo'}</td>
+                      <td>
+                        {precioBase === null
+                          ? '-'
+                          : Number(precioBase).toLocaleString('es-AR', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                      </td>
+                      <td>
+                        <div className="chip-list">
+                          {Object.entries(item.attributes || {}).map(([key, value]) => (
+                            <span key={key} className="badge">
+                              {key}: {value}
+                            </span>
+                          ))}
+                          {Object.keys(item.attributes || {}).length === 0 && <span>-</span>}
+                        </div>
+                      </td>
+                      <td>{item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : item.unitsPerBox}</td>
+                      <td>{Array.isArray(item.images) ? item.images.length : 0}</td>
+                      <td>
                       <div className="chip-list">
                         {(() => {
                           const stockEntries = Object.entries(
@@ -1340,56 +1321,56 @@ export default function ItemsPage() {
                           });
                         })()}
                       </div>
-                    </td>
-                    <td>{formatQuantity(totalQuantity)}</td>
-                    <td>
-                      {item.needsRecount ? (
-                        <span className="badge" style={{ backgroundColor: '#f97316', color: '#fff' }}>
-                          Reconteo pendiente
-                        </span>
-                      ) : (
-                        <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Al día</span>
-                      )}
-                    </td>
-                    <td>
-                      {stockStatus ? (
-                        <div className="stock-status-cell">
-                          <StockStatusBadge status={stockStatus} />
-                          {stockStatus.pendingCount > 0 && (
-                            <span className="stock-status-note">
-                              {stockStatus.pendingCount === 1
-                                ? '1 solicitud pendiente'
-                                : `${stockStatus.pendingCount} solicitudes pendientes`}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    {canWrite && (
-                      <td>
-                        <div className="inline-actions">
-                          <button type="button" className="secondary-button" onClick={() => handleEdit(item)}>
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            className="danger-button"
-                            onClick={() => handleDelete(item)}
-                            disabled={deletingId === item.id}
-                          >
-                            {deletingId === item.id ? 'Eliminando…' : 'Eliminar'}
-                          </button>
-                        </div>
                       </td>
-                    )}
-                  </tr>
+                      <td>{formatQuantity(totalQuantity)}</td>
+                      <td>
+                        {item.needsRecount ? (
+                          <span className="badge" style={{ backgroundColor: '#f97316', color: '#fff' }}>
+                            Reconteo pendiente
+                          </span>
+                        ) : (
+                          <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Al día</span>
+                        )}
+                      </td>
+                      <td>
+                        {stockStatus ? (
+                          <div className="stock-status-cell">
+                            <StockStatusBadge status={stockStatus} />
+                            {stockStatus.pendingCount > 0 && (
+                              <span className="stock-status-note">
+                                {stockStatus.pendingCount === 1
+                                  ? '1 solicitud pendiente'
+                                  : `${stockStatus.pendingCount} solicitudes pendientes`}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
+                      {canWrite && (
+                        <td>
+                          <div className="inline-actions">
+                            <button type="button" className="secondary-button" onClick={() => handleEdit(item)}>
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="danger-button"
+                              onClick={() => handleDelete(item)}
+                              disabled={deletingId === item.id}
+                            >
+                              {deletingId === item.id ? 'Eliminando…' : 'Eliminar'}
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
                 );
               })}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 14 : 13} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <td colSpan={canWrite ? 12 : 11} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No se encontraron artículos para los filtros seleccionados.
                   </td>
                 </tr>
