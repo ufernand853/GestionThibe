@@ -351,7 +351,7 @@ export default function ItemsDownloadPage() {
     selectVisibleItemsForPrint();
   }, [clearSelectionForPrint, selectVisibleItemsForPrint, visibleSelectionState.allSelected, visibleSelectionState.someSelected]);
 
-  const handlePrintFilteredItems = async itemsToPrint => {
+  const handlePrintLabelsA4 = async itemsToPrint => {
     if (printing) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -384,7 +384,7 @@ export default function ItemsDownloadPage() {
     try {
       const collectedItems = Array.isArray(itemsToPrint) ? [...itemsToPrint] : [...selectedItemsList];
       if (collectedItems.length === 0) {
-        throw new Error('Seleccioná al menos un artículo para generar el PDF.');
+        throw new Error('Seleccioná al menos un artículo para generar etiquetas.');
       }
 
       const printedAt = new Date().toLocaleString('es-AR', {
@@ -533,9 +533,9 @@ export default function ItemsDownloadPage() {
       if (!confirmed) {
         return;
       }
-      handlePrintFilteredItems(itemsToPrint);
+      handlePrintLabelsA4(itemsToPrint);
     },
-    [handlePrintFilteredItems]
+    [handlePrintLabelsA4]
   );
 
   const handlePrintSingleLabel = useCallback(
@@ -553,6 +553,108 @@ export default function ItemsDownloadPage() {
     },
     [handlePrintConfirm]
   );
+
+  const handleDownloadSelectedPdf = async () => {
+    if (printing) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setError(new Error('No se pudo abrir la ventana de impresión. Verificá si el navegador bloqueó la ventana emergente.'));
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(`
+      <!doctype html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Preparando PDF…</title>
+        </head>
+        <body>
+          <h1>Preparando PDF…</h1>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    setPrinting(true);
+    setError(null);
+    try {
+      const collectedItems = [...selectedItemsList];
+      if (collectedItems.length === 0) {
+        throw new Error('Seleccioná al menos un artículo para generar el PDF.');
+      }
+
+      const printedAt = new Date().toLocaleString('es-AR', {
+        dateStyle: 'short',
+        timeStyle: 'short'
+      });
+
+      const tableRows = collectedItems
+        .map(item => {
+          return `
+            <tr>
+              <td>${escapeHtml(item.sku || '-')}</td>
+              <td>${escapeHtml(item.ean13 || '-')}</td>
+              <td>${escapeHtml(item.code || '-')}</td>
+              <td>${escapeHtml(item.description || '-')}</td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      printWindow.document.open();
+      printWindow.document.write(`
+        <!doctype html>
+        <html lang="es">
+          <head>
+            <meta charset="utf-8" />
+            <title>Listado de artículos seleccionados</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+              h1 { margin: 0 0 8px; font-size: 22px; }
+              p { margin: 0 0 6px; color: #334155; }
+              .meta { margin-bottom: 14px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+              th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
+              th { background: #f8fafc; }
+              @media print {
+                @page { size: A4 portrait; margin: 12mm; }
+                body { margin: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            <h1>Listado de artículos seleccionados</h1>
+            <div class="meta">
+              <p><strong>Total:</strong> ${collectedItems.length}</p>
+              <p><strong>Fecha de impresión:</strong> ${escapeHtml(printedAt)}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>EAN13</th>
+                  <th>Artículo</th>
+                  <th>Descripción</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   if (!canRead) {
     return <ErrorMessage error={new Error('No tenés permisos para ver esta sección.')} />;
@@ -577,15 +679,26 @@ export default function ItemsDownloadPage() {
       <div className="section-card">
         <div className="flex-between">
           <h2>Buscar artículos para descarga</h2>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() => handlePrintConfirm(selectedItemsList)}
-            disabled={printing || selectedItemsList.length === 0}
-            title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : undefined}
-          >
-            {printing ? 'Preparando impresión…' : 'Imprimir etiquetas A4'}
-          </button>
+          <div className="inline-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handleDownloadSelectedPdf}
+              disabled={printing || selectedItemsList.length === 0}
+              title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : undefined}
+            >
+              {printing ? 'Preparando impresión…' : 'Descargar PDF'}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => handlePrintConfirm(selectedItemsList)}
+              disabled={printing || selectedItemsList.length === 0}
+              title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : undefined}
+            >
+              {printing ? 'Preparando impresión…' : 'Imprimir etiquetas A4'}
+            </button>
+          </div>
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <div className="input-group">
