@@ -8,6 +8,7 @@ const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
+const Location = require('../models/Location');
 const { normalizeQuantityInput } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
@@ -335,6 +336,86 @@ function toPlainStock(stock) {
   return plain;
 }
 
+
+
+function formatAuditQuantity(quantity) {
+  const boxes = Number(quantity?.boxes) || 0;
+  const units = Number(quantity?.units) || 0;
+  return `${boxes} caja(s), ${units} unidad(es)`;
+}
+
+async function buildFriendlyAuditStock(stock = {}) {
+  const plainStock = toPlainStock(stock);
+  const entries = Object.entries(plainStock);
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const locationIds = entries.map(([locationId]) => locationId).filter(Types.ObjectId.isValid);
+  const locations = locationIds.length > 0
+    ? await Location.find({ _id: { $in: locationIds } }).select('name description').lean()
+    : [];
+  const locationNames = new Map(locations.map(location => [String(location._id), location.name]));
+
+  return entries.map(([locationId, quantity], index) => ({
+    ubicacion: locationNames.get(locationId) || `Ubicación ${index + 1}`,
+    cantidad: formatAuditQuantity(quantity),
+    boxes: Number(quantity?.boxes) || 0,
+    units: Number(quantity?.units) || 0
+  }));
+}
+
+function formatAuditStock(stock = []) {
+  if (!Array.isArray(stock) || stock.length === 0) {
+    return 'sin stock registrado';
+  }
+  return stock
+    .map(entry => `${entry.ubicacion}: ${entry.cantidad}`)
+    .join('; ');
+}
+
+function buildItemAuditSummary(operation, snapshot) {
+  if (!snapshot) {
+    return operation;
+  }
+  const stockSummary = formatAuditStock(snapshot.stock);
+  return `${operation}: ${snapshot.code} - ${snapshot.description} | Stock: ${stockSummary}`;
+}
+
+async function buildItemAuditSnapshot(doc) {
+  if (!doc) {
+    return null;
+  }
+  const group = doc.group;
+  return {
+    code: doc.code,
+    description: doc.description,
+    groupName: group && typeof group === 'object' && group.name ? group.name : null,
+    attributes: toPlainAttributes(doc.attributes),
+    stock: await buildFriendlyAuditStock(doc.stock),
+    unitsPerBox: doc.unitsPerBox === undefined || doc.unitsPerBox === null ? null : Number(doc.unitsPerBox),
+    precio: doc.pDecimal === undefined || doc.pDecimal === null ? null : Number(doc.pDecimal),
+    needsRecount: Boolean(doc.needsRecount),
+    imageCount: Array.isArray(doc.images) ? doc.images.length : 0
+  };
+}
+
+function buildItemAuditChanges(before, after) {
+  const changes = {};
+  if (!before || !after) {
+    return changes;
+  }
+  Object.keys(after).forEach(key => {
+    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
+      changes[key] = {
+        before: before[key] === undefined ? null : before[key],
+        after: after[key] === undefined ? null : after[key]
+      };
+    }
+  });
+  return changes;
+}
+
 function buildStock(input = {}) {
   const stock = {};
   if (!input || typeof input !== 'object') {
@@ -514,10 +595,15 @@ router.post(
       throw error;
     }
     const populated = await item.populate('group');
+    const auditSnapshot = await buildItemAuditSnapshot(populated);
     await recordAuditEvent({
       action: 'Artículo',
-      request: 'Alta de artículo',
-      user: req.user?.username || 'Desconocido'
+      request: buildItemAuditSummary('Alta de artículo', auditSnapshot),
+      user: req.user?.username || 'Desconocido',
+      details: {
+        summary: buildItemAuditSummary('Alta de artículo', auditSnapshot),
+        item: auditSnapshot
+      }
     });
     res.status(201).json(serializeItem(populated));
   })
@@ -535,6 +621,7 @@ router.put(
     if (!item) {
       throw new HttpError(404, 'Artículo no encontrado');
     }
+    const beforeAuditSnapshot = await buildItemAuditSnapshot(item);
     const payload = parseItemPayload(req);
     const {
       description,
@@ -705,10 +792,16 @@ router.put(
       throw error;
     }
     const populated = await item.populate('group');
+    const afterAuditSnapshot = await buildItemAuditSnapshot(populated);
     await recordAuditEvent({
       action: 'Artículo',
-      request: 'Actualización de artículo',
-      user: req.user?.username || 'Desconocido'
+      request: buildItemAuditSummary('Actualización de artículo', afterAuditSnapshot),
+      user: req.user?.username || 'Desconocido',
+      details: {
+        summary: buildItemAuditSummary('Actualización de artículo', afterAuditSnapshot),
+        item: afterAuditSnapshot,
+        changes: buildItemAuditChanges(beforeAuditSnapshot, afterAuditSnapshot)
+      }
     });
     res.json(serializeItem(populated));
   })
@@ -727,6 +820,7 @@ router.delete(
       throw new HttpError(404, 'Artículo no encontrado');
     }
 
+    const auditSnapshot = await buildItemAuditSnapshot(item);
     const imagesToRemove = Array.isArray(item.images)
       ? item.images.map(sanitizeImagePath).filter(Boolean)
       : [];
@@ -739,8 +833,12 @@ router.delete(
 
     await recordAuditEvent({
       action: 'Artículo',
-      request: 'Eliminación de artículo',
-      user: req.user?.username || 'Desconocido'
+      request: buildItemAuditSummary('Eliminación de artículo', auditSnapshot),
+      user: req.user?.username || 'Desconocido',
+      details: {
+        summary: buildItemAuditSummary('Eliminación de artículo', auditSnapshot),
+        item: auditSnapshot
+      }
     });
 
     res.status(204).send();

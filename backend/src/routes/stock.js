@@ -179,6 +179,50 @@ function serializeMovementRequest(doc) {
   };
 }
 
+
+
+function formatAuditQuantity(quantity) {
+  const boxes = Number(quantity?.boxes) || 0;
+  const units = Number(quantity?.units) || 0;
+  return `${boxes} caja(s), ${units} unidad(es)`;
+}
+
+function movementEntityName(entity) {
+  if (!entity) {
+    return '-';
+  }
+  if (typeof entity === 'string') {
+    return entity;
+  }
+  if (entity.code || entity.description) {
+    return [entity.code, entity.description].filter(Boolean).join(' - ');
+  }
+  if (entity.name || entity.description) {
+    return [entity.name, entity.description].filter(Boolean).join(' - ');
+  }
+  if (entity.username || entity.email) {
+    return [entity.username, entity.email].filter(Boolean).join(' - ');
+  }
+  return entity.id || '-';
+}
+
+function buildMovementAuditSummary(operation, movementRequest) {
+  const serialized = movementRequest?.movementRequest ? movementRequest.movementRequest : serializeMovementRequest(movementRequest);
+  const item = movementEntityName(serialized.item || serialized.itemId);
+  const from = movementEntityName(serialized.fromLocation || serialized.fromLocationId);
+  const to = movementEntityName(serialized.toLocation || serialized.toLocationId);
+  return `${operation}: ${item} | Cantidad: ${formatAuditQuantity(serialized.quantity)} | Origen: ${from} | Destino: ${to}`;
+}
+
+function buildMovementAuditDetails(doc, operation, extra = {}) {
+  const movementRequest = serializeMovementRequest(doc);
+  return {
+    summary: buildMovementAuditSummary(operation, { movementRequest }),
+    movementRequest,
+    ...extra
+  };
+}
+
 function requestMetadata(req) {
   return {
     ip: req.ip,
@@ -286,7 +330,13 @@ router.delete(
     }
 
     const { id } = req.params;
-    const request = await MovementRequest.findById(id);
+    const request = await MovementRequest.findById(id).populate([
+      'item',
+      { path: 'requestedBy', populate: 'role' },
+      { path: 'approvedBy', populate: 'role' },
+      'fromLocation',
+      'toLocation'
+    ]);
     if (!request) {
       throw new HttpError(404, 'Solicitud no encontrada');
     }
@@ -298,8 +348,9 @@ router.delete(
 
     await recordAuditEvent({
       action: 'Solicitud de movimiento',
-      request: 'Eliminación de solicitud',
-      user: req.user?.username || 'Desconocido'
+      request: buildMovementAuditSummary('Eliminación de solicitud', request),
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(request, 'Eliminación de solicitud')
     });
 
     res.status(204).send();
@@ -330,11 +381,6 @@ router.post(
 
     await movementRequest.save();
     await addMovementLog(movementRequest.id, 'requested', req.user.id, requestMetadata(req));
-    await recordAuditEvent({
-      action: 'Solicitud de movimiento',
-      request: 'Nueva solicitud',
-      user: req.user?.username || 'Desconocido'
-    });
 
     const populated = await movementRequest.populate([
       'item',
@@ -343,6 +389,12 @@ router.post(
       'fromLocation',
       'toLocation'
     ]);
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: buildMovementAuditSummary('Nueva solicitud', populated),
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(populated, 'Nueva solicitud')
+    });
     res.status(201).json(serializeMovementRequest(populated));
   })
 );
@@ -364,11 +416,6 @@ router.post(
     request.approvedAt = new Date();
     await addMovementLog(request.id, 'approved', req.user.id, requestMetadata(req));
     await executeMovement(request, req.user.id, requestMetadata(req));
-    await recordAuditEvent({
-      action: 'Solicitud de movimiento',
-      request: 'Aprobación de solicitud',
-      user: req.user?.username || 'Desconocido'
-    });
     const populated = await request.populate([
       'item',
       { path: 'requestedBy', populate: 'role' },
@@ -376,6 +423,12 @@ router.post(
       'fromLocation',
       'toLocation'
     ]);
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: buildMovementAuditSummary('Aprobación de solicitud', populated),
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(populated, 'Aprobación de solicitud')
+    });
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -399,11 +452,6 @@ router.post(
     request.approvedAt = new Date();
     await request.save();
     await addMovementLog(request.id, 'rejected', req.user.id, requestMetadata(req));
-    await recordAuditEvent({
-      action: 'Solicitud de movimiento',
-      request: 'Rechazo de solicitud',
-      user: req.user?.username || 'Desconocido'
-    });
     const populated = await request.populate([
       'item',
       { path: 'requestedBy', populate: 'role' },
@@ -411,6 +459,12 @@ router.post(
       'fromLocation',
       'toLocation'
     ]);
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: buildMovementAuditSummary('Rechazo de solicitud', populated),
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(populated, 'Rechazo de solicitud', { rejectionReason: request.rejectedReason })
+    });
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -563,11 +617,6 @@ router.post(
     request.rejectedReason = null;
     await request.save();
     await addMovementLog(request.id, 'resubmitted', req.user.id, requestMetadata(req));
-    await recordAuditEvent({
-      action: 'Solicitud de movimiento',
-      request: 'Reenvío de solicitud',
-      user: req.user?.username || 'Desconocido'
-    });
     const populated = await request.populate([
       'item',
       { path: 'requestedBy', populate: 'role' },
@@ -575,6 +624,12 @@ router.post(
       'fromLocation',
       'toLocation'
     ]);
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: buildMovementAuditSummary('Reenvío de solicitud', populated),
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(populated, 'Reenvío de solicitud')
+    });
     res.json(serializeMovementRequest(populated));
   })
 );

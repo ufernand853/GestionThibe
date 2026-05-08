@@ -62,11 +62,12 @@ router.get(
   '/audit',
   requirePermission('stock.logs.read'),
   asyncHandler(async (req, res) => {
-    const { action, request, user, limit = '100', from, to } = req.query || {};
+    const { action, request, user, item, limit = '100', from, to } = req.query || {};
     const query = {};
     const normalizedAction = typeof action === 'string' ? action.trim() : '';
     const normalizedRequest = typeof request === 'string' ? request.trim() : '';
     const normalizedUser = typeof user === 'string' ? user.trim() : '';
+    const normalizedItem = typeof item === 'string' ? item.trim() : '';
     if (normalizedAction) {
       query.action = normalizedAction;
     }
@@ -75,6 +76,20 @@ router.get(
     }
     if (normalizedUser) {
       query.user = { $regex: new RegExp(escapeRegExp(normalizedUser), 'i') };
+    }
+    if (normalizedItem) {
+      const itemMatcher = { $regex: new RegExp(escapeRegExp(normalizedItem), 'i') };
+      query.$or = [
+        { request: itemMatcher },
+        { 'details.summary': itemMatcher },
+        { 'details.item.code': itemMatcher },
+        { 'details.item.description': itemMatcher },
+        { 'details.item.id': itemMatcher },
+        { 'details.movementRequest.item.code': itemMatcher },
+        { 'details.movementRequest.item.description': itemMatcher },
+        { 'details.movementRequest.item.id': itemMatcher },
+        { 'details.movementRequest.itemId': itemMatcher }
+      ];
     }
     const range = {};
     const fromDate = parseDateBoundary(from);
@@ -97,6 +112,7 @@ router.get(
         action: log.action,
         request: log.request,
         user: log.user,
+        details: log.details && typeof log.details === 'object' ? log.details : {},
         timestamp: log.timestamp
       }))
     );

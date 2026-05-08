@@ -11,6 +11,179 @@ const ACTION_LABELS = {
   Autenticación: 'Autenticación'
 };
 
+const DETAIL_LABELS = {
+  item: 'Artículo',
+  movementRequest: 'Solicitud de movimiento',
+  changes: 'Cambios',
+  id: 'ID',
+  code: 'Código',
+  sku: 'SKU',
+  description: 'Descripción',
+  groupId: 'ID grupo',
+  groupName: 'Grupo',
+  attributes: 'Atributos',
+  stock: 'Stock',
+  unitsPerBox: 'Unidades por caja',
+  precio: 'Precio',
+  needsRecount: 'Requiere recuento',
+  imageCount: 'Cantidad de imágenes',
+  itemId: 'ID artículo',
+  type: 'Tipo',
+  fromLocationId: 'ID origen',
+  fromLocation: 'Origen',
+  toLocationId: 'ID destino',
+  toLocation: 'Destino',
+  quantity: 'Cantidad',
+  reason: 'Motivo',
+  requestedBy: 'Solicitado por',
+  requestedAt: 'Fecha de solicitud',
+  status: 'Estado',
+  approvedBy: 'Aprobado por',
+  approvedAt: 'Fecha de aprobación',
+  executedAt: 'Fecha de ejecución',
+  rejectedReason: 'Motivo de rechazo',
+  rejectionReason: 'Motivo de rechazo',
+  before: 'Antes',
+  after: 'Después',
+  boxes: 'Cajas',
+  units: 'Unidades',
+  name: 'Nombre',
+  email: 'Email',
+  role: 'Rol',
+  summary: 'Resumen',
+  ubicacion: 'Ubicación',
+  cantidad: 'Cantidad'
+};
+
+const MOVEMENT_TYPE_LABELS = {
+  ingress: 'Ingreso',
+  egress: 'Egreso',
+  transfer: 'Transferencia'
+};
+
+const STATUS_LABELS = {
+  pending: 'Pendiente',
+  approved: 'Aprobada',
+  rejected: 'Rechazada',
+  executed: 'Ejecutada'
+};
+
+const labelFor = key => DETAIL_LABELS[key] || key;
+
+const HIDDEN_DETAIL_KEYS = new Set([
+  'summary',
+  'id',
+  'itemId',
+  'fromLocationId',
+  'toLocationId',
+  'groupId',
+  'roleId',
+  'sku',
+  'boxes',
+  'units'
+]);
+
+const isPlainObject = value => value && typeof value === 'object' && !Array.isArray(value);
+
+const hasDetails = details => isPlainObject(details) && Object.keys(details).length > 0;
+
+const sanitizeAuditText = value => {
+  if (typeof value !== 'string') {
+    return value || '';
+  }
+  return value.replace(/\b[0-9a-f]{24}\s*:\s*/gi, 'Ubicación: ');
+};
+
+const isQuantity = value =>
+  isPlainObject(value) &&
+  Object.prototype.hasOwnProperty.call(value, 'boxes') &&
+  Object.prototype.hasOwnProperty.call(value, 'units') &&
+  Object.keys(value).every(key => ['boxes', 'units'].includes(key));
+
+const formatPrimitive = (key, value) => {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'Sí' : 'No';
+  }
+  if (key === 'type' && MOVEMENT_TYPE_LABELS[value]) {
+    return MOVEMENT_TYPE_LABELS[value];
+  }
+  if (key === 'status' && STATUS_LABELS[value]) {
+    return STATUS_LABELS[value];
+  }
+  if (typeof value === 'string' && /At$/.test(key)) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleString('es-AR');
+    }
+  }
+  return String(value);
+};
+
+function renderAuditDetailValue(value, keyPrefix) {
+  if (isQuantity(value)) {
+    return `${Number(value.boxes) || 0} caja(s), ${Number(value.units) || 0} unidad(es)`;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return '-';
+    }
+    return (
+      <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
+        {value.map((entry, index) => {
+          const friendlyStockEntry = isPlainObject(entry) && entry.ubicacion && entry.cantidad
+            ? `${entry.ubicacion}: ${entry.cantidad}`
+            : null;
+          return (
+            <li key={`${keyPrefix}-${index}`}>
+              {friendlyStockEntry || renderAuditDetailValue(entry, `${keyPrefix}-${index}`)}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+  if (isPlainObject(value)) {
+    const entries = Object.entries(value).filter(
+      ([entryKey, entryValue]) => entryValue !== undefined && !HIDDEN_DETAIL_KEYS.has(entryKey)
+    );
+    if (entries.length === 0) {
+      return '-';
+    }
+    return (
+      <dl style={{ margin: '0.25rem 0 0', display: 'grid', gap: '0.35rem' }}>
+        {entries.map(([entryKey, entryValue]) => (
+          <div key={`${keyPrefix}-${entryKey}`} style={{ display: 'grid', gap: '0.1rem' }}>
+            <dt style={{ color: '#475569', fontWeight: 700 }}>{labelFor(entryKey)}</dt>
+            <dd style={{ margin: 0 }}>{renderAuditDetailValue(entryValue, `${keyPrefix}-${entryKey}`)}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return formatPrimitive(keyPrefix.split('-').pop(), value);
+}
+
+function AuditDetails({ details, fallback }) {
+  if (!hasDetails(details)) {
+    const sanitizedFallback = sanitizeAuditText(fallback);
+    const fallbackText = typeof sanitizedFallback === 'string' && /[:|]/.test(sanitizedFallback) ? sanitizedFallback : '';
+    return (
+      <span style={{ color: fallbackText ? '#334155' : '#94a3b8' }}>
+        {fallbackText || 'Detalle estructurado no disponible'}
+      </span>
+    );
+  }
+  return (
+    <details>
+      <summary style={{ cursor: 'pointer', color: '#2563eb', fontWeight: 700 }}>Ver detalle</summary>
+      <div style={{ marginTop: '0.5rem', maxWidth: '42rem' }}>{renderAuditDetailValue(details, 'details')}</div>
+    </details>
+  );
+}
+
 const getDefaultDateRange = () => {
   const to = new Date();
   const from = new Date();
@@ -42,6 +215,7 @@ export default function AuditLogsPage() {
   const [logs, setLogs] = useState([]);
   const [filters, setFilters] = useState(() => ({
     request: '',
+    item: '',
     user: '',
     limit: 100,
     action: '',
@@ -72,6 +246,9 @@ export default function AuditLogsPage() {
         if (filters.request) {
           query.request = filters.request;
         }
+        if (filters.item) {
+          query.item = filters.item;
+        }
         if (filters.user) {
           query.user = filters.user;
         }
@@ -99,7 +276,7 @@ export default function AuditLogsPage() {
     return () => {
       active = false;
     };
-  }, [api, canViewLogs, filters.action, filters.from, filters.limit, filters.request, filters.to, filters.user]);
+  }, [api, canViewLogs, filters.action, filters.from, filters.item, filters.limit, filters.request, filters.to, filters.user]);
 
   if (!canViewLogs) {
     return <ErrorMessage error="No tiene permisos para acceder a la auditoría." />;
@@ -132,12 +309,21 @@ export default function AuditLogsPage() {
             </select>
           </div>
           <div className="input-group">
-            <label htmlFor="requestFilter">Detalle</label>
+            <label htmlFor="requestFilter">Operación</label>
             <input
               id="requestFilter"
               value={filters.request}
               onChange={event => setFilters(prev => ({ ...prev, request: event.target.value }))}
-              placeholder="Ej.: Alta de artículo"
+              placeholder="Ej.: Alta, baja, aprobación"
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="itemFilter">Artículo</label>
+            <input
+              id="itemFilter"
+              value={filters.item}
+              onChange={event => setFilters(prev => ({ ...prev, item: event.target.value }))}
+              placeholder="Código o descripción del artículo"
             />
           </div>
           <div className="input-group">
@@ -192,6 +378,7 @@ export default function AuditLogsPage() {
                   <th>Fecha</th>
                   <th>Acción</th>
                   <th>Detalle</th>
+                  <th>Datos registrados</th>
                   <th>Usuario</th>
                 </tr>
               </thead>
@@ -200,13 +387,14 @@ export default function AuditLogsPage() {
                   <tr key={log.id}>
                     <td>{new Date(log.timestamp).toLocaleString('es-AR')}</td>
                     <td>{getActionLabel(log.action)}</td>
-                    <td>{log.request || '-'}</td>
+                    <td>{sanitizeAuditText(log.request) || '-'}</td>
+                    <td><AuditDetails details={log.details} fallback={log.request} /></td>
                     <td>{log.user || '-'}</td>
                   </tr>
                 ))}
                 {logs.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron registros.
                     </td>
                   </tr>

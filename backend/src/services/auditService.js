@@ -10,7 +10,14 @@ function normalizeText(value, { fallback = '' } = {}) {
   return String(value).trim();
 }
 
-async function recordAuditEvent({ action, request, user }) {
+function normalizeDetails(value) {
+  if (value === undefined || value === null || typeof value !== 'object') {
+    return {};
+  }
+  return value;
+}
+
+async function recordAuditEvent({ action, request, user, details }) {
   const actionValue = normalizeText(action);
   const requestValue = normalizeText(request);
   const userValue = normalizeText(user, { fallback: 'Desconocido' });
@@ -22,7 +29,8 @@ async function recordAuditEvent({ action, request, user }) {
   await AuditLog.create({
     action: actionValue,
     request: requestValue,
-    user: userValue
+    user: userValue,
+    details: normalizeDetails(details)
   });
 }
 
