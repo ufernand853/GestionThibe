@@ -215,6 +215,7 @@ export default function AuditLogsPage() {
   const [logs, setLogs] = useState([]);
   const [filters, setFilters] = useState(() => ({
     request: '',
+    item: '',
     user: '',
     limit: 100,
     action: '',
@@ -245,6 +246,9 @@ export default function AuditLogsPage() {
         if (filters.request) {
           query.request = filters.request;
         }
+        if (filters.item) {
+          query.item = filters.item;
+        }
         if (filters.user) {
           query.user = filters.user;
         }
@@ -272,7 +276,7 @@ export default function AuditLogsPage() {
     return () => {
       active = false;
     };
-  }, [api, canViewLogs, filters.action, filters.from, filters.limit, filters.request, filters.to, filters.user]);
+  }, [api, canViewLogs, filters.action, filters.from, filters.item, filters.limit, filters.request, filters.to, filters.user]);
 
   if (!canViewLogs) {
     return <ErrorMessage error="No tiene permisos para acceder a la auditoría." />;
@@ -305,12 +309,21 @@ export default function AuditLogsPage() {
             </select>
           </div>
           <div className="input-group">
-            <label htmlFor="requestFilter">Detalle</label>
+            <label htmlFor="requestFilter">Operación</label>
             <input
               id="requestFilter"
               value={filters.request}
               onChange={event => setFilters(prev => ({ ...prev, request: event.target.value }))}
-              placeholder="Ej.: Alta de artículo"
+              placeholder="Ej.: Alta, baja, aprobación"
+            />
+          </div>
+          <div className="input-group">
+            <label htmlFor="itemFilter">Artículo</label>
+            <input
+              id="itemFilter"
+              value={filters.item}
+              onChange={event => setFilters(prev => ({ ...prev, item: event.target.value }))}
+              placeholder="Código o descripción del artículo"
             />
           </div>
           <div className="input-group">
