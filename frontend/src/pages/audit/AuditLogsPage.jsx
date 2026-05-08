@@ -49,7 +49,8 @@ const DETAIL_LABELS = {
   units: 'Unidades',
   name: 'Nombre',
   email: 'Email',
-  role: 'Rol'
+  role: 'Rol',
+  summary: 'Resumen'
 };
 
 const MOVEMENT_TYPE_LABELS = {
@@ -134,13 +135,19 @@ function renderAuditDetailValue(value, keyPrefix) {
   return formatPrimitive(keyPrefix.split('-').pop(), value);
 }
 
-function AuditDetails({ details }) {
+function AuditDetails({ details, fallback }) {
   if (!hasDetails(details)) {
-    return <span style={{ color: '#94a3b8' }}>Sin datos adicionales</span>;
+    const fallbackText = typeof fallback === 'string' && /[:|]/.test(fallback) ? fallback : '';
+    return (
+      <span style={{ color: fallbackText ? '#334155' : '#94a3b8' }}>
+        {fallbackText || 'Detalle estructurado no disponible'}
+      </span>
+    );
   }
+  const summary = typeof details.summary === 'string' && details.summary.trim() ? details.summary.trim() : 'Ver datos registrados';
   return (
     <details>
-      <summary style={{ cursor: 'pointer', color: '#2563eb', fontWeight: 700 }}>Ver datos registrados</summary>
+      <summary style={{ cursor: 'pointer', color: '#2563eb', fontWeight: 700 }}>{summary}</summary>
       <div style={{ marginTop: '0.5rem', maxWidth: '42rem' }}>{renderAuditDetailValue(details, 'details')}</div>
     </details>
   );
@@ -337,7 +344,7 @@ export default function AuditLogsPage() {
                     <td>{new Date(log.timestamp).toLocaleString('es-AR')}</td>
                     <td>{getActionLabel(log.action)}</td>
                     <td>{log.request || '-'}</td>
-                    <td><AuditDetails details={log.details} /></td>
+                    <td><AuditDetails details={log.details} fallback={log.request} /></td>
                     <td>{log.user || '-'}</td>
                   </tr>
                 ))}

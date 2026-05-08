@@ -336,6 +336,31 @@ function toPlainStock(stock) {
 }
 
 
+
+function formatAuditQuantity(quantity) {
+  const boxes = Number(quantity?.boxes) || 0;
+  const units = Number(quantity?.units) || 0;
+  return `${boxes} caja(s), ${units} unidad(es)`;
+}
+
+function formatAuditStock(stock = {}) {
+  const entries = Object.entries(stock || {});
+  if (entries.length === 0) {
+    return 'sin stock inicial';
+  }
+  return entries
+    .map(([locationId, quantity]) => `${locationId}: ${formatAuditQuantity(quantity)}`)
+    .join('; ');
+}
+
+function buildItemAuditSummary(operation, snapshot) {
+  if (!snapshot) {
+    return operation;
+  }
+  const stockSummary = formatAuditStock(snapshot.stock);
+  return `${operation}: ${snapshot.code} - ${snapshot.description} | Stock: ${stockSummary}`;
+}
+
 function buildItemAuditSnapshot(doc) {
   if (!doc) {
     return null;
@@ -553,12 +578,14 @@ router.post(
       throw error;
     }
     const populated = await item.populate('group');
+    const auditSnapshot = buildItemAuditSnapshot(populated);
     await recordAuditEvent({
       action: 'Artículo',
-      request: 'Alta de artículo',
+      request: buildItemAuditSummary('Alta de artículo', auditSnapshot),
       user: req.user?.username || 'Desconocido',
       details: {
-        item: buildItemAuditSnapshot(populated)
+        summary: buildItemAuditSummary('Alta de artículo', auditSnapshot),
+        item: auditSnapshot
       }
     });
     res.status(201).json(serializeItem(populated));
@@ -751,9 +778,10 @@ router.put(
     const afterAuditSnapshot = buildItemAuditSnapshot(populated);
     await recordAuditEvent({
       action: 'Artículo',
-      request: 'Actualización de artículo',
+      request: buildItemAuditSummary('Actualización de artículo', afterAuditSnapshot),
       user: req.user?.username || 'Desconocido',
       details: {
+        summary: buildItemAuditSummary('Actualización de artículo', afterAuditSnapshot),
         item: afterAuditSnapshot,
         changes: buildItemAuditChanges(beforeAuditSnapshot, afterAuditSnapshot)
       }
@@ -788,9 +816,10 @@ router.delete(
 
     await recordAuditEvent({
       action: 'Artículo',
-      request: 'Eliminación de artículo',
+      request: buildItemAuditSummary('Eliminación de artículo', auditSnapshot),
       user: req.user?.username || 'Desconocido',
       details: {
+        summary: buildItemAuditSummary('Eliminación de artículo', auditSnapshot),
         item: auditSnapshot
       }
     });

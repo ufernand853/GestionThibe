@@ -180,9 +180,45 @@ function serializeMovementRequest(doc) {
 }
 
 
-function buildMovementAuditDetails(doc, extra = {}) {
+
+function formatAuditQuantity(quantity) {
+  const boxes = Number(quantity?.boxes) || 0;
+  const units = Number(quantity?.units) || 0;
+  return `${boxes} caja(s), ${units} unidad(es)`;
+}
+
+function movementEntityName(entity) {
+  if (!entity) {
+    return '-';
+  }
+  if (typeof entity === 'string') {
+    return entity;
+  }
+  if (entity.code || entity.description) {
+    return [entity.code, entity.description].filter(Boolean).join(' - ');
+  }
+  if (entity.name || entity.description) {
+    return [entity.name, entity.description].filter(Boolean).join(' - ');
+  }
+  if (entity.username || entity.email) {
+    return [entity.username, entity.email].filter(Boolean).join(' - ');
+  }
+  return entity.id || '-';
+}
+
+function buildMovementAuditSummary(operation, movementRequest) {
+  const serialized = movementRequest?.movementRequest ? movementRequest.movementRequest : serializeMovementRequest(movementRequest);
+  const item = movementEntityName(serialized.item || serialized.itemId);
+  const from = movementEntityName(serialized.fromLocation || serialized.fromLocationId);
+  const to = movementEntityName(serialized.toLocation || serialized.toLocationId);
+  return `${operation}: ${item} | Cantidad: ${formatAuditQuantity(serialized.quantity)} | Origen: ${from} | Destino: ${to}`;
+}
+
+function buildMovementAuditDetails(doc, operation, extra = {}) {
+  const movementRequest = serializeMovementRequest(doc);
   return {
-    movementRequest: serializeMovementRequest(doc),
+    summary: buildMovementAuditSummary(operation, { movementRequest }),
+    movementRequest,
     ...extra
   };
 }
@@ -312,9 +348,9 @@ router.delete(
 
     await recordAuditEvent({
       action: 'Solicitud de movimiento',
-      request: 'Eliminación de solicitud',
+      request: buildMovementAuditSummary('Eliminación de solicitud', request),
       user: req.user?.username || 'Desconocido',
-      details: buildMovementAuditDetails(request)
+      details: buildMovementAuditDetails(request, 'Eliminación de solicitud')
     });
 
     res.status(204).send();
@@ -355,9 +391,9 @@ router.post(
     ]);
     await recordAuditEvent({
       action: 'Solicitud de movimiento',
-      request: 'Nueva solicitud',
+      request: buildMovementAuditSummary('Nueva solicitud', populated),
       user: req.user?.username || 'Desconocido',
-      details: buildMovementAuditDetails(populated)
+      details: buildMovementAuditDetails(populated, 'Nueva solicitud')
     });
     res.status(201).json(serializeMovementRequest(populated));
   })
@@ -389,9 +425,9 @@ router.post(
     ]);
     await recordAuditEvent({
       action: 'Solicitud de movimiento',
-      request: 'Aprobación de solicitud',
+      request: buildMovementAuditSummary('Aprobación de solicitud', populated),
       user: req.user?.username || 'Desconocido',
-      details: buildMovementAuditDetails(populated)
+      details: buildMovementAuditDetails(populated, 'Aprobación de solicitud')
     });
     res.json(serializeMovementRequest(populated));
   })
@@ -425,9 +461,9 @@ router.post(
     ]);
     await recordAuditEvent({
       action: 'Solicitud de movimiento',
-      request: 'Rechazo de solicitud',
+      request: buildMovementAuditSummary('Rechazo de solicitud', populated),
       user: req.user?.username || 'Desconocido',
-      details: buildMovementAuditDetails(populated, { rejectionReason: request.rejectedReason })
+      details: buildMovementAuditDetails(populated, 'Rechazo de solicitud', { rejectionReason: request.rejectedReason })
     });
     res.json(serializeMovementRequest(populated));
   })
@@ -590,9 +626,9 @@ router.post(
     ]);
     await recordAuditEvent({
       action: 'Solicitud de movimiento',
-      request: 'Reenvío de solicitud',
+      request: buildMovementAuditSummary('Reenvío de solicitud', populated),
       user: req.user?.username || 'Desconocido',
-      details: buildMovementAuditDetails(populated)
+      details: buildMovementAuditDetails(populated, 'Reenvío de solicitud')
     });
     res.json(serializeMovementRequest(populated));
   })
