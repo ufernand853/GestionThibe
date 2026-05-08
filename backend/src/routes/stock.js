@@ -179,6 +179,14 @@ function serializeMovementRequest(doc) {
   };
 }
 
+
+function buildMovementAuditDetails(doc, extra = {}) {
+  return {
+    movementRequest: serializeMovementRequest(doc),
+    ...extra
+  };
+}
+
 function requestMetadata(req) {
   return {
     ip: req.ip,
@@ -286,7 +294,13 @@ router.delete(
     }
 
     const { id } = req.params;
-    const request = await MovementRequest.findById(id);
+    const request = await MovementRequest.findById(id).populate([
+      'item',
+      { path: 'requestedBy', populate: 'role' },
+      { path: 'approvedBy', populate: 'role' },
+      'fromLocation',
+      'toLocation'
+    ]);
     if (!request) {
       throw new HttpError(404, 'Solicitud no encontrada');
     }
@@ -299,7 +313,8 @@ router.delete(
     await recordAuditEvent({
       action: 'Solicitud de movimiento',
       request: 'Eliminación de solicitud',
-      user: req.user?.username || 'Desconocido'
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(request)
     });
 
     res.status(204).send();
@@ -330,11 +345,6 @@ router.post(
 
     await movementRequest.save();
     await addMovementLog(movementRequest.id, 'requested', req.user.id, requestMetadata(req));
-    await recordAuditEvent({
-      action: 'Solicitud de movimiento',
-      request: 'Nueva solicitud',
-      user: req.user?.username || 'Desconocido'
-    });
 
     const populated = await movementRequest.populate([
       'item',
@@ -343,6 +353,12 @@ router.post(
       'fromLocation',
       'toLocation'
     ]);
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Nueva solicitud',
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(populated)
+    });
     res.status(201).json(serializeMovementRequest(populated));
   })
 );
@@ -364,11 +380,6 @@ router.post(
     request.approvedAt = new Date();
     await addMovementLog(request.id, 'approved', req.user.id, requestMetadata(req));
     await executeMovement(request, req.user.id, requestMetadata(req));
-    await recordAuditEvent({
-      action: 'Solicitud de movimiento',
-      request: 'Aprobación de solicitud',
-      user: req.user?.username || 'Desconocido'
-    });
     const populated = await request.populate([
       'item',
       { path: 'requestedBy', populate: 'role' },
@@ -376,6 +387,12 @@ router.post(
       'fromLocation',
       'toLocation'
     ]);
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Aprobación de solicitud',
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(populated)
+    });
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -399,11 +416,6 @@ router.post(
     request.approvedAt = new Date();
     await request.save();
     await addMovementLog(request.id, 'rejected', req.user.id, requestMetadata(req));
-    await recordAuditEvent({
-      action: 'Solicitud de movimiento',
-      request: 'Rechazo de solicitud',
-      user: req.user?.username || 'Desconocido'
-    });
     const populated = await request.populate([
       'item',
       { path: 'requestedBy', populate: 'role' },
@@ -411,6 +423,12 @@ router.post(
       'fromLocation',
       'toLocation'
     ]);
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Rechazo de solicitud',
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(populated, { rejectionReason: request.rejectedReason })
+    });
     res.json(serializeMovementRequest(populated));
   })
 );
@@ -563,11 +581,6 @@ router.post(
     request.rejectedReason = null;
     await request.save();
     await addMovementLog(request.id, 'resubmitted', req.user.id, requestMetadata(req));
-    await recordAuditEvent({
-      action: 'Solicitud de movimiento',
-      request: 'Reenvío de solicitud',
-      user: req.user?.username || 'Desconocido'
-    });
     const populated = await request.populate([
       'item',
       { path: 'requestedBy', populate: 'role' },
@@ -575,6 +588,12 @@ router.post(
       'fromLocation',
       'toLocation'
     ]);
+    await recordAuditEvent({
+      action: 'Solicitud de movimiento',
+      request: 'Reenvío de solicitud',
+      user: req.user?.username || 'Desconocido',
+      details: buildMovementAuditDetails(populated)
+    });
     res.json(serializeMovementRequest(populated));
   })
 );

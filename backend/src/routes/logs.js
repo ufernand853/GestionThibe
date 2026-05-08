@@ -97,6 +97,7 @@ router.get(
         action: log.action,
         request: log.request,
         user: log.user,
+        details: log.details && typeof log.details === 'object' ? log.details : {},
         timestamp: log.timestamp
       }))
     );

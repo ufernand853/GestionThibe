@@ -335,6 +335,45 @@ function toPlainStock(stock) {
   return plain;
 }
 
+
+function buildItemAuditSnapshot(doc) {
+  if (!doc) {
+    return null;
+  }
+  const group = doc.group;
+  const groupId = group && typeof group === 'object' && group.id ? group.id : group ? String(group) : null;
+  return {
+    id: doc.id || (doc._id ? String(doc._id) : null),
+    code: doc.code,
+    sku: doc.sku || null,
+    description: doc.description,
+    groupId,
+    groupName: group && typeof group === 'object' && group.name ? group.name : null,
+    attributes: toPlainAttributes(doc.attributes),
+    stock: toPlainStock(doc.stock),
+    unitsPerBox: doc.unitsPerBox === undefined || doc.unitsPerBox === null ? null : Number(doc.unitsPerBox),
+    precio: doc.pDecimal === undefined || doc.pDecimal === null ? null : Number(doc.pDecimal),
+    needsRecount: Boolean(doc.needsRecount),
+    imageCount: Array.isArray(doc.images) ? doc.images.length : 0
+  };
+}
+
+function buildItemAuditChanges(before, after) {
+  const changes = {};
+  if (!before || !after) {
+    return changes;
+  }
+  Object.keys(after).forEach(key => {
+    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
+      changes[key] = {
+        before: before[key] === undefined ? null : before[key],
+        after: after[key] === undefined ? null : after[key]
+      };
+    }
+  });
+  return changes;
+}
+
 function buildStock(input = {}) {
   const stock = {};
   if (!input || typeof input !== 'object') {
@@ -517,7 +556,10 @@ router.post(
     await recordAuditEvent({
       action: 'Artículo',
       request: 'Alta de artículo',
-      user: req.user?.username || 'Desconocido'
+      user: req.user?.username || 'Desconocido',
+      details: {
+        item: buildItemAuditSnapshot(populated)
+      }
     });
     res.status(201).json(serializeItem(populated));
   })
@@ -535,6 +577,7 @@ router.put(
     if (!item) {
       throw new HttpError(404, 'Artículo no encontrado');
     }
+    const beforeAuditSnapshot = buildItemAuditSnapshot(item);
     const payload = parseItemPayload(req);
     const {
       description,
@@ -705,10 +748,15 @@ router.put(
       throw error;
     }
     const populated = await item.populate('group');
+    const afterAuditSnapshot = buildItemAuditSnapshot(populated);
     await recordAuditEvent({
       action: 'Artículo',
       request: 'Actualización de artículo',
-      user: req.user?.username || 'Desconocido'
+      user: req.user?.username || 'Desconocido',
+      details: {
+        item: afterAuditSnapshot,
+        changes: buildItemAuditChanges(beforeAuditSnapshot, afterAuditSnapshot)
+      }
     });
     res.json(serializeItem(populated));
   })
@@ -727,6 +775,7 @@ router.delete(
       throw new HttpError(404, 'Artículo no encontrado');
     }
 
+    const auditSnapshot = buildItemAuditSnapshot(item);
     const imagesToRemove = Array.isArray(item.images)
       ? item.images.map(sanitizeImagePath).filter(Boolean)
       : [];
@@ -740,7 +789,10 @@ router.delete(
     await recordAuditEvent({
       action: 'Artículo',
       request: 'Eliminación de artículo',
-      user: req.user?.username || 'Desconocido'
+      user: req.user?.username || 'Desconocido',
+      details: {
+        item: auditSnapshot
+      }
     });
 
     res.status(204).send();
