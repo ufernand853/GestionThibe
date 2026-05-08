@@ -8,6 +8,7 @@ const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
+const Location = require('../models/Location');
 const { normalizeQuantityInput } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
@@ -343,13 +344,33 @@ function formatAuditQuantity(quantity) {
   return `${boxes} caja(s), ${units} unidad(es)`;
 }
 
-function formatAuditStock(stock = {}) {
-  const entries = Object.entries(stock || {});
+async function buildFriendlyAuditStock(stock = {}) {
+  const plainStock = toPlainStock(stock);
+  const entries = Object.entries(plainStock);
   if (entries.length === 0) {
-    return 'sin stock inicial';
+    return [];
   }
-  return entries
-    .map(([locationId, quantity]) => `${locationId}: ${formatAuditQuantity(quantity)}`)
+
+  const locationIds = entries.map(([locationId]) => locationId).filter(Types.ObjectId.isValid);
+  const locations = locationIds.length > 0
+    ? await Location.find({ _id: { $in: locationIds } }).select('name description').lean()
+    : [];
+  const locationNames = new Map(locations.map(location => [String(location._id), location.name]));
+
+  return entries.map(([locationId, quantity], index) => ({
+    ubicacion: locationNames.get(locationId) || `Ubicación ${index + 1}`,
+    cantidad: formatAuditQuantity(quantity),
+    boxes: Number(quantity?.boxes) || 0,
+    units: Number(quantity?.units) || 0
+  }));
+}
+
+function formatAuditStock(stock = []) {
+  if (!Array.isArray(stock) || stock.length === 0) {
+    return 'sin stock registrado';
+  }
+  return stock
+    .map(entry => `${entry.ubicacion}: ${entry.cantidad}`)
     .join('; ');
 }
 
@@ -361,21 +382,17 @@ function buildItemAuditSummary(operation, snapshot) {
   return `${operation}: ${snapshot.code} - ${snapshot.description} | Stock: ${stockSummary}`;
 }
 
-function buildItemAuditSnapshot(doc) {
+async function buildItemAuditSnapshot(doc) {
   if (!doc) {
     return null;
   }
   const group = doc.group;
-  const groupId = group && typeof group === 'object' && group.id ? group.id : group ? String(group) : null;
   return {
-    id: doc.id || (doc._id ? String(doc._id) : null),
     code: doc.code,
-    sku: doc.sku || null,
     description: doc.description,
-    groupId,
     groupName: group && typeof group === 'object' && group.name ? group.name : null,
     attributes: toPlainAttributes(doc.attributes),
-    stock: toPlainStock(doc.stock),
+    stock: await buildFriendlyAuditStock(doc.stock),
     unitsPerBox: doc.unitsPerBox === undefined || doc.unitsPerBox === null ? null : Number(doc.unitsPerBox),
     precio: doc.pDecimal === undefined || doc.pDecimal === null ? null : Number(doc.pDecimal),
     needsRecount: Boolean(doc.needsRecount),
@@ -578,7 +595,7 @@ router.post(
       throw error;
     }
     const populated = await item.populate('group');
-    const auditSnapshot = buildItemAuditSnapshot(populated);
+    const auditSnapshot = await buildItemAuditSnapshot(populated);
     await recordAuditEvent({
       action: 'Artículo',
       request: buildItemAuditSummary('Alta de artículo', auditSnapshot),
@@ -604,7 +621,7 @@ router.put(
     if (!item) {
       throw new HttpError(404, 'Artículo no encontrado');
     }
-    const beforeAuditSnapshot = buildItemAuditSnapshot(item);
+    const beforeAuditSnapshot = await buildItemAuditSnapshot(item);
     const payload = parseItemPayload(req);
     const {
       description,
@@ -775,7 +792,7 @@ router.put(
       throw error;
     }
     const populated = await item.populate('group');
-    const afterAuditSnapshot = buildItemAuditSnapshot(populated);
+    const afterAuditSnapshot = await buildItemAuditSnapshot(populated);
     await recordAuditEvent({
       action: 'Artículo',
       request: buildItemAuditSummary('Actualización de artículo', afterAuditSnapshot),
@@ -803,7 +820,7 @@ router.delete(
       throw new HttpError(404, 'Artículo no encontrado');
     }
 
-    const auditSnapshot = buildItemAuditSnapshot(item);
+    const auditSnapshot = await buildItemAuditSnapshot(item);
     const imagesToRemove = Array.isArray(item.images)
       ? item.images.map(sanitizeImagePath).filter(Boolean)
       : [];

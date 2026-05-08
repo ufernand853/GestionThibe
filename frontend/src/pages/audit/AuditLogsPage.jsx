@@ -50,7 +50,9 @@ const DETAIL_LABELS = {
   name: 'Nombre',
   email: 'Email',
   role: 'Rol',
-  summary: 'Resumen'
+  summary: 'Resumen',
+  ubicacion: 'Ubicación',
+  cantidad: 'Cantidad'
 };
 
 const MOVEMENT_TYPE_LABELS = {
@@ -68,9 +70,29 @@ const STATUS_LABELS = {
 
 const labelFor = key => DETAIL_LABELS[key] || key;
 
+const HIDDEN_DETAIL_KEYS = new Set([
+  'summary',
+  'id',
+  'itemId',
+  'fromLocationId',
+  'toLocationId',
+  'groupId',
+  'roleId',
+  'sku',
+  'boxes',
+  'units'
+]);
+
 const isPlainObject = value => value && typeof value === 'object' && !Array.isArray(value);
 
 const hasDetails = details => isPlainObject(details) && Object.keys(details).length > 0;
+
+const sanitizeAuditText = value => {
+  if (typeof value !== 'string') {
+    return value || '';
+  }
+  return value.replace(/\b[0-9a-f]{24}\s*:\s*/gi, 'Ubicación: ');
+};
 
 const isQuantity = value =>
   isPlainObject(value) &&
@@ -110,14 +132,23 @@ function renderAuditDetailValue(value, keyPrefix) {
     }
     return (
       <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
-        {value.map((entry, index) => (
-          <li key={`${keyPrefix}-${index}`}>{renderAuditDetailValue(entry, `${keyPrefix}-${index}`)}</li>
-        ))}
+        {value.map((entry, index) => {
+          const friendlyStockEntry = isPlainObject(entry) && entry.ubicacion && entry.cantidad
+            ? `${entry.ubicacion}: ${entry.cantidad}`
+            : null;
+          return (
+            <li key={`${keyPrefix}-${index}`}>
+              {friendlyStockEntry || renderAuditDetailValue(entry, `${keyPrefix}-${index}`)}
+            </li>
+          );
+        })}
       </ul>
     );
   }
   if (isPlainObject(value)) {
-    const entries = Object.entries(value).filter(([, entryValue]) => entryValue !== undefined);
+    const entries = Object.entries(value).filter(
+      ([entryKey, entryValue]) => entryValue !== undefined && !HIDDEN_DETAIL_KEYS.has(entryKey)
+    );
     if (entries.length === 0) {
       return '-';
     }
@@ -137,17 +168,17 @@ function renderAuditDetailValue(value, keyPrefix) {
 
 function AuditDetails({ details, fallback }) {
   if (!hasDetails(details)) {
-    const fallbackText = typeof fallback === 'string' && /[:|]/.test(fallback) ? fallback : '';
+    const sanitizedFallback = sanitizeAuditText(fallback);
+    const fallbackText = typeof sanitizedFallback === 'string' && /[:|]/.test(sanitizedFallback) ? sanitizedFallback : '';
     return (
       <span style={{ color: fallbackText ? '#334155' : '#94a3b8' }}>
         {fallbackText || 'Detalle estructurado no disponible'}
       </span>
     );
   }
-  const summary = typeof details.summary === 'string' && details.summary.trim() ? details.summary.trim() : 'Ver datos registrados';
   return (
     <details>
-      <summary style={{ cursor: 'pointer', color: '#2563eb', fontWeight: 700 }}>{summary}</summary>
+      <summary style={{ cursor: 'pointer', color: '#2563eb', fontWeight: 700 }}>Ver detalle</summary>
       <div style={{ marginTop: '0.5rem', maxWidth: '42rem' }}>{renderAuditDetailValue(details, 'details')}</div>
     </details>
   );
@@ -343,7 +374,7 @@ export default function AuditLogsPage() {
                   <tr key={log.id}>
                     <td>{new Date(log.timestamp).toLocaleString('es-AR')}</td>
                     <td>{getActionLabel(log.action)}</td>
-                    <td>{log.request || '-'}</td>
+                    <td>{sanitizeAuditText(log.request) || '-'}</td>
                     <td><AuditDetails details={log.details} fallback={log.request} /></td>
                     <td>{log.user || '-'}</td>
                   </tr>
