@@ -5,6 +5,7 @@ const auditLogSchema = new Schema(
     action: { type: String, required: true, trim: true },
     request: { type: String, required: true, trim: true },
     user: { type: String, required: true, trim: true },
+    details: { type: Schema.Types.Mixed, default: {} },
     timestamp: { type: Date, default: Date.now }
   },
   {
