@@ -130,7 +130,7 @@ Una vez liberado el puerto, vuelve a iniciar el servicio con `pm2 start` o `pm2 
 
 ### Credenciales iniciales
 
-Al primer arranque se crean los roles `Administrador`, `Operador` y `Consulta`, junto con un usuario administrador activo:
+Al primer arranque se crean los roles `Administrador`, `Operador`, `Supervisor` y `Consulta`, junto con un usuario administrador activo:
 
 - **Usuario**: valor de `ADMIN_EMAIL` (por defecto `admin@example.com`)
 - **Contraseña**: valor de `ADMIN_PASSWORD` (por defecto `ChangeMe123!`)

@@ -24,6 +24,10 @@ const defaultRoles = [
     permissions: ['items.read', 'items.write', 'stock.request', 'reports.read']
   },
   {
+    name: 'Supervisor',
+    permissions: ['items.read', 'stock.request', 'reports.read']
+  },
+  {
     name: 'Consulta',
     permissions: ['items.read', 'reports.read']
   }

@@ -121,6 +121,17 @@
         },
         {
             "_id": {
+                "$oid": "b7c8d9e0f1a2b3c4d5e6f708"
+            },
+            "name": "Supervisor",
+            "permissions": [
+                "items.read",
+                "stock.request",
+                "reports.read"
+            ]
+        },
+        {
+            "_id": {
                 "$oid": "4152a60c794d16a7358206b9"
             },
             "name": "Consulta",

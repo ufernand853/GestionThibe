@@ -36,10 +36,10 @@ export default function MovementRequestsPage() {
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const isAdmin = user?.role === 'Administrador';
-  const isOperator = user?.role === 'Operador';
+  const hasRestrictedRequesterRole = ['Operador', 'Supervisor'].includes(user?.role);
   const hasRequestPermission = permissions.includes('stock.request');
   const canRequest = hasRequestPermission;
-  const isOperatorWithRestrictions = isOperator && hasRequestPermission;
+  const hasRequesterRestrictions = hasRestrictedRequesterRole && hasRequestPermission;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -180,7 +180,7 @@ export default function MovementRequestsPage() {
       ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index])
     );
     const availableLocations = Array.isArray(locations) ? locations : [];
-    const allowedOriginTypes = isOperatorWithRestrictions
+    const allowedOriginTypes = hasRequesterRestrictions
       ? ['warehouse']
       : ['warehouse', 'externalOrigin'];
     return availableLocations
@@ -196,7 +196,7 @@ export default function MovementRequestsPage() {
         }
         return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
       });
-  }, [isOperatorWithRestrictions, locations]);
+  }, [hasRequesterRestrictions, locations]);
 
   const pendingMap = useMemo(() => aggregatePendingByItem(pendingSnapshot), [pendingSnapshot]);
 
@@ -436,12 +436,12 @@ export default function MovementRequestsPage() {
       const fromLocation = locationMap.get(String(formValues.fromLocation));
       const toLocation = locationMap.get(String(formValues.toLocation));
 
-      if (isOperatorWithRestrictions) {
+      if (hasRequesterRestrictions) {
         const isFromWarehouse = fromLocation?.type === 'warehouse';
         const isToAllowed = ['warehouse', 'external'].includes(toLocation?.type);
         if (!isFromWarehouse || !isToAllowed) {
           setError(
-            'Como operador solo puede solicitar transferencias desde depósitos internos hacia depósitos internos o externos.'
+            'Como operador o supervisor solo puede solicitar transferencias desde depósitos internos hacia depósitos internos o externos.'
           );
           setSubmitting(false);
           return;

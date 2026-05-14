@@ -32,7 +32,7 @@ Desarrollar un sistema de gestión de inventario enfocado en depósitos configur
   - Registro automático de logs (requested/approved/executed/rejected).
 - **ABM de Usuarios**:
   - Crear/editar/deshabilitar usuarios y asignar roles.
-  - Roles base: **Administrador**, **Operador**, **Consulta** (extensible con permisos granulares).
+  - Roles base: **Administrador**, **Operador**, **Supervisor**, **Consulta** (extensible con permisos granulares).
 - **Reportes**:
   - Stock consolidado por grupo (detalle por artículo y depósito).
   - Stock consolidado por depósito (detalle por artículo).
