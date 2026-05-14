@@ -900,12 +900,6 @@ export default function ItemsPage() {
                   />
                 </div>
               )}
-              {editingItem && (
-                <div className="input-group">
-                  <label htmlFor="sku">SKU</label>
-                  <input id="sku" name="sku" value={editingItem.sku || ''} readOnly disabled />
-                </div>
-              )}
               <div className="input-group">
                 <label htmlFor="description">Descripción *</label>
                 <input
