@@ -47,13 +47,13 @@ const parseDateFromInput = value => {
 export default function DashboardPage() {
   const api = useApi();
   const { user } = useAuth();
-  const isOperator = user?.role === 'Operador';
+  const isRestrictedSummaryRole = ['Operador', 'Supervisor'].includes(user?.role);
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canViewReports = permissions.includes('reports.read');
   const canManageRequests = permissions.includes('stock.request') || permissions.includes('stock.approve');
   const canViewCatalog = permissions.includes('items.read');
-  const shouldLoadStockSummary = canViewReports && !isOperator;
-  const shouldLoadLocations = canViewCatalog && !isOperator;
+  const shouldLoadStockSummary = canViewReports && !isRestrictedSummaryRole;
+  const shouldLoadLocations = canViewCatalog && !isRestrictedSummaryRole;
   const shouldLoadRequests = canManageRequests;
   const recountThresholdDays = RECOUNT_THRESHOLD_DAYS;
 
@@ -541,7 +541,7 @@ export default function DashboardPage() {
   ];
 
   const visibleSummaryCards = summaryCards.filter(
-    card => !(isOperator && card.hideForOperator)
+    card => !(isRestrictedSummaryRole && card.hideForOperator)
   );
 
   return (
@@ -624,7 +624,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {!isOperator && stockByLocation.length > 0 && (
+      {!isRestrictedSummaryRole && stockByLocation.length > 0 && (
         <div className="section-card">
           <div className="flex-between">
             <h2>Stock por ubicación</h2>
@@ -904,7 +904,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {!isOperator && pendingRequests.length > 0 && (
+      {!isRestrictedSummaryRole && pendingRequests.length > 0 && (
         <div className="section-card">
           <div className="flex-between">
             <h2>Solicitudes pendientes de aprobación</h2>

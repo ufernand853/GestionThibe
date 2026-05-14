@@ -200,6 +200,8 @@ export default function ItemsDownloadPage() {
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canRead = permissions.includes('items.read');
+  const isDownloadRestrictedRole = ['Operador', 'Supervisor'].includes(user?.role);
+  const canUseDownloadPage = canRead && !isDownloadRestrictedRole;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -210,7 +212,7 @@ export default function ItemsDownloadPage() {
   const [groups, setGroups] = useState([]);
   const [sizeFilterOptions, setSizeFilterOptions] = useState(DEFAULT_SIZE_FILTER_OPTIONS);
   const [colorFilterOptions, setColorFilterOptions] = useState(DEFAULT_COLOR_FILTER_OPTIONS);
-  const [filters, setFilters] = useState({ search: '', sku: '', groupId: '', gender: '', size: '', color: '' });
+  const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
   const [printing, setPrinting] = useState(false);
   const [selectedItemsForPrint, setSelectedItemsForPrint] = useState({});
 
@@ -243,7 +245,7 @@ export default function ItemsDownloadPage() {
   useEffect(() => {
     let active = true;
     const loadItems = async () => {
-      if (!canRead) {
+      if (!canUseDownloadPage) {
         setItems([]);
         setTotal(0);
         setLoading(false);
@@ -257,7 +259,6 @@ export default function ItemsDownloadPage() {
             page,
             pageSize,
             search: filters.search,
-            sku: filters.sku,
             groupId: filters.groupId,
             gender: filters.gender,
             size: filters.size,
@@ -283,7 +284,7 @@ export default function ItemsDownloadPage() {
     return () => {
       active = false;
     };
-  }, [api, canRead, filters.color, filters.gender, filters.groupId, filters.search, filters.size, filters.sku, page, pageSize, updateAttributeOptionsFromItems]);
+  }, [api, canUseDownloadPage, filters.color, filters.gender, filters.groupId, filters.search, filters.size, page, pageSize, updateAttributeOptionsFromItems]);
 
   const selectedItemsList = useMemo(() => Object.values(selectedItemsForPrint), [selectedItemsForPrint]);
 
@@ -301,7 +302,6 @@ export default function ItemsDownloadPage() {
         ...prev,
         [item.id]: {
           id: item.id,
-          sku: item.sku || '-',
           ean13: buildItemEan13(item.sku, item.unitsPerBox),
           code: item.code || '-',
           description: item.description || '-'
@@ -321,7 +321,6 @@ export default function ItemsDownloadPage() {
         if (!item?.id) return;
         next[item.id] = {
           id: item.id,
-          sku: item.sku || '-',
           ean13: buildItemEan13(item.sku, item.unitsPerBox),
           code: item.code || '-',
           description: item.description || '-'
@@ -543,7 +542,6 @@ export default function ItemsDownloadPage() {
       if (!item?.id) return;
       const singleItemPayload = {
         id: item.id,
-        sku: item.sku || '-',
         ean13: buildItemEan13(item.sku, item.unitsPerBox),
         code: item.code || '-',
         description: item.description || '-'
@@ -594,7 +592,6 @@ export default function ItemsDownloadPage() {
         .map(item => {
           return `
             <tr>
-              <td>${escapeHtml(item.sku || '-')}</td>
               <td>${escapeHtml(item.ean13 || '-')}</td>
               <td>${escapeHtml(item.code || '-')}</td>
               <td>${escapeHtml(item.description || '-')}</td>
@@ -633,7 +630,6 @@ export default function ItemsDownloadPage() {
             <table>
               <thead>
                 <tr>
-                  <th>SKU</th>
                   <th>EAN13</th>
                   <th>Artículo</th>
                   <th>Descripción</th>
@@ -656,7 +652,7 @@ export default function ItemsDownloadPage() {
     }
   };
 
-  if (!canRead) {
+  if (!canUseDownloadPage) {
     return <ErrorMessage error={new Error('No tenés permisos para ver esta sección.')} />;
   }
 
@@ -701,18 +697,6 @@ export default function ItemsDownloadPage() {
           </div>
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-          <div className="input-group">
-            <label htmlFor="filterSku">SKU</label>
-            <input
-              id="filterSku"
-              value={filters.sku}
-              onChange={event => {
-                setFilters(prev => ({ ...prev, sku: event.target.value }));
-                setPage(1);
-              }}
-              placeholder="Filtrar por SKU"
-            />
-          </div>
           <div className="input-group">
             <label htmlFor="search">Buscar</label>
             <input
@@ -842,7 +826,6 @@ export default function ItemsDownloadPage() {
               <thead>
                 <tr>
                   <th>Descargar</th>
-                  <th>SKU</th>
                   <th>EAN13</th>
                   <th>Artículo</th>
                   <th>Descripción</th>
@@ -859,10 +842,9 @@ export default function ItemsDownloadPage() {
                           checked={isSelectedForPrint(item.id)}
                           onChange={() => toggleItemSelectionForPrint(item)}
                           title="Seleccionar esta línea para PDF"
-                          aria-label={`Seleccionar ${item.code || item.sku || 'artículo'} para PDF`}
+                          aria-label={`Seleccionar ${item.code || 'artículo'} para PDF`}
                         />
                       </td>
-                      <td>{item.sku || '-'}</td>
                       <td>{buildItemEan13(item.sku, item.unitsPerBox) || '-'}</td>
                       <td>{item.code}</td>
                       <td>{item.description}</td>
@@ -876,7 +858,7 @@ export default function ItemsDownloadPage() {
                 })}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron artículos para los filtros seleccionados.
                     </td>
                   </tr>
