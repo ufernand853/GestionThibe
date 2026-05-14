@@ -873,8 +873,9 @@ export default function ItemsPage() {
         </div>
       )}
 
-      <div className="section-card">
-        <form className="item-form" onSubmit={handleSubmit}>
+      {canWrite ? (
+        <div className="section-card">
+          <form className="item-form" onSubmit={handleSubmit}>
           <section className="form-section">
             <div className="form-section__header">
               <div>
@@ -1142,8 +1143,20 @@ export default function ItemsPage() {
               )}
             </div>
           </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      ) : (
+        <div className="section-card">
+          <div className="flex-between">
+            <div>
+              <h2>Consulta de artículos</h2>
+              <p style={{ color: '#475569', margin: 0 }}>
+                Tu rol permite buscar datos, revisar cantidades e imágenes, pero no crear, editar ni eliminar artículos.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="section-card">
         <div className="flex-between">
