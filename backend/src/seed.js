@@ -65,11 +65,13 @@ async function seedRoles() {
 }
 
 async function seedGroups() {
+  const hasAnyGroup = await Group.exists({});
+  if (hasAnyGroup) {
+    return;
+  }
+
   for (const name of defaultGroups) {
-    const existing = await Group.findOne({ name });
-    if (!existing) {
-      await Group.create({ name });
-    }
+    await Group.create({ name });
   }
 }
 
