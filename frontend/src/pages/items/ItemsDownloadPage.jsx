@@ -195,6 +195,44 @@ function buildEan13SvgMarkup(ean13) {
   `;
 }
 
+
+function printHtmlInHiddenFrame(html) {
+  return new Promise((resolve, reject) => {
+    const printFrame = document.createElement('iframe');
+    printFrame.setAttribute('aria-hidden', 'true');
+    printFrame.style.position = 'fixed';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+
+    const removeFrame = () => {
+      if (printFrame.parentNode) {
+        printFrame.parentNode.removeChild(printFrame);
+      }
+    };
+
+    printFrame.onload = () => {
+      try {
+        const frameWindow = printFrame.contentWindow;
+        if (!frameWindow) {
+          throw new Error('No se pudo preparar el documento de impresión.');
+        }
+        frameWindow.addEventListener('afterprint', removeFrame, { once: true });
+        frameWindow.focus();
+        frameWindow.print();
+        window.setTimeout(removeFrame, 60000);
+        resolve();
+      } catch (error) {
+        removeFrame();
+        reject(error);
+      }
+    };
+
+    printFrame.srcdoc = html;
+    document.body.appendChild(printFrame);
+  });
+}
+
 export default function ItemsDownloadPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -352,31 +390,6 @@ export default function ItemsDownloadPage() {
 
   const handlePrintLabels100x100 = async itemsToPrint => {
     if (printing) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      setError(new Error('No se pudo abrir la ventana de impresión. Verificá si el navegador bloqueó la ventana emergente.'));
-      return;
-    }
-
-    printWindow.document.open();
-    printWindow.document.write(`
-      <!doctype html>
-      <html lang="es">
-        <head>
-          <meta charset="utf-8" />
-          <title>Preparando impresión…</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
-            p { color: #334155; }
-          </style>
-        </head>
-        <body>
-          <h1>Preparando impresión…</h1>
-          <p>Estamos generando el listado de artículos seleccionados. Este proceso puede tardar unos segundos.</p>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
 
     setPrinting(true);
     setError(null);
@@ -406,19 +419,22 @@ export default function ItemsDownloadPage() {
             <meta charset="utf-8" />
             <title>Etiquetas 10 × 10 cm</title>
             <style>
+              @page { size: 100mm 100mm; margin: 0; }
               * { box-sizing: border-box; }
               html, body {
-                margin: 0;
-                padding: 0;
+                margin: 0 !important;
+                padding: 0 !important;
                 width: 100mm;
                 font-family: Arial, sans-serif;
                 color: #000;
                 background: #fff;
               }
               .label-card {
-                width: 100mm;
-                height: 100mm;
-                padding: 8mm;
+                width: 99mm;
+                height: 99mm;
+                margin: 0;
+                padding: 0;
+                transform: translate(0.5mm, 0.5mm);
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
@@ -427,6 +443,8 @@ export default function ItemsDownloadPage() {
                 background: #fff;
                 break-after: page;
                 page-break-after: always;
+                break-inside: avoid;
+                page-break-inside: avoid;
               }
               .label-card:last-child {
                 break-after: auto;
@@ -434,12 +452,15 @@ export default function ItemsDownloadPage() {
               }
               .barcode-wrap {
                 width: 58.8mm;
+                height: 32.2mm;
                 display: flex;
                 justify-content: center;
+                align-items: center;
+                flex: 0 0 auto;
               }
               .barcode-svg {
                 display: block;
-                width: 100%;
+                width: 58.8mm;
                 height: 32.2mm;
               }
               .ean-text {
@@ -450,86 +471,36 @@ export default function ItemsDownloadPage() {
                 letter-spacing: 0.84mm;
                 line-height: 1;
                 text-align: center;
+                flex: 0 0 auto;
               }
               .barcode-error {
-                width: 84mm;
+                width: 58.8mm;
                 border: 0.5mm solid #000;
                 color: #000;
-                font-size: 16pt;
+                font-size: 12.6pt;
                 font-weight: 700;
                 text-align: center;
-                padding: 6mm;
-              }
-              @media print {
-                @page { size: 100mm 100mm; margin: 0; }
-                html, body { width: 100mm; }
-                .label-card {
-                  break-inside: avoid;
-                  page-break-inside: avoid;
-                }
+                padding: 4mm;
               }
             </style>
           </head>
           <body>
-            ${labelCards || '<div class="barcode-error">No hay artículos seleccionados para imprimir.</div>'}
+            ${labelCards}
           </body>
         </html>
       `;
-      printWindow.document.open();
-      printWindow.document.write(printableContent);
-      printWindow.document.close();
 
-      const triggerPrint = () => {
-        printWindow.focus();
-        printWindow.print();
-      };
-
-      if (printWindow.document.readyState === 'complete') {
-        triggerPrint();
-      } else {
-        printWindow.onload = () => {
-          triggerPrint();
-        };
-      }
+      await printHtmlInHiddenFrame(printableContent);
     } catch (err) {
       setError(err);
-      printWindow.document.open();
-      printWindow.document.write(`
-        <!doctype html>
-        <html lang="es">
-          <head>
-            <meta charset="utf-8" />
-            <title>Error al imprimir</title>
-          </head>
-          <body>
-            <h1>No se pudo generar la impresión</h1>
-            <p>${escapeHtml(err?.message || 'Ocurrió un error inesperado.')}</p>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
     } finally {
       setPrinting(false);
     }
   };
 
-  const handlePrintConfirm = useCallback(
-    itemsToPrint => {
-      const selectedCount = Array.isArray(itemsToPrint) ? itemsToPrint.length : 0;
-      if (selectedCount === 0) {
-        setError(new Error('Seleccioná al menos un artículo para generar etiquetas.'));
-        return;
-      }
-      const confirmed = window.confirm(
-        `Se imprimirán ${selectedCount} etiqueta(s) de 10 × 10 cm en la impresora configurada.\n\nVerificá que esté seleccionada la XP-450B y usá escala 100 %. ¿Deseás continuar?`
-      );
-      if (!confirmed) {
-        return;
-      }
-      handlePrintLabels100x100(itemsToPrint);
-    },
-    [handlePrintLabels100x100]
-  );
+  const handlePrintSelectedLabels = useCallback(() => {
+    handlePrintLabels100x100(selectedItemsList);
+  }, [handlePrintLabels100x100, selectedItemsList]);
 
   const handlePrintSingleLabel = useCallback(
     item => {
@@ -541,9 +512,9 @@ export default function ItemsDownloadPage() {
         description: item.description || '-'
       };
       setSelectedItemsForPrint(prev => ({ ...prev, [item.id]: singleItemPayload }));
-      handlePrintConfirm([singleItemPayload]);
+      handlePrintLabels100x100([singleItemPayload]);
     },
-    [handlePrintConfirm]
+    [handlePrintLabels100x100]
   );
 
   const handleDownloadSelectedPdf = async () => {
@@ -682,7 +653,7 @@ export default function ItemsDownloadPage() {
             <button
               type="button"
               className="secondary-button"
-              onClick={() => handlePrintConfirm(selectedItemsList)}
+              onClick={handlePrintSelectedLabels}
               disabled={printing || selectedItemsList.length === 0}
               title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la impresión.' : 'Imprime una etiqueta de 10 × 10 cm por cada artículo seleccionado.'}
             >
