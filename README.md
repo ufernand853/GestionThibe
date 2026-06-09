@@ -261,3 +261,18 @@ El script se encargará de:
   disponible, el script generará el paquete y omitirá el arranque de servicios automáticamente).
 
 Para más detalles y opciones avanzadas (`--mongo-mode`, `--backend-port`, etc.), revisa la guía [`docs/demo-deployment.md`](docs/demo-deployment.md).
+
+### Impresión directa de etiquetas 10 × 10 cm en Windows
+
+La pantalla de etiquetas imprime cada EAN-13 en una página física de 100 × 100 mm. Para enviar el trabajo sin mostrar la selección de impresoras:
+
+1. Configura la **XP-450B como impresora predeterminada de Windows** y define en su controlador un papel de **100 × 100 mm**, orientación vertical, márgenes en cero y escala 100 %.
+2. Inicia el frontend normalmente.
+3. Abre la aplicación con `scripts\iniciar_impresion_directa.bat`. El script inicia Microsoft Edge o Google Chrome con `--kiosk-printing`, por lo que el botón de impresión utiliza directamente la impresora predeterminada.
+4. Si el frontend usa otra dirección, pásala como primer argumento, por ejemplo:
+
+   ```bat
+   scripts\iniciar_impresion_directa.bat http://192.168.1.20:4173/items/download
+   ```
+
+Sin `--kiosk-printing`, los navegadores muestran obligatoriamente su diálogo de impresión. La aplicación genera el trabajo en un marco oculto y no abre una pestaña o ventana adicional.
