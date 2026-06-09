@@ -350,7 +350,7 @@ export default function ItemsDownloadPage() {
     selectVisibleItemsForPrint();
   }, [clearSelectionForPrint, selectVisibleItemsForPrint, visibleSelectionState.allSelected, visibleSelectionState.someSelected]);
 
-  const handlePrintLabelsA4 = async itemsToPrint => {
+  const handlePrintLabels100x100 = async itemsToPrint => {
     if (printing) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
@@ -386,11 +386,6 @@ export default function ItemsDownloadPage() {
         throw new Error('Seleccioná al menos un artículo para generar etiquetas.');
       }
 
-      const printedAt = new Date().toLocaleString('es-AR', {
-        dateStyle: 'short',
-        timeStyle: 'short'
-      });
-
       const labelCards = collectedItems
         .map(item => {
           return `
@@ -409,55 +404,65 @@ export default function ItemsDownloadPage() {
         <html lang="es">
           <head>
             <meta charset="utf-8" />
-            <title>Artículos seleccionados</title>
+            <title>Etiquetas 10 × 10 cm</title>
             <style>
-              body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
-              h1 { margin: 0 0 8px; font-size: 22px; }
-              p { margin: 0 0 6px; color: #334155; }
-              .meta { margin-bottom: 14px; }
-              .labels-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 63mm);
-                grid-auto-rows: 33.9mm;
-                gap: 2mm;
-                align-content: start;
+              * { box-sizing: border-box; }
+              html, body {
+                margin: 0;
+                padding: 0;
+                width: 100mm;
+                font-family: Arial, sans-serif;
+                color: #000;
+                background: #fff;
               }
               .label-card {
-                border: 1px dashed #cbd5e1;
-                border-radius: 2mm;
-                padding: 2mm;
+                width: 100mm;
+                height: 100mm;
+                padding: 8mm;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 overflow: hidden;
+                background: #fff;
+                break-after: page;
+                page-break-after: always;
               }
-              .barcode-wrap { width: 100%; }
+              .label-card:last-child {
+                break-after: auto;
+                page-break-after: auto;
+              }
+              .barcode-wrap {
+                width: 58.8mm;
+                display: flex;
+                justify-content: center;
+              }
               .barcode-svg {
                 display: block;
                 width: 100%;
-                max-height: 22mm;
+                height: 32.2mm;
               }
               .ean-text {
-                margin: 1.8mm 0 0;
-                letter-spacing: 0.5px;
-                font-size: 12px;
-                color: #0f172a;
-                font-weight: 600;
+                margin: 2.8mm 0 0;
+                color: #000;
+                font-size: 12.6pt;
+                font-weight: 700;
+                letter-spacing: 0.84mm;
+                line-height: 1;
+                text-align: center;
               }
               .barcode-error {
-                width: 100%;
-                border: 1px solid #fca5a5;
-                background: #fef2f2;
-                color: #991b1b;
-                font-size: 12px;
+                width: 84mm;
+                border: 0.5mm solid #000;
+                color: #000;
+                font-size: 16pt;
+                font-weight: 700;
                 text-align: center;
-                border-radius: 4px;
-                padding: 8px;
+                padding: 6mm;
               }
               @media print {
-                @page { size: A4 portrait; margin: 10mm; }
-                body { margin: 0; }
+                @page { size: 100mm 100mm; margin: 0; }
+                html, body { width: 100mm; }
                 .label-card {
                   break-inside: avoid;
                   page-break-inside: avoid;
@@ -466,21 +471,10 @@ export default function ItemsDownloadPage() {
             </style>
           </head>
           <body>
-            <h1>Listado de artículos seleccionados</h1>
-            <div class="meta">
-              <p><strong>Total:</strong> ${collectedItems.length}</p>
-              <p><strong>Fecha de impresión:</strong> ${escapeHtml(printedAt)}</p>
-            </div>
-            <section class="labels-grid">
-              ${
-                labelCards ||
-                '<div class="barcode-error">No hay artículos seleccionados para imprimir.</div>'
-              }
-            </section>
+            ${labelCards || '<div class="barcode-error">No hay artículos seleccionados para imprimir.</div>'}
           </body>
         </html>
       `;
-
       printWindow.document.open();
       printWindow.document.write(printableContent);
       printWindow.document.close();
@@ -527,14 +521,14 @@ export default function ItemsDownloadPage() {
         return;
       }
       const confirmed = window.confirm(
-        `Se imprimirán ${selectedCount} etiqueta(s) en formato A4.\n\n¿Deseás continuar?`
+        `Se imprimirán ${selectedCount} etiqueta(s) de 10 × 10 cm en la impresora configurada.\n\nVerificá que esté seleccionada la XP-450B y usá escala 100 %. ¿Deseás continuar?`
       );
       if (!confirmed) {
         return;
       }
-      handlePrintLabelsA4(itemsToPrint);
+      handlePrintLabels100x100(itemsToPrint);
     },
-    [handlePrintLabelsA4]
+    [handlePrintLabels100x100]
   );
 
   const handlePrintSingleLabel = useCallback(
@@ -662,7 +656,7 @@ export default function ItemsDownloadPage() {
         <div>
           <h2>Descarga de artículos</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-            Seleccioná artículos y generá el PDF desde esta pantalla específica.
+            Seleccioná artículos para descargar el PDF o imprimir etiquetas de código de barras de 10 × 10 cm.
           </p>
         </div>
         <div>
@@ -674,7 +668,7 @@ export default function ItemsDownloadPage() {
 
       <div className="section-card">
         <div className="flex-between">
-          <h2>Buscar artículos para descarga</h2>
+          <h2>Buscar artículos para descarga o impresión</h2>
           <div className="inline-actions">
             <button
               type="button"
@@ -690,9 +684,9 @@ export default function ItemsDownloadPage() {
               className="secondary-button"
               onClick={() => handlePrintConfirm(selectedItemsList)}
               disabled={printing || selectedItemsList.length === 0}
-              title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : undefined}
+              title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la impresión.' : 'Imprime una etiqueta de 10 × 10 cm por cada artículo seleccionado.'}
             >
-              {printing ? 'Preparando impresión…' : 'Imprimir etiquetas A4'}
+              {printing ? 'Preparando impresión…' : 'Imprimir etiquetas 10 × 10'}
             </button>
           </div>
         </div>
@@ -786,10 +780,10 @@ export default function ItemsDownloadPage() {
         <div className="flex-between" style={{ marginTop: '0.75rem', gap: '0.75rem', alignItems: 'center' }}>
           <div>
             <span style={{ color: '#475569', fontSize: '0.9rem' }}>
-              Seleccionados para descarga: <strong>{selectedItemsList.length}</strong>
+              Seleccionados: <strong>{selectedItemsList.length}</strong>
             </span>
             <p style={{ margin: '0.15rem 0 0', color: '#64748b', fontSize: '0.78rem' }}>
-              Podés marcar artículo por artículo con el check de cada línea (columna Descargar).
+              Podés marcar uno o varios artículos para descargar el PDF o imprimir una etiqueta por código.
             </p>
           </div>
           <div className="inline-actions">
@@ -825,7 +819,7 @@ export default function ItemsDownloadPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Descargar</th>
+                  <th>Seleccionar</th>
                   <th>EAN13</th>
                   <th>Artículo</th>
                   <th>Descripción</th>
@@ -841,8 +835,8 @@ export default function ItemsDownloadPage() {
                           type="checkbox"
                           checked={isSelectedForPrint(item.id)}
                           onChange={() => toggleItemSelectionForPrint(item)}
-                          title="Seleccionar esta línea para PDF"
-                          aria-label={`Seleccionar ${item.code || 'artículo'} para PDF`}
+                          title="Seleccionar esta línea para PDF o impresión"
+                          aria-label={`Seleccionar ${item.code || 'artículo'} para PDF o impresión`}
                         />
                       </td>
                       <td>{buildItemEan13(item.sku, item.unitsPerBox) || '-'}</td>
