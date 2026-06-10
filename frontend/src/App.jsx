@@ -5,6 +5,7 @@ import LoginPage from './pages/Login.jsx';
 import DashboardPage from './pages/Dashboard.jsx';
 import ItemsPage from './pages/items/ItemsPage.jsx';
 import ItemsDownloadPage from './pages/items/ItemsDownloadPage.jsx';
+import ItemsTrashPage from './pages/items/ItemsTrashPage.jsx';
 import InventoryAlertsPage from './pages/InventoryAlerts.jsx';
 import GroupsPage from './pages/groups/GroupsPage.jsx';
 import MovementRequestsPage from './pages/movements/MovementRequestsPage.jsx';
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="inventory/alerts" element={<InventoryAlertsPage />} />
         <Route path="items" element={<ItemsPage />} />
         <Route path="items/download" element={<ItemsDownloadPage />} />
+        <Route path="items/trash" element={<ItemsTrashPage />} />
         <Route path="groups" element={<GroupsPage />} />
         <Route path="requests" element={<MovementRequestsPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />

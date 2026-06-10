@@ -24,6 +24,9 @@ const normalizeItem = (item, totalQuantity) => ({
     null,
   needsRecount: Boolean(item?.needsRecount),
   updatedAt: item?.updatedAt || null,
+  stock: item?.stock || {},
+  lastCountedAt: item?.lastCountedAt || null,
+  lastCountedBy: item?.lastCountedBy || null,
   total: totalQuantity
 });
 

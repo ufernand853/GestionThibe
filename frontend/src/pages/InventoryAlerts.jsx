@@ -57,6 +57,9 @@ const buildItemSummaries = items =>
       null,
     needsRecount: Boolean(item.needsRecount),
     updatedAt: item.updatedAt || null,
+    stock: item.stock || {},
+    lastCountedAt: item.lastCountedAt || null,
+    lastCountedBy: item.lastCountedBy || null,
     total: computeTotalStockFromMap(item.stock)
   }));
 
@@ -66,6 +69,7 @@ export default function InventoryAlertsPage() {
   const location = useLocation();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canViewCatalog = permissions.includes('items.read');
+  const canWrite = permissions.includes('items.write');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -73,6 +77,11 @@ export default function InventoryAlertsPage() {
   const [activeSection, setActiveSection] = useState('all');
   const [recountSearch, setRecountSearch] = useState('');
   const [outOfStockSearch, setOutOfStockSearch] = useState('');
+  const [locations, setLocations] = useState([]);
+  const [editingRecount, setEditingRecount] = useState(null);
+  const [recountStock, setRecountStock] = useState({});
+  const [savingRecount, setSavingRecount] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const recountThresholdDays = RECOUNT_THRESHOLD_DAYS;
 
   useEffect(() => {
@@ -120,6 +129,10 @@ export default function InventoryAlertsPage() {
           pageNumber += 1;
         }
         setItemsSnapshot(collectedItems);
+        if (canWrite) {
+          const locationsResponse = await api.get('/locations');
+          setLocations(Array.isArray(locationsResponse) ? locationsResponse : locationsResponse?.items || []);
+        }
       } catch (err) {
         if (!active) {
           return;
@@ -135,7 +148,44 @@ export default function InventoryAlertsPage() {
     return () => {
       active = false;
     };
-  }, [api, canViewCatalog]);
+  }, [api, canViewCatalog, canWrite]);
+
+  const locationId = location => String(location?.id || location?._id || '');
+  const beginRecountEdit = item => {
+    const draft = {};
+    locations.forEach(location => {
+      const id = locationId(location);
+      const quantity = item.stock?.[id] || { boxes: 0, units: 0 };
+      draft[id] = { boxes: String(quantity.boxes || ''), units: String(quantity.units || '') };
+    });
+    setRecountStock(draft);
+    setEditingRecount(item);
+  };
+  const updateRecountStock = (id, field, value) => {
+    if (value !== '' && (!Number.isFinite(Number(value)) || Number(value) < 0)) return;
+    setRecountStock(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
+  };
+  const confirmRecount = async (item, stock = null) => {
+    setSavingRecount(true);
+    setError(null);
+    try {
+      const payload = stock ? {
+        stock: Object.fromEntries(Object.entries(stock).map(([id, quantity]) => [id, {
+          boxes: Number(quantity.boxes || 0), units: Number(quantity.units || 0)
+        }]))
+      } : {};
+      await api.patch(`/items/${item.id}/recount`, payload);
+      setItemsSnapshot(prev => prev.map(candidate => candidate.id === item.id
+        ? { ...candidate, needsRecount: false, ...(stock ? { stock: payload.stock } : {}) }
+        : candidate));
+      setEditingRecount(null);
+      setSuccessMessage(`Recuento de ${item.code} confirmado.`);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setSavingRecount(false);
+    }
+  };
 
   useEffect(() => {
     if (loading) {
@@ -219,6 +269,30 @@ export default function InventoryAlertsPage() {
       </p>
 
       {error && <ErrorMessage error={error} />}
+      {successMessage && <div className="success-message">{successMessage}</div>}
+
+      {editingRecount && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <h3>Editar cantidad · {editingRecount.code}</h3>
+            <p>{editingRecount.description}</p>
+            <div className="recount-location-list">
+              {locations.map(location => {
+                const id = locationId(location);
+                return <div className="recount-location-row" key={id}>
+                  <strong>{location.name}</strong>
+                  <label>Cajas<input type="number" min="0" value={recountStock[id]?.boxes ?? ''} onChange={event => updateRecountStock(id, 'boxes', event.target.value)} /></label>
+                  <label>Unidades<input type="number" min="0" value={recountStock[id]?.units ?? ''} onChange={event => updateRecountStock(id, 'units', event.target.value)} /></label>
+                </div>;
+              })}
+            </div>
+            <div className="inline-actions" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="secondary-button" onClick={() => setEditingRecount(null)}>Cancelar</button>
+              <button type="button" onClick={() => confirmRecount(editingRecount, recountStock)} disabled={savingRecount}>{savingRecount ? 'Guardando…' : 'Guardar y marcar OK'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <LoadingIndicator message="Cargando alertas de inventario..." />
@@ -283,6 +357,7 @@ export default function InventoryAlertsPage() {
                             <th>Stock</th>
                             <th>Motivo</th>
                             <th>Última actualización</th>
+                            {canWrite && <th>Acciones</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -294,6 +369,10 @@ export default function InventoryAlertsPage() {
                               <td>{formatQuantity(item.total)}</td>
                               <td>{formatRecountReasons(item)}</td>
                               <td>{formatUpdatedAt(item.updatedAt)}</td>
+                              {canWrite && <td><div className="inline-actions">
+                                <button type="button" className="secondary-button" onClick={() => beginRecountEdit(item)}>Editar cantidad</button>
+                                <button type="button" onClick={() => confirmRecount(item)} disabled={savingRecount}>Recontado OK</button>
+                              </div></td>}
                             </tr>
                           ))}
                         </tbody>
