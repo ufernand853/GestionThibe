@@ -13,11 +13,13 @@ const { normalizeQuantityInput } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
 const { assignSkuToNewItemData, ensureItemSkus } = require('../services/skuService');
+const { permanentlyDeleteItem } = require('../services/itemTrashService');
 
 const { promises: fsPromises } = fs;
 
 const MAX_IMAGES = 5;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const TRASH_RETENTION_DAYS = 30;
 const projectRoot = path.join(__dirname, '..', '..');
 const uploadsRoot = path.join(projectRoot, 'uploads');
 const itemUploadsDir = path.join(uploadsRoot, 'items');
@@ -294,6 +296,36 @@ function normalizePrecio(value, { fieldName = 'precio' } = {}) {
   return Math.round(numeric * 100) / 100;
 }
 
+function normalizePriceTiers(value, fallbackPrice) {
+  if (value === undefined) {
+    if (fallbackPrice === undefined || fallbackPrice === null) return undefined;
+    return [{ minQuantity: 1, price: fallbackPrice }];
+  }
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, 'priceTiers debe ser una lista');
+  }
+  const seen = new Set();
+  const tiers = value.map((tier, index) => {
+    const minQuantity = Number(tier?.minQuantity);
+    if (!Number.isInteger(minQuantity) || minQuantity < 1) {
+      throw new HttpError(400, `Cantidad inválida en el precio ${index + 1}`);
+    }
+    if (seen.has(minQuantity)) {
+      throw new HttpError(400, `La cantidad x${minQuantity} está repetida`);
+    }
+    seen.add(minQuantity);
+    const price = normalizePrecio(tier?.price, { fieldName: `Precio x${minQuantity}` });
+    if (price === null || price === undefined) {
+      throw new HttpError(400, `El precio x${minQuantity} es obligatorio`);
+    }
+    return { minQuantity, price };
+  }).sort((a, b) => a.minQuantity - b.minQuantity);
+  if (tiers.length > 0 && tiers[0].minQuantity !== 1) {
+    throw new HttpError(400, 'Debe existir un precio desde x1');
+  }
+  return tiers;
+}
+
 function serializeItem(doc) {
   const group = doc.group;
   return {
@@ -311,6 +343,14 @@ function serializeItem(doc) {
     needsRecount: Boolean(doc.needsRecount),
     pDecimal: doc.pDecimal === undefined || doc.pDecimal === null ? null : Number(doc.pDecimal),
     precio: doc.pDecimal !== undefined && doc.pDecimal !== null ? Number(doc.pDecimal) : null,
+    priceTiers: Array.isArray(doc.priceTiers)
+      ? doc.priceTiers.map(tier => ({ minQuantity: Number(tier.minQuantity), price: Number(tier.price) }))
+      : [],
+    lastCountedAt: doc.lastCountedAt || null,
+    lastCountedBy: doc.lastCountedBy || null,
+    deletedAt: doc.deletedAt || null,
+    deletedBy: doc.deletedBy || null,
+    scheduledDeletionAt: doc.scheduledDeletionAt || null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt
   };
@@ -395,7 +435,12 @@ async function buildItemAuditSnapshot(doc) {
     stock: await buildFriendlyAuditStock(doc.stock),
     unitsPerBox: doc.unitsPerBox === undefined || doc.unitsPerBox === null ? null : Number(doc.unitsPerBox),
     precio: doc.pDecimal === undefined || doc.pDecimal === null ? null : Number(doc.pDecimal),
+    priceTiers: Array.isArray(doc.priceTiers)
+      ? doc.priceTiers.map(tier => ({ minQuantity: Number(tier.minQuantity), price: Number(tier.price) }))
+      : [],
     needsRecount: Boolean(doc.needsRecount),
+    lastCountedAt: doc.lastCountedAt || null,
+    lastCountedBy: doc.lastCountedBy || null,
     imageCount: Array.isArray(doc.images) ? doc.images.length : 0
   };
 }
@@ -479,7 +524,7 @@ router.get(
     const { page = '1', pageSize = '20', groupId, search, sku, gender, size, color } = req.query || {};
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
-    const filter = {};
+    const filter = { deletedAt: null };
     const normalizedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
     if (normalizedGroupId) {
       const groupIds = await collectGroupAndDescendantIds(normalizedGroupId);
@@ -521,6 +566,104 @@ router.get(
   })
 );
 
+router.get(
+  '/trash',
+  requirePermission('items.write'),
+  asyncHandler(async (req, res) => {
+    const items = await Item.find({ deletedAt: { $ne: null } }).populate('group').sort({ deletedAt: -1 });
+    res.json({ items: items.map(serializeItem), retentionDays: TRASH_RETENTION_DAYS });
+  })
+);
+
+router.post(
+  '/recount/mark-all',
+  requirePermission('items.write'),
+  asyncHandler(async (req, res) => {
+    const filter = { deletedAt: null };
+    const [total, alreadyPending] = await Promise.all([
+      Item.countDocuments(filter),
+      Item.countDocuments({ ...filter, needsRecount: true })
+    ]);
+    await Item.updateMany({ ...filter, needsRecount: false }, { $set: { needsRecount: true } }, { timestamps: false });
+    const changed = total - alreadyPending;
+    await recordAuditEvent({
+      action: 'Recuento',
+      request: `Recuento total iniciado para ${total} artículo(s)`,
+      user: req.user?.username || 'Desconocido',
+      details: { total, alreadyPending, changed }
+    });
+    res.json({ total, alreadyPending, changed });
+  })
+);
+
+router.patch(
+  '/:id/recount',
+  requirePermission('items.write'),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) throw new HttpError(400, 'Artículo inválido');
+    const item = await Item.findOne({ _id: id, deletedAt: null });
+    if (!item) throw new HttpError(404, 'Artículo no encontrado');
+    const before = await buildItemAuditSnapshot(item);
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'stock')) {
+      const nextStock = Object.fromEntries(
+        Object.entries(buildStock(req.body.stock)).filter(([, value]) => value !== null)
+      );
+      item.stock = nextStock;
+      item.markModified('stock');
+    }
+    item.needsRecount = false;
+    item.lastCountedAt = new Date();
+    item.lastCountedBy = req.user?.username || 'Desconocido';
+    await item.save();
+    const populated = await item.populate('group');
+    const after = await buildItemAuditSnapshot(populated);
+    await recordAuditEvent({
+      action: 'Recuento',
+      request: `Recuento confirmado: ${item.code} - ${item.description}`,
+      user: req.user?.username || 'Desconocido',
+      details: { itemId: item.id, before, after, changes: buildItemAuditChanges(before, after) }
+    });
+    res.json(serializeItem(populated));
+  })
+);
+
+router.post(
+  '/trash/:id/restore',
+  requirePermission('items.write'),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) throw new HttpError(400, 'Artículo inválido');
+    const item = await Item.findOne({ _id: id, deletedAt: { $ne: null } });
+    if (!item) throw new HttpError(404, 'Artículo no encontrado en la papelera');
+    item.deletedAt = null;
+    item.deletedBy = null;
+    item.scheduledDeletionAt = null;
+    await item.save();
+    const populated = await item.populate('group');
+    await recordAuditEvent({
+      action: 'Artículo',
+      request: `Restauración de artículo: ${item.code} - ${item.description}`,
+      user: req.user?.username || 'Desconocido',
+      details: { itemId: item.id, code: item.code }
+    });
+    res.json(serializeItem(populated));
+  })
+);
+
+router.delete(
+  '/trash/:id',
+  requirePermission('items.write'),
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) throw new HttpError(400, 'Artículo inválido');
+    const item = await Item.findOne({ _id: id, deletedAt: { $ne: null } });
+    if (!item) throw new HttpError(404, 'Artículo no encontrado en la papelera');
+    await permanentlyDeleteItem(item, { user: req.user?.username || 'Desconocido' });
+    res.status(204).send();
+  })
+);
+
 router.post(
   '/',
   requirePermission('items.write'),
@@ -536,7 +679,8 @@ router.post(
       needsRecount,
       unitsPerBox,
       precio,
-      pDecimal
+      pDecimal,
+      priceTiers
     } = payload;
     if (!code || !description) {
       throw new HttpError(400, 'code y description son obligatorios');
@@ -571,6 +715,7 @@ router.post(
     const normalizedUnitsPerBox = normalizeUnitsPerBox(unitsPerBox, { fieldName: 'unitsPerBox' });
     const precioInput = Object.prototype.hasOwnProperty.call(payload, 'precio') ? precio : pDecimal;
     const normalizedPrecio = normalizePrecio(precioInput, { fieldName: 'precio' });
+    const normalizedPriceTiers = normalizePriceTiers(priceTiers, normalizedPrecio);
     let item;
     try {
       let itemData = {
@@ -587,6 +732,10 @@ router.post(
       }
       if (normalizedPrecio !== undefined) {
         itemData.pDecimal = normalizedPrecio;
+      }
+      if (normalizedPriceTiers !== undefined) {
+        itemData.priceTiers = normalizedPriceTiers;
+        itemData.pDecimal = normalizedPriceTiers[0]?.price ?? normalizedPrecio ?? null;
       }
       itemData = await assignSkuToNewItemData(itemData);
       item = await Item.create(itemData);
@@ -617,7 +766,7 @@ router.put(
     if (!Types.ObjectId.isValid(id)) {
       throw new HttpError(400, 'Artículo inválido');
     }
-    const item = await Item.findById(id);
+    const item = await Item.findOne({ _id: id, deletedAt: null });
     if (!item) {
       throw new HttpError(404, 'Artículo no encontrado');
     }
@@ -633,7 +782,8 @@ router.put(
       needsRecount,
       unitsPerBox,
       precio,
-      pDecimal
+      pDecimal,
+      priceTiers
     } = payload || {};
     if (typeof description === 'string' && description && description !== item.description) {
       item.description = description;
@@ -739,6 +889,16 @@ router.put(
         item.pDecimal = normalizedPrecio;
       }
     }
+    if (Object.prototype.hasOwnProperty.call(payload, 'priceTiers')) {
+      const fallbackPrice = item.pDecimal === null || item.pDecimal === undefined ? undefined : Number(item.pDecimal);
+      const normalizedPriceTiers = normalizePriceTiers(priceTiers, fallbackPrice) || [];
+      if (JSON.stringify(normalizedPriceTiers) !== JSON.stringify(item.priceTiers || [])) {
+        item.priceTiers = normalizedPriceTiers;
+        item.pDecimal = normalizedPriceTiers[0]?.price ?? null;
+      }
+    } else if (precioWasProvided && item.pDecimal !== null && item.pDecimal !== undefined) {
+      item.priceTiers = [{ minQuantity: 1, price: Number(item.pDecimal) }];
+    }
 
     const currentImages = Array.isArray(item.images) ? item.images : [];
     const existingPathSet = new Set(currentImages.map(sanitizeImagePath).filter(Boolean));
@@ -815,28 +975,24 @@ router.delete(
     if (!Types.ObjectId.isValid(id)) {
       throw new HttpError(400, 'Artículo inválido');
     }
-    const item = await Item.findById(id);
+    const item = await Item.findOne({ _id: id, deletedAt: null });
     if (!item) {
       throw new HttpError(404, 'Artículo no encontrado');
     }
 
     const auditSnapshot = await buildItemAuditSnapshot(item);
-    const imagesToRemove = Array.isArray(item.images)
-      ? item.images.map(sanitizeImagePath).filter(Boolean)
-      : [];
-
-    await item.deleteOne();
-
-    if (imagesToRemove.length > 0) {
-      await Promise.allSettled(imagesToRemove.map(removeFileSafe));
-    }
+    const deletedAt = new Date();
+    item.deletedAt = deletedAt;
+    item.deletedBy = req.user?.username || 'Desconocido';
+    item.scheduledDeletionAt = new Date(deletedAt.getTime() + TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    await item.save();
 
     await recordAuditEvent({
       action: 'Artículo',
-      request: buildItemAuditSummary('Eliminación de artículo', auditSnapshot),
+      request: buildItemAuditSummary('Artículo enviado a papelera', auditSnapshot),
       user: req.user?.username || 'Desconocido',
       details: {
-        summary: buildItemAuditSummary('Eliminación de artículo', auditSnapshot),
+        summary: buildItemAuditSummary('Artículo enviado a papelera', auditSnapshot),
         item: auditSnapshot
       }
     });

@@ -241,7 +241,10 @@ async function resolveItemIdentifier(rawValue) {
   if (Types.ObjectId.isValid(trimmed)) {
     return trimmed;
   }
-  const item = await Item.findOne({ code: new RegExp(`^${escapeRegex(trimmed)}$`, 'i') })
+  const item = await Item.findOne({
+    code: new RegExp(`^${escapeRegex(trimmed)}$`, 'i'),
+    deletedAt: null
+  })
     .select('_id')
     .lean();
   return item ? item._id : null;
@@ -263,7 +266,7 @@ router.get(
       limit: rawLimit
     } = req.query || {};
 
-    const filter = {};
+    const filter = { deletedAt: null };
     const normalizedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
     if (normalizedGroupId) {
       const groupIds = await collectGroupAndDescendantIds(normalizedGroupId);
