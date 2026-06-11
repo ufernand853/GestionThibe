@@ -590,62 +590,58 @@ router.get(
     const { page = '1', pageSize = '20', search, groupId } = req.query || {};
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
-    const overstockLocations = await Location.find({ name: /sobrestock/i }).sort({ name: 1 });
-    if (overstockLocations.length === 0) {
-      return res.json({ total: 0, page: pageNumber, pageSize: limit, locations: [], items: [] });
+    const overstockGroups = await Group.find({ name: /sobrestock/i }).sort({ name: 1 });
+    if (overstockGroups.length === 0) {
+      return res.json({ total: 0, page: pageNumber, pageSize: limit, groups: [], items: [] });
     }
 
-    const locationIds = overstockLocations.map(location => String(location.id));
-    const positiveStockConditions = locationIds.flatMap(locationId => [
-      { [`stock.${locationId}.boxes`]: { $gt: 0 } },
-      { [`stock.${locationId}.units`]: { $gt: 0 } }
-    ]);
-    const filter = { deletedAt: null, $or: positiveStockConditions };
+    const overstockGroupIds = overstockGroups.map(group => String(group.id));
+    const requestedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
+    if (requestedGroupId && !overstockGroupIds.includes(requestedGroupId)) {
+      throw new HttpError(400, 'El grupo seleccionado no corresponde a un grupo de sobrestock');
+    }
+    const selectedGroupIds = requestedGroupId ? [requestedGroupId] : overstockGroupIds;
+    const filter = {
+      deletedAt: null,
+      group: { $in: buildGroupFilterValues(selectedGroupIds) }
+    };
     if (typeof search === 'string' && search.trim()) {
       const matcher = new RegExp(escapeRegex(search.trim()), 'i');
-      filter.$and = [{ $or: [{ code: matcher }, { description: matcher }] }];
-    }
-    const normalizedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
-    if (normalizedGroupId) {
-      const groupIds = await collectGroupAndDescendantIds(normalizedGroupId);
-      const groupFilterValues = buildGroupFilterValues(groupIds);
-      if (groupFilterValues.length === 0) {
-        return res.json({ total: 0, page: pageNumber, pageSize: limit, locations: [], items: [] });
-      }
-      filter.group = { $in: groupFilterValues };
+      filter.$or = [{ code: matcher }, { description: matcher }];
     }
 
-    const [total, items] = await Promise.all([
-      Item.countDocuments(filter),
-      Item.find(filter)
-        .populate('group')
-        .sort({ updatedAt: -1 })
-        .skip((pageNumber - 1) * limit)
-        .limit(limit)
+    const [candidateItems, locations] = await Promise.all([
+      Item.find(filter).populate('group').sort({ updatedAt: -1 }),
+      Location.find().sort({ name: 1 })
     ]);
-    const locationNames = new Map(overstockLocations.map(location => [String(location.id), location.name]));
-    const serializedItems = items.map(item => {
+    const locationNames = new Map(locations.map(location => [String(location.id), location.name]));
+    const serializedItems = candidateItems.map(item => {
       const serialized = serializeItem(item);
-      const overstockStock = {};
-      const overstockTotal = { boxes: 0, units: 0 };
-      locationIds.forEach(locationId => {
-        const quantity = serialized.stock[locationId];
+      const stockByLocation = {};
+      const stockTotal = { boxes: 0, units: 0 };
+      Object.entries(serialized.stock || {}).forEach(([locationId, quantity]) => {
         const boxes = Number(quantity?.boxes) || 0;
         const units = Number(quantity?.units) || 0;
         if (boxes <= 0 && units <= 0) return;
-        overstockStock[locationId] = { boxes, units, locationName: locationNames.get(locationId) || 'Sobrestock' };
-        overstockTotal.boxes += boxes;
-        overstockTotal.units += units;
+        stockByLocation[locationId] = {
+          boxes,
+          units,
+          locationName: locationNames.get(locationId) || 'Ubicación'
+        };
+        stockTotal.boxes += boxes;
+        stockTotal.units += units;
       });
-      return { ...serialized, overstockStock, overstockTotal };
-    });
+      return { ...serialized, stockByLocation, stockTotal };
+    }).filter(item => item.stockTotal.boxes > 0 || item.stockTotal.units > 0);
 
+    const total = serializedItems.length;
+    const items = serializedItems.slice((pageNumber - 1) * limit, pageNumber * limit);
     res.json({
       total,
       page: pageNumber,
       pageSize: limit,
-      locations: overstockLocations.map(location => ({ id: String(location.id), name: location.name })),
-      items: serializedItems
+      groups: overstockGroups.map(group => ({ id: String(group.id), name: group.name })),
+      items
     });
   })
 );

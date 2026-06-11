@@ -19,7 +19,7 @@ const formatPrice = value => {
 export default function OverstockPage() {
   const api = useApi();
   const [items, setItems] = useState([]);
-  const [groups, setGroups] = useState([]);
+  const [overstockGroups, setOverstockGroups] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -28,18 +28,6 @@ export default function OverstockPage() {
   const [error, setError] = useState(null);
   const [gallery, setGallery] = useState(null);
   const [imageError, setImageError] = useState('');
-
-  useEffect(() => {
-    let active = true;
-    api.get('/groups')
-      .then(response => {
-        if (active) setGroups(Array.isArray(response) ? response : []);
-      })
-      .catch(err => {
-        if (active) console.warn('No se pudieron cargar los grupos', err);
-      });
-    return () => { active = false; };
-  }, [api]);
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -50,6 +38,7 @@ export default function OverstockPage() {
       });
       setItems(Array.isArray(response?.items) ? response.items : []);
       setTotal(Number(response?.total) || 0);
+      setOverstockGroups(Array.isArray(response?.groups) ? response.groups : []);
     } catch (err) {
       setError(err);
     } finally {
@@ -95,7 +84,7 @@ export default function OverstockPage() {
         <div>
           <h2>Sobrestock</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-            Artículos con existencias en depósitos de sobrestock.
+            Artículos con stock positivo pertenecientes a grupos de sobrestock.
           </p>
         </div>
         <span className="badge">Total: {total}</span>
@@ -127,9 +116,15 @@ export default function OverstockPage() {
           </div>
           <div className="input-group">
             <label htmlFor="overstockGroup">Grupo</label>
-            <select id="overstockGroup" value={filters.groupId} onChange={event => { setFilters(prev => ({ ...prev, groupId: event.target.value })); setPage(1); }}>
-              <option value="">Todos</option>
-              {groups.map(group => <option key={group.id || group._id} value={group.id || group._id}>{group.name}</option>)}
+            <select
+              id="overstockGroup"
+              value={filters.groupId}
+              onChange={event => { setFilters(prev => ({ ...prev, groupId: event.target.value })); setPage(1); }}
+            >
+              <option value="">Todos los grupos de sobrestock</option>
+              {overstockGroups.map(group => (
+                <option key={group.id} value={group.id}>{group.name}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -137,7 +132,7 @@ export default function OverstockPage() {
         {loading ? <LoadingIndicator message="Cargando artículos en sobrestock..." /> : (
           <div className="table-wrapper" style={{ marginTop: '1rem' }}>
             <table>
-              <thead><tr><th>Código</th><th>Descripción</th><th>Grupo</th><th>Precio</th><th>Atributos</th><th>Imágenes</th><th>Ubicaciones de sobrestock</th><th>Total sobrestock</th></tr></thead>
+              <thead><tr><th>Código</th><th>Descripción</th><th>Grupo</th><th>Precio</th><th>Atributos</th><th>Imágenes</th><th>Ubicaciones</th><th>Total</th></tr></thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
@@ -147,11 +142,11 @@ export default function OverstockPage() {
                     </div></td>
                     <td><div className="chip-list">{Object.entries(item.attributes || {}).map(([key, value]) => <span className="badge" key={key}>{key}: {value}</span>)}{Object.keys(item.attributes || {}).length === 0 && <span>-</span>}</div></td>
                     <td>{Array.isArray(item.images) && item.images.length > 0 ? <button type="button" className="secondary-button" onClick={() => openImages(item)}>Ver imágenes ({item.images.length})</button> : '-'}</td>
-                    <td><div className="chip-list">{Object.entries(item.overstockStock || {}).map(([locationId, quantity]) => <span className="badge" key={locationId}>{quantity.locationName} · {formatQuantity(quantity, { compact: true })}</span>)}</div></td>
-                    <td>{formatQuantity(item.overstockTotal)}</td>
+                    <td><div className="chip-list">{Object.entries(item.stockByLocation || {}).map(([locationId, quantity]) => <span className="badge" key={locationId}>{quantity.locationName} · {formatQuantity(quantity, { compact: true })}</span>)}</div></td>
+                    <td>{formatQuantity(item.stockTotal)}</td>
                   </tr>
                 ))}
-                {items.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', padding: '1.5rem 0' }}>No hay artículos con stock en ubicaciones de sobrestock.</td></tr>}
+                {items.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', padding: '1.5rem 0' }}>No hay artículos con stock positivo en los grupos de sobrestock seleccionados.</td></tr>}
               </tbody>
             </table>
           </div>

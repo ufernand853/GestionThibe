@@ -86,7 +86,7 @@ paths:
           description: OK
   /api/items/overstock:
     get:
-      summary: List items with positive stock in overstock locations
+      summary: List items with positive stock in overstock groups
       responses:
         '200':
           description: OK

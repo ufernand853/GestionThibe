@@ -1000,7 +1000,7 @@ export default function ItemsPage() {
                     <label>Precios por cantidad</label>
                     <p className="input-helper">Opcional. Se aplican desde la cantidad indicada, además del precio normal.</p>
                   </div>
-                  <button type="button" className="secondary-button" onClick={addPriceTier}>Agregar opción</button>
+                  <button type="button" className="secondary-button" onClick={addPriceTier}>Agregar Opción de Precio</button>
                 </div>
                 {formValues.priceTiers.length > 0 && (
                   <div className="price-tier-editor">
