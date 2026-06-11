@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import useApi from '../../hooks/useApi.js';
+import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { formatQuantity } from '../../utils/quantity.js';
@@ -18,6 +20,9 @@ const formatPrice = value => {
 
 export default function OverstockPage() {
   const api = useApi();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const canWrite = Array.isArray(user?.permissions) && user.permissions.includes('items.write');
   const [items, setItems] = useState([]);
   const [overstockGroups, setOverstockGroups] = useState([]);
   const [total, setTotal] = useState(0);
@@ -28,6 +33,8 @@ export default function OverstockPage() {
   const [error, setError] = useState(null);
   const [gallery, setGallery] = useState(null);
   const [imageError, setImageError] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const loadItems = useCallback(async () => {
     setLoading(true);
@@ -78,6 +85,35 @@ export default function OverstockPage() {
 
   const selectedImage = useMemo(() => gallery?.images?.[gallery.index] || null, [gallery]);
 
+  const handleEdit = item => {
+    if (!canWrite) return;
+    navigate('/items', { state: { editItem: item } });
+  };
+
+  const handleDelete = async item => {
+    if (!canWrite || !item) return;
+    const confirmed = window.confirm(
+      `¿Enviar el artículo ${item.code} a la papelera? Podrá restaurarse durante 30 días.`
+    );
+    if (!confirmed) return;
+    setDeletingId(item.id);
+    setError(null);
+    setSuccessMessage('');
+    try {
+      await api.delete(`/items/${item.id}`);
+      setSuccessMessage(`Artículo ${item.code} enviado a la papelera.`);
+      if (items.length === 1 && page > 1) {
+        setPage(current => Math.max(1, current - 1));
+      } else {
+        await loadItems();
+      }
+    } catch (err) {
+      setError(err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div>
       <div className="flex-between">
@@ -91,6 +127,7 @@ export default function OverstockPage() {
       </div>
 
       {error && <ErrorMessage error={error} />}
+      {successMessage && <div className="success-message">{successMessage}</div>}
 
       {gallery && selectedImage && (
         <div className="image-lightbox" onClick={closeImages} role="dialog" aria-modal="true" aria-label={`Imágenes de ${gallery.itemCode}`}>
@@ -132,7 +169,7 @@ export default function OverstockPage() {
         {loading ? <LoadingIndicator message="Cargando artículos en sobrestock..." /> : (
           <div className="table-wrapper" style={{ marginTop: '1rem' }}>
             <table>
-              <thead><tr><th>Código</th><th>Descripción</th><th>Grupo</th><th>Precio</th><th>Atributos</th><th>Imágenes</th><th>Ubicaciones</th><th>Total</th></tr></thead>
+              <thead><tr><th>Código</th><th>Descripción</th><th>Grupo</th><th>Precio</th><th>Atributos</th><th>Imágenes</th><th>Ubicaciones</th><th>Total</th>{canWrite && <th>Acciones</th>}</tr></thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
@@ -144,9 +181,24 @@ export default function OverstockPage() {
                     <td>{Array.isArray(item.images) && item.images.length > 0 ? <button type="button" className="secondary-button" onClick={() => openImages(item)}>Ver imágenes ({item.images.length})</button> : '-'}</td>
                     <td><div className="chip-list">{Object.entries(item.stockByLocation || {}).map(([locationId, quantity]) => <span className="badge" key={locationId}>{quantity.locationName} · {formatQuantity(quantity, { compact: true })}</span>)}</div></td>
                     <td>{formatQuantity(item.stockTotal)}</td>
+                    {canWrite && (
+                      <td>
+                        <div className="inline-actions">
+                          <button type="button" className="secondary-button" onClick={() => handleEdit(item)}>Editar</button>
+                          <button
+                            type="button"
+                            className="danger-button"
+                            onClick={() => handleDelete(item)}
+                            disabled={deletingId === item.id}
+                          >
+                            {deletingId === item.id ? 'Eliminando…' : 'Eliminar'}
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
-                {items.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', padding: '1.5rem 0' }}>No hay artículos con stock positivo en los grupos de sobrestock seleccionados.</td></tr>}
+                {items.length === 0 && <tr><td colSpan={canWrite ? 9 : 8} style={{ textAlign: 'center', padding: '1.5rem 0' }}>No hay artículos con stock positivo en los grupos de sobrestock seleccionados.</td></tr>}
               </tbody>
             </table>
           </div>

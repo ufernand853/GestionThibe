@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
@@ -167,6 +168,9 @@ function fileToDataUrl(file) {
 
 export default function ItemsPage() {
   const api = useApi();
+  const routeLocation = useLocation();
+  const navigate = useNavigate();
+  const openedExternalEditRef = useRef(null);
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canWrite = permissions.includes('items.write');
@@ -798,6 +802,17 @@ export default function ItemsPage() {
       stockByLocation
     });
   };
+
+  useEffect(() => {
+    const requestedItem = routeLocation.state?.editItem;
+    if (!canWrite || !requestedItem?.id || openedExternalEditRef.current === requestedItem.id) {
+      return;
+    }
+    openedExternalEditRef.current = requestedItem.id;
+    handleEdit(requestedItem);
+    navigate('/items', { replace: true, state: null });
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  }, [canWrite, navigate, routeLocation.state]);
 
   const handleDelete = async item => {
     if (!item) return;
