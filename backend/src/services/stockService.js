@@ -79,7 +79,7 @@ async function findItemOrThrow(itemId) {
   if (!mongoose.Types.ObjectId.isValid(itemId)) {
     throw new HttpError(404, 'Artículo no encontrado');
   }
-  const item = await Item.findById(itemId);
+  const item = await Item.findOne({ _id: itemId, deletedAt: null });
   if (!item) {
     throw new HttpError(404, 'Artículo no encontrado');
   }

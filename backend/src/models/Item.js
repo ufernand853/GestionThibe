@@ -3,6 +3,14 @@ const { Schema, model, Types } = require('mongoose');
 const { coerceQuantity } = require('../utils/quantity');
 const quantitySubSchema = require('./schemas/quantity');
 
+const priceTierSchema = new Schema(
+  {
+    minQuantity: { type: Number, required: true, min: 1 },
+    price: { type: Number, required: true, min: 0 }
+  },
+  { _id: false }
+);
+
 const itemSchema = new Schema(
   {
     code: { type: String, required: true, trim: true, unique: true },
@@ -19,7 +27,13 @@ const itemSchema = new Schema(
     stock: { type: Map, of: quantitySubSchema, default: () => ({}) },
     images: { type: [String], default: [] },
     needsRecount: { type: Boolean, default: false },
-    pDecimal: { type: Number, default: null }
+    pDecimal: { type: Number, default: null },
+    priceTiers: { type: [priceTierSchema], default: [] },
+    lastCountedAt: { type: Date, default: null },
+    lastCountedBy: { type: String, default: null, trim: true },
+    deletedAt: { type: Date, default: null, index: true },
+    deletedBy: { type: String, default: null, trim: true },
+    scheduledDeletionAt: { type: Date, default: null, index: true }
   },
   {
     timestamps: true,

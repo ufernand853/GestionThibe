@@ -191,6 +191,7 @@ export default function ItemsPage() {
     needsRecount: false,
     unitsPerBox: '',
     precio: '',
+    priceTiers: [],
     gender: '',
     size: '',
     color: '',
@@ -206,7 +207,9 @@ export default function ItemsPage() {
   const [imageError, setImageError] = useState('');
   const [previewImages, setPreviewImages] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(null);
+  const [previewLoadError, setPreviewLoadError] = useState('');
   const [editingItem, setEditingItem] = useState(null);
+  const [markingAllRecount, setMarkingAllRecount] = useState(false);
 
   const updateAttributeOptionsFromItems = useCallback(itemsList => {
     const sizeValues = extractAttributeValues(itemsList, 'size');
@@ -442,6 +445,7 @@ export default function ItemsPage() {
       needsRecount: false,
       unitsPerBox: '',
       precio: '',
+      priceTiers: [],
       gender: '',
       size: '',
       color: '',
@@ -493,6 +497,23 @@ export default function ItemsPage() {
         }
       };
     });
+  };
+
+  const handlePriceTierChange = (index, field, value) => {
+    setFormValues(prev => ({
+      ...prev,
+      priceTiers: prev.priceTiers.map((tier, tierIndex) =>
+        tierIndex === index ? { ...tier, [field]: value } : tier
+      )
+    }));
+  };
+
+  const addPriceTier = () => {
+    setFormValues(prev => ({ ...prev, priceTiers: [...prev.priceTiers, { minQuantity: '', price: '' }] }));
+  };
+
+  const removePriceTier = index => {
+    setFormValues(prev => ({ ...prev, priceTiers: prev.priceTiers.filter((_, tierIndex) => tierIndex !== index) }));
   };
 
   const buildPayload = () => {
@@ -555,14 +576,12 @@ export default function ItemsPage() {
       stock,
       images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
     };
-    const precioValue = typeof formValues.precio === 'string' ? formValues.precio.trim() : '';
-    if (precioValue) {
-      payload.precio = precioValue;
-      payload.pDecimal = precioValue;
-    } else if (editingItem) {
-      payload.precio = null;
-      payload.pDecimal = null;
-    }
+    payload.priceTiers = (formValues.priceTiers || [])
+      .filter(tier => tier.minQuantity !== '' && tier.price !== '')
+      .map(tier => ({ minQuantity: Number(tier.minQuantity), price: Number(tier.price) }));
+    const basePrice = typeof formValues.precio === 'string' ? formValues.precio.trim() : '';
+    payload.precio = basePrice === '' ? null : Number(basePrice);
+    payload.pDecimal = payload.precio;
     return payload;
   };
 
@@ -666,16 +685,31 @@ export default function ItemsPage() {
     if (targetIndex < 0 || targetIndex >= gallery.length) {
       return;
     }
+    setPreviewLoadError('');
     setPreviewImages(gallery);
     setPreviewIndex(targetIndex);
+  };
+
+  const handleItemImagesOpen = item => {
+    const gallery = (Array.isArray(item?.images) ? item.images : []).map((image, index) => ({
+      src: getImageUrl(image),
+      alt: `${item.code} · imagen ${index + 1}`,
+      key: `${item.id}-${index}-${image}`
+    }));
+    if (gallery.length === 0) return;
+    setPreviewLoadError('');
+    setPreviewImages(gallery);
+    setPreviewIndex(0);
   };
 
   const handlePreviewClose = () => {
     setPreviewImages([]);
     setPreviewIndex(null);
+    setPreviewLoadError('');
   };
 
   const handlePreviewStep = direction => {
+    setPreviewLoadError('');
     if (previewIndex === null || previewImages.length === 0) {
       return;
     }
@@ -685,21 +719,6 @@ export default function ItemsPage() {
       return next;
     });
   };
-
-  useEffect(() => {
-    if (previewIndex === null) {
-      return;
-    }
-    const gallery = buildPreviewList();
-    if (gallery.length === 0) {
-      handlePreviewClose();
-      return;
-    }
-    setPreviewImages(gallery);
-    if (previewIndex >= gallery.length) {
-      setPreviewIndex(gallery.length - 1);
-    }
-  }, [buildPreviewList, previewIndex]);
 
   const handleSubmit = async event => {
     event.preventDefault();
@@ -755,7 +774,12 @@ export default function ItemsPage() {
         ? item.precio
         : item.pDecimal !== null && item.pDecimal !== undefined
           ? item.pDecimal
-          : null;
+        : null;
+    const priceTiers = Array.isArray(item.priceTiers)
+      ? item.priceTiers
+          .filter(tier => Number(tier.minQuantity) > 1)
+          .map(tier => ({ minQuantity: String(tier.minQuantity), price: String(tier.price) }))
+      : [];
 
     setFormValues({
       code: item.code,
@@ -765,6 +789,7 @@ export default function ItemsPage() {
       unitsPerBox:
         item.unitsPerBox === null || item.unitsPerBox === undefined ? '' : String(item.unitsPerBox),
       precio: precioBase === null ? '' : Number(precioBase).toFixed(2),
+      priceTiers,
       gender: item.attributes?.gender || '',
       size: item.attributes?.size || '',
       color: item.attributes?.color || '',
@@ -777,7 +802,7 @@ export default function ItemsPage() {
   const handleDelete = async item => {
     if (!item) return;
     const confirmed = window.confirm(
-      `¿Seguro que deseas eliminar el artículo ${item.code}? Esta acción no se puede deshacer.`
+      `¿Enviar el artículo ${item.code} a la papelera? Podrá restaurarse durante 30 días.`
     );
     if (!confirmed) {
       return;
@@ -794,7 +819,7 @@ export default function ItemsPage() {
         resetForm();
       }
 
-      setSuccessMessage(`Artículo ${item.code} eliminado correctamente.`);
+      setSuccessMessage(`Artículo ${item.code} enviado a la papelera.`);
 
       let nextPage = page;
       let response = await api.get('/items', {
@@ -824,6 +849,26 @@ export default function ItemsPage() {
     }
   };
 
+  const handleMarkAllForRecount = async () => {
+    const confirmed = window.confirm(
+      `Se marcarán los ${total} artículos activos para reconteo pendiente. ¿Desea continuar?`
+    );
+    if (!confirmed) return;
+    setMarkingAllRecount(true);
+    setError(null);
+    try {
+      const response = await api.post('/items/recount/mark-all', {});
+      setItems(prev => prev.map(item => ({ ...item, needsRecount: true })));
+      setSuccessMessage(
+        `Reconteo total iniciado: ${response.changed} artículo(s) marcados; ${response.alreadyPending} ya estaban pendientes.`
+      );
+    } catch (err) {
+      setError(err);
+    } finally {
+      setMarkingAllRecount(false);
+    }
+  };
+
   return (
     <div>
       <div className="flex-between">
@@ -833,8 +878,13 @@ export default function ItemsPage() {
             Administre la taxonomía, atributos y stock distribuido por ubicación para cada artículo.
           </p>
         </div>
-        <div>
+        <div className="inline-actions">
           <span className="badge">Total: {total}</span>
+          {canWrite && (
+            <button type="button" onClick={handleMarkAllForRecount} disabled={markingAllRecount || total === 0}>
+              {markingAllRecount ? 'Marcando…' : 'Marcar todos para reconteo'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -844,10 +894,16 @@ export default function ItemsPage() {
       {previewIndex !== null && previewImages[previewIndex] && (
         <div className="image-lightbox" onClick={handlePreviewClose} role="dialog" aria-modal="true">
           <div className="image-lightbox__content" onClick={event => event.stopPropagation()}>
-            <img
-              src={previewImages[previewIndex].src}
-              alt={previewImages[previewIndex].alt || 'Vista ampliada de la imagen'}
-            />
+            {previewLoadError ? (
+              <ErrorMessage error={previewLoadError} />
+            ) : (
+              <img
+                key={previewImages[previewIndex].key || previewImages[previewIndex].src}
+                src={previewImages[previewIndex].src}
+                alt={previewImages[previewIndex].alt || 'Vista ampliada de la imagen'}
+                onError={() => setPreviewLoadError('No se pudo cargar esta imagen.')}
+              />
+            )}
             <div className="image-lightbox__actions">
               <button
                 type="button"
@@ -935,8 +991,57 @@ export default function ItemsPage() {
                   step="0.01"
                   value={formValues.precio}
                   onChange={handleFormChange}
-                  placeholder="Precio unitario"
+                  placeholder="Precio unitario (opcional)"
                 />
+              </div>
+              <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+                <div className="flex-between">
+                  <div>
+                    <label>Precios por cantidad</label>
+                    <p className="input-helper">Opcional. Se aplican desde la cantidad indicada, además del precio normal.</p>
+                  </div>
+                  <button type="button" className="secondary-button" onClick={addPriceTier}>Agregar Opción de Precio</button>
+                </div>
+                {formValues.priceTiers.length > 0 && (
+                  <div className="price-tier-editor">
+                    {formValues.priceTiers.map((tier, index) => (
+                      <div className="price-tier-row" key={index}>
+                        <label>
+                          Desde
+                          <input
+                            type="number"
+                            min="2"
+                            step="1"
+                            value={tier.minQuantity}
+                            onChange={event => handlePriceTierChange(index, 'minQuantity', event.target.value)}
+                            placeholder="Ej. 3"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Precio unitario
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={tier.price}
+                            onChange={event => handlePriceTierChange(index, 'price', event.target.value)}
+                            placeholder="Ej. 650"
+                            required
+                          />
+                        </label>
+                        <button type="button" className="danger-button" onClick={() => removePriceTier(index)}>
+                          Quitar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="chip-list">
+                  {formValues.priceTiers.filter(tier => tier.minQuantity && tier.price !== '').map((tier, index) => (
+                    <span className="badge" key={`preview-${index}`}>x{tier.minQuantity} · ${Number(tier.price).toLocaleString('es-AR')}</span>
+                  ))}
+                </div>
               </div>
               <div className="input-group">
                 <label htmlFor="needsRecount">Recuento manual</label>
@@ -1283,12 +1388,22 @@ export default function ItemsPage() {
                       <td>{item.description}</td>
                       <td>{item.group?.name || 'Sin grupo'}</td>
                       <td>
-                        {precioBase === null
-                          ? '-'
-                          : Number(precioBase).toLocaleString('es-AR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })}
+                        <div className="price-display">
+                          <span>
+                            {precioBase === null
+                              ? '-'
+                              : `$${Number(precioBase).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                          </span>
+                          {Array.isArray(item.priceTiers) && item.priceTiers.length > 0 && (
+                            <div className="chip-list">
+                              {item.priceTiers.filter(tier => Number(tier.minQuantity) > 1).map(tier => (
+                                <span className="badge" key={tier.minQuantity}>
+                                  x{tier.minQuantity} · ${Number(tier.price).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <div className="chip-list">
@@ -1301,7 +1416,13 @@ export default function ItemsPage() {
                         </div>
                       </td>
                       <td>{item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : item.unitsPerBox}</td>
-                      <td>{Array.isArray(item.images) ? item.images.length : 0}</td>
+                      <td>
+                        {Array.isArray(item.images) && item.images.length > 0 ? (
+                          <button type="button" className="secondary-button" onClick={() => handleItemImagesOpen(item)}>
+                            Ver imágenes ({item.images.length})
+                          </button>
+                        ) : '-'}
+                      </td>
                       <td>
                       <div className="chip-list">
                         {(() => {

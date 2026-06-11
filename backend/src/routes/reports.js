@@ -64,7 +64,7 @@ router.get(
     const isRequestingUngrouped = requestedGroupId === 'ungrouped';
 
     const [items, groups, locations] = await Promise.all([
-      Item.find().populate('group'),
+      Item.find({ deletedAt: null }).populate('group'),
       Group.find(),
       Location.find()
     ]);
@@ -165,7 +165,7 @@ async function respondStockByLocation(req, res) {
   const requestedLocationId = typeof req.query.locationId === 'string' ? req.query.locationId : null;
 
   const [items, locations] = await Promise.all([
-    Item.find(),
+    Item.find({ deletedAt: null }),
     Location.find({ type: 'warehouse' })
   ]);
   const locationsById = new Map(

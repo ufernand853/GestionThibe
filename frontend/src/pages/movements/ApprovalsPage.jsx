@@ -5,6 +5,7 @@ import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
+import { formatDateTime24 } from '../../utils/dateTime.js';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 import { MOVEMENT_TYPE_BADGE_CLASS, MOVEMENT_TYPE_LABELS, resolveMovementType } from '../../utils/movements.js';
 
@@ -188,7 +189,7 @@ export default function ApprovalsPage() {
                         )}
                       </td>
                       <td>{request.requestedBy?.username || 'N/D'}</td>
-                      <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
+                      <td>{formatDateTime24(request.requestedAt)}</td>
                       <td>
                         <div className="inline-actions">
                           <button type="button" onClick={() => handleApprove(request.id)}>
