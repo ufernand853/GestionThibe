@@ -296,19 +296,18 @@ function normalizePrecio(value, { fieldName = 'precio' } = {}) {
   return Math.round(numeric * 100) / 100;
 }
 
-function normalizePriceTiers(value, fallbackPrice) {
+function normalizePriceTiers(value) {
   if (value === undefined) {
-    if (fallbackPrice === undefined || fallbackPrice === null) return undefined;
-    return [{ minQuantity: 1, price: fallbackPrice }];
+    return undefined;
   }
   if (!Array.isArray(value)) {
     throw new HttpError(400, 'priceTiers debe ser una lista');
   }
   const seen = new Set();
-  const tiers = value.map((tier, index) => {
+  return value.map((tier, index) => {
     const minQuantity = Number(tier?.minQuantity);
-    if (!Number.isInteger(minQuantity) || minQuantity < 1) {
-      throw new HttpError(400, `Cantidad inválida en el precio ${index + 1}`);
+    if (!Number.isInteger(minQuantity) || minQuantity < 2) {
+      throw new HttpError(400, `La cantidad del precio ${index + 1} debe ser un entero mayor o igual a 2`);
     }
     if (seen.has(minQuantity)) {
       throw new HttpError(400, `La cantidad x${minQuantity} está repetida`);
@@ -320,14 +319,26 @@ function normalizePriceTiers(value, fallbackPrice) {
     }
     return { minQuantity, price };
   }).sort((a, b) => a.minQuantity - b.minQuantity);
-  if (tiers.length > 0 && tiers[0].minQuantity !== 1) {
-    throw new HttpError(400, 'Debe existir un precio desde x1');
-  }
-  return tiers;
+}
+
+function getLegacyCompatiblePricing(doc) {
+  const storedTiers = Array.isArray(doc.priceTiers) ? doc.priceTiers : [];
+  const legacyBaseTier = storedTiers.find(tier => Number(tier.minQuantity) === 1);
+  const basePrice = doc.pDecimal !== undefined && doc.pDecimal !== null
+    ? Number(doc.pDecimal)
+    : legacyBaseTier
+      ? Number(legacyBaseTier.price)
+      : null;
+  const priceTiers = storedTiers
+    .filter(tier => Number(tier.minQuantity) > 1)
+    .map(tier => ({ minQuantity: Number(tier.minQuantity), price: Number(tier.price) }))
+    .sort((a, b) => a.minQuantity - b.minQuantity);
+  return { basePrice, priceTiers };
 }
 
 function serializeItem(doc) {
   const group = doc.group;
+  const pricing = getLegacyCompatiblePricing(doc);
   return {
     id: doc.id,
     code: doc.code,
@@ -341,11 +352,9 @@ function serializeItem(doc) {
     stock: toPlainStock(doc.stock),
     images: Array.isArray(doc.images) ? doc.images : [],
     needsRecount: Boolean(doc.needsRecount),
-    pDecimal: doc.pDecimal === undefined || doc.pDecimal === null ? null : Number(doc.pDecimal),
-    precio: doc.pDecimal !== undefined && doc.pDecimal !== null ? Number(doc.pDecimal) : null,
-    priceTiers: Array.isArray(doc.priceTiers)
-      ? doc.priceTiers.map(tier => ({ minQuantity: Number(tier.minQuantity), price: Number(tier.price) }))
-      : [],
+    pDecimal: pricing.basePrice,
+    precio: pricing.basePrice,
+    priceTiers: pricing.priceTiers,
     lastCountedAt: doc.lastCountedAt || null,
     lastCountedBy: doc.lastCountedBy || null,
     deletedAt: doc.deletedAt || null,
@@ -427,6 +436,7 @@ async function buildItemAuditSnapshot(doc) {
     return null;
   }
   const group = doc.group;
+  const pricing = getLegacyCompatiblePricing(doc);
   return {
     code: doc.code,
     description: doc.description,
@@ -434,10 +444,8 @@ async function buildItemAuditSnapshot(doc) {
     attributes: toPlainAttributes(doc.attributes),
     stock: await buildFriendlyAuditStock(doc.stock),
     unitsPerBox: doc.unitsPerBox === undefined || doc.unitsPerBox === null ? null : Number(doc.unitsPerBox),
-    precio: doc.pDecimal === undefined || doc.pDecimal === null ? null : Number(doc.pDecimal),
-    priceTiers: Array.isArray(doc.priceTiers)
-      ? doc.priceTiers.map(tier => ({ minQuantity: Number(tier.minQuantity), price: Number(tier.price) }))
-      : [],
+    precio: pricing.basePrice,
+    priceTiers: pricing.priceTiers,
     needsRecount: Boolean(doc.needsRecount),
     lastCountedAt: doc.lastCountedAt || null,
     lastCountedBy: doc.lastCountedBy || null,
@@ -572,6 +580,73 @@ router.get(
   asyncHandler(async (req, res) => {
     const items = await Item.find({ deletedAt: { $ne: null } }).populate('group').sort({ deletedAt: -1 });
     res.json({ items: items.map(serializeItem), retentionDays: TRASH_RETENTION_DAYS });
+  })
+);
+
+router.get(
+  '/overstock',
+  requirePermission('items.read'),
+  asyncHandler(async (req, res) => {
+    const { page = '1', pageSize = '20', search, groupId } = req.query || {};
+    const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
+    const overstockLocations = await Location.find({ name: /sobrestock/i }).sort({ name: 1 });
+    if (overstockLocations.length === 0) {
+      return res.json({ total: 0, page: pageNumber, pageSize: limit, locations: [], items: [] });
+    }
+
+    const locationIds = overstockLocations.map(location => String(location.id));
+    const positiveStockConditions = locationIds.flatMap(locationId => [
+      { [`stock.${locationId}.boxes`]: { $gt: 0 } },
+      { [`stock.${locationId}.units`]: { $gt: 0 } }
+    ]);
+    const filter = { deletedAt: null, $or: positiveStockConditions };
+    if (typeof search === 'string' && search.trim()) {
+      const matcher = new RegExp(escapeRegex(search.trim()), 'i');
+      filter.$and = [{ $or: [{ code: matcher }, { description: matcher }] }];
+    }
+    const normalizedGroupId = typeof groupId === 'string' ? groupId.trim() : '';
+    if (normalizedGroupId) {
+      const groupIds = await collectGroupAndDescendantIds(normalizedGroupId);
+      const groupFilterValues = buildGroupFilterValues(groupIds);
+      if (groupFilterValues.length === 0) {
+        return res.json({ total: 0, page: pageNumber, pageSize: limit, locations: [], items: [] });
+      }
+      filter.group = { $in: groupFilterValues };
+    }
+
+    const [total, items] = await Promise.all([
+      Item.countDocuments(filter),
+      Item.find(filter)
+        .populate('group')
+        .sort({ updatedAt: -1 })
+        .skip((pageNumber - 1) * limit)
+        .limit(limit)
+    ]);
+    const locationNames = new Map(overstockLocations.map(location => [String(location.id), location.name]));
+    const serializedItems = items.map(item => {
+      const serialized = serializeItem(item);
+      const overstockStock = {};
+      const overstockTotal = { boxes: 0, units: 0 };
+      locationIds.forEach(locationId => {
+        const quantity = serialized.stock[locationId];
+        const boxes = Number(quantity?.boxes) || 0;
+        const units = Number(quantity?.units) || 0;
+        if (boxes <= 0 && units <= 0) return;
+        overstockStock[locationId] = { boxes, units, locationName: locationNames.get(locationId) || 'Sobrestock' };
+        overstockTotal.boxes += boxes;
+        overstockTotal.units += units;
+      });
+      return { ...serialized, overstockStock, overstockTotal };
+    });
+
+    res.json({
+      total,
+      page: pageNumber,
+      pageSize: limit,
+      locations: overstockLocations.map(location => ({ id: String(location.id), name: location.name })),
+      items: serializedItems
+    });
   })
 );
 
@@ -715,7 +790,7 @@ router.post(
     const normalizedUnitsPerBox = normalizeUnitsPerBox(unitsPerBox, { fieldName: 'unitsPerBox' });
     const precioInput = Object.prototype.hasOwnProperty.call(payload, 'precio') ? precio : pDecimal;
     const normalizedPrecio = normalizePrecio(precioInput, { fieldName: 'precio' });
-    const normalizedPriceTiers = normalizePriceTiers(priceTiers, normalizedPrecio);
+    const normalizedPriceTiers = normalizePriceTiers(priceTiers);
     let item;
     try {
       let itemData = {
@@ -735,7 +810,6 @@ router.post(
       }
       if (normalizedPriceTiers !== undefined) {
         itemData.priceTiers = normalizedPriceTiers;
-        itemData.pDecimal = normalizedPriceTiers[0]?.price ?? normalizedPrecio ?? null;
       }
       itemData = await assignSkuToNewItemData(itemData);
       item = await Item.create(itemData);
@@ -890,14 +964,10 @@ router.put(
       }
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'priceTiers')) {
-      const fallbackPrice = item.pDecimal === null || item.pDecimal === undefined ? undefined : Number(item.pDecimal);
-      const normalizedPriceTiers = normalizePriceTiers(priceTiers, fallbackPrice) || [];
-      if (JSON.stringify(normalizedPriceTiers) !== JSON.stringify(item.priceTiers || [])) {
+      const normalizedPriceTiers = normalizePriceTiers(priceTiers) || [];
+      if (JSON.stringify(normalizedPriceTiers) !== JSON.stringify(getLegacyCompatiblePricing(item).priceTiers)) {
         item.priceTiers = normalizedPriceTiers;
-        item.pDecimal = normalizedPriceTiers[0]?.price ?? null;
       }
-    } else if (precioWasProvided && item.pDecimal !== null && item.pDecimal !== undefined) {
-      item.priceTiers = [{ minQuantity: 1, price: Number(item.pDecimal) }];
     }
 
     const currentImages = Array.isArray(item.images) ? item.images : [];

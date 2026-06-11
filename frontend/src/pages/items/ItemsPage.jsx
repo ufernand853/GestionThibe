@@ -191,7 +191,7 @@ export default function ItemsPage() {
     needsRecount: false,
     unitsPerBox: '',
     precio: '',
-    priceTiers: [{ minQuantity: '1', price: '' }],
+    priceTiers: [],
     gender: '',
     size: '',
     color: '',
@@ -207,6 +207,7 @@ export default function ItemsPage() {
   const [imageError, setImageError] = useState('');
   const [previewImages, setPreviewImages] = useState([]);
   const [previewIndex, setPreviewIndex] = useState(null);
+  const [previewLoadError, setPreviewLoadError] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [markingAllRecount, setMarkingAllRecount] = useState(false);
 
@@ -444,7 +445,7 @@ export default function ItemsPage() {
       needsRecount: false,
       unitsPerBox: '',
       precio: '',
-      priceTiers: [{ minQuantity: '1', price: '' }],
+      priceTiers: [],
       gender: '',
       size: '',
       color: '',
@@ -578,7 +579,8 @@ export default function ItemsPage() {
     payload.priceTiers = (formValues.priceTiers || [])
       .filter(tier => tier.minQuantity !== '' && tier.price !== '')
       .map(tier => ({ minQuantity: Number(tier.minQuantity), price: Number(tier.price) }));
-    payload.precio = payload.priceTiers[0]?.price ?? null;
+    const basePrice = typeof formValues.precio === 'string' ? formValues.precio.trim() : '';
+    payload.precio = basePrice === '' ? null : Number(basePrice);
     payload.pDecimal = payload.precio;
     return payload;
   };
@@ -683,6 +685,7 @@ export default function ItemsPage() {
     if (targetIndex < 0 || targetIndex >= gallery.length) {
       return;
     }
+    setPreviewLoadError('');
     setPreviewImages(gallery);
     setPreviewIndex(targetIndex);
   };
@@ -691,9 +694,10 @@ export default function ItemsPage() {
     const gallery = (Array.isArray(item?.images) ? item.images : []).map((image, index) => ({
       src: getImageUrl(image),
       alt: `${item.code} · imagen ${index + 1}`,
-      key: image
+      key: `${item.id}-${index}-${image}`
     }));
     if (gallery.length === 0) return;
+    setPreviewLoadError('');
     setPreviewImages(gallery);
     setPreviewIndex(0);
   };
@@ -701,9 +705,11 @@ export default function ItemsPage() {
   const handlePreviewClose = () => {
     setPreviewImages([]);
     setPreviewIndex(null);
+    setPreviewLoadError('');
   };
 
   const handlePreviewStep = direction => {
+    setPreviewLoadError('');
     if (previewIndex === null || previewImages.length === 0) {
       return;
     }
@@ -713,21 +719,6 @@ export default function ItemsPage() {
       return next;
     });
   };
-
-  useEffect(() => {
-    if (previewIndex === null) {
-      return;
-    }
-    const gallery = buildPreviewList();
-    if (gallery.length === 0) {
-      handlePreviewClose();
-      return;
-    }
-    setPreviewImages(gallery);
-    if (previewIndex >= gallery.length) {
-      setPreviewIndex(gallery.length - 1);
-    }
-  }, [buildPreviewList, previewIndex]);
 
   const handleSubmit = async event => {
     event.preventDefault();
@@ -784,9 +775,11 @@ export default function ItemsPage() {
         : item.pDecimal !== null && item.pDecimal !== undefined
           ? item.pDecimal
         : null;
-    const priceTiers = Array.isArray(item.priceTiers) && item.priceTiers.length > 0
-      ? item.priceTiers.map(tier => ({ minQuantity: String(tier.minQuantity), price: String(tier.price) }))
-      : [{ minQuantity: '1', price: precioBase === null ? '' : String(precioBase) }];
+    const priceTiers = Array.isArray(item.priceTiers)
+      ? item.priceTiers
+          .filter(tier => Number(tier.minQuantity) > 1)
+          .map(tier => ({ minQuantity: String(tier.minQuantity), price: String(tier.price) }))
+      : [];
 
     setFormValues({
       code: item.code,
@@ -901,10 +894,16 @@ export default function ItemsPage() {
       {previewIndex !== null && previewImages[previewIndex] && (
         <div className="image-lightbox" onClick={handlePreviewClose} role="dialog" aria-modal="true">
           <div className="image-lightbox__content" onClick={event => event.stopPropagation()}>
-            <img
-              src={previewImages[previewIndex].src}
-              alt={previewImages[previewIndex].alt || 'Vista ampliada de la imagen'}
-            />
+            {previewLoadError ? (
+              <ErrorMessage error={previewLoadError} />
+            ) : (
+              <img
+                key={previewImages[previewIndex].key || previewImages[previewIndex].src}
+                src={previewImages[previewIndex].src}
+                alt={previewImages[previewIndex].alt || 'Vista ampliada de la imagen'}
+                onError={() => setPreviewLoadError('No se pudo cargar esta imagen.')}
+              />
+            )}
             <div className="image-lightbox__actions">
               <button
                 type="button"
@@ -982,50 +981,64 @@ export default function ItemsPage() {
                   })}
                 </select>
               </div>
+              <div className="input-group">
+                <label htmlFor="precio">Precio</label>
+                <input
+                  id="precio"
+                  name="precio"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formValues.precio}
+                  onChange={handleFormChange}
+                  placeholder="Precio unitario (opcional)"
+                />
+              </div>
               <div className="input-group" style={{ gridColumn: '1 / -1' }}>
                 <div className="flex-between">
                   <div>
                     <label>Precios por cantidad</label>
-                    <p className="input-helper">Cada precio se aplica desde la cantidad indicada.</p>
+                    <p className="input-helper">Opcional. Se aplican desde la cantidad indicada, además del precio normal.</p>
                   </div>
-                  <button type="button" className="secondary-button" onClick={addPriceTier}>Agregar precio</button>
+                  <button type="button" className="secondary-button" onClick={addPriceTier}>Agregar opción</button>
                 </div>
-                <div className="price-tier-editor">
-                  {(formValues.priceTiers || []).map((tier, index) => (
-                    <div className="price-tier-row" key={`${index}-${tier.minQuantity}`}>
-                      <label>
-                        Desde
-                        <input
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={tier.minQuantity}
-                          onChange={event => handlePriceTierChange(index, 'minQuantity', event.target.value)}
-                          disabled={index === 0}
-                          required
-                        />
-                      </label>
-                      <label>
-                        Precio unitario
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={tier.price}
-                          onChange={event => handlePriceTierChange(index, 'price', event.target.value)}
-                          required
-                        />
-                      </label>
-                      {index > 0 && (
+                {formValues.priceTiers.length > 0 && (
+                  <div className="price-tier-editor">
+                    {formValues.priceTiers.map((tier, index) => (
+                      <div className="price-tier-row" key={index}>
+                        <label>
+                          Desde
+                          <input
+                            type="number"
+                            min="2"
+                            step="1"
+                            value={tier.minQuantity}
+                            onChange={event => handlePriceTierChange(index, 'minQuantity', event.target.value)}
+                            placeholder="Ej. 3"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Precio unitario
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={tier.price}
+                            onChange={event => handlePriceTierChange(index, 'price', event.target.value)}
+                            placeholder="Ej. 650"
+                            required
+                          />
+                        </label>
                         <button type="button" className="danger-button" onClick={() => removePriceTier(index)}>
                           Quitar
                         </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="chip-list">
-                  {(formValues.priceTiers || []).filter(tier => tier.minQuantity && tier.price !== '').map((tier, index) => (
+                  {formValues.priceTiers.filter(tier => tier.minQuantity && tier.price !== '').map((tier, index) => (
                     <span className="badge" key={`preview-${index}`}>x{tier.minQuantity} · ${Number(tier.price).toLocaleString('es-AR')}</span>
                   ))}
                 </div>
@@ -1375,16 +1388,21 @@ export default function ItemsPage() {
                       <td>{item.description}</td>
                       <td>{item.group?.name || 'Sin grupo'}</td>
                       <td>
-                        <div className="chip-list">
-                          {(Array.isArray(item.priceTiers) && item.priceTiers.length > 0
-                            ? item.priceTiers
-                            : precioBase === null ? [] : [{ minQuantity: 1, price: precioBase }]
-                          ).map(tier => (
-                            <span className="badge" key={tier.minQuantity}>
-                              x{tier.minQuantity} · ${Number(tier.price).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                            </span>
-                          ))}
-                          {precioBase === null && (!item.priceTiers || item.priceTiers.length === 0) && <span>-</span>}
+                        <div className="price-display">
+                          <span>
+                            {precioBase === null
+                              ? '-'
+                              : `$${Number(precioBase).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                          </span>
+                          {Array.isArray(item.priceTiers) && item.priceTiers.length > 0 && (
+                            <div className="chip-list">
+                              {item.priceTiers.filter(tier => Number(tier.minQuantity) > 1).map(tier => (
+                                <span className="badge" key={tier.minQuantity}>
+                                  x{tier.minQuantity} · ${Number(tier.price).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td>
