@@ -5,6 +5,7 @@ import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
+import { formatDateTime24 } from '../../utils/dateTime.js';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 import {
   MOVEMENT_TYPE_BADGE_CLASS,
@@ -852,7 +853,7 @@ export default function MovementRequestsPage() {
                           )}
                         </div>
                       </td>
-                      <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
+                      <td>{formatDateTime24(request.requestedAt)}</td>
                       <td>
                         {request.status === 'rejected' && (
                           <button
