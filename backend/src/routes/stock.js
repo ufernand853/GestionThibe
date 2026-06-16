@@ -14,6 +14,7 @@ const {
   executeMovement,
   addMovementLog,
   findItemOrThrow,
+  ensureLocationExists,
   normalizeStoredQuantity
 } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
@@ -469,6 +470,79 @@ router.post(
       details: buildMovementAuditDetails(populated, 'Rechazo de solicitud', { rejectionReason: request.rejectedReason })
     });
     res.json(serializeMovementRequest(populated));
+  })
+);
+
+
+router.post(
+  '/barcode-reception',
+  requirePermission('stock.approve'),
+  asyncHandler(async (req, res) => {
+    const body = req.body || {};
+    const lines = Array.isArray(body.lines) ? body.lines : [];
+    if (lines.length === 0) {
+      throw new HttpError(400, 'Debe indicar al menos un artículo recibido');
+    }
+    if (lines.length > 200) {
+      throw new HttpError(400, 'La recepción no puede superar 200 artículos por confirmación');
+    }
+
+    const fromLocationId = body.fromLocation || body.fromDeposit;
+    const toLocationId = body.toLocation || body.toDeposit;
+    const [fromLocation, toLocation] = await Promise.all([
+      ensureLocationExists(fromLocationId, {
+        allowedTypes: ['externalOrigin'],
+        invalidTypeMessage: 'El origen debe ser una ubicación de tipo origen externo'
+      }),
+      ensureLocationExists(toLocationId, {
+        allowedTypes: ['warehouse'],
+        invalidTypeMessage: 'El destino debe ser un depósito interno'
+      })
+    ]);
+
+    const created = [];
+    for (const [index, line] of lines.entries()) {
+      const item = await findItemOrThrow(line.itemId);
+      const quantity = normalizeQuantityInput(line.quantity, { fieldName: `Cantidad del renglón ${index + 1}` });
+      const movementRequest = new MovementRequest({
+        item: item.id,
+        type: 'ingress',
+        fromLocation: fromLocation.id,
+        toLocation: toLocation.id,
+        quantity,
+        reason: body.reason || 'Recepción por códigos de barra',
+        requestedBy: req.user.id,
+        requestedAt: new Date(),
+        status: 'approved',
+        approvedBy: req.user.id,
+        approvedAt: new Date()
+      });
+      await movementRequest.save();
+      await addMovementLog(movementRequest.id, 'requested', req.user.id, requestMetadata(req));
+      await addMovementLog(movementRequest.id, 'approved', req.user.id, requestMetadata(req));
+      await executeMovement(movementRequest, req.user.id, requestMetadata(req));
+      const populated = await movementRequest.populate([
+        'item',
+        { path: 'requestedBy', populate: 'role' },
+        { path: 'approvedBy', populate: 'role' },
+        'fromLocation',
+        'toLocation'
+      ]);
+      created.push(populated);
+    }
+
+    await recordAuditEvent({
+      action: 'Recepción por código de barras',
+      request: `Recepción confirmada: ${created.length} artículo(s) | Origen: ${fromLocation.name} | Destino: ${toLocation.name}`,
+      user: req.user?.username || 'Desconocido',
+      details: {
+        fromLocation: serializeLocationSummary(fromLocation),
+        toLocation: serializeLocationSummary(toLocation),
+        lines: created.map(request => serializeMovementRequest(request))
+      }
+    });
+
+    res.status(201).json({ lines: created.map(serializeMovementRequest) });
   })
 );
 
