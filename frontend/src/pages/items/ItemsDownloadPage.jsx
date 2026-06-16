@@ -253,6 +253,7 @@ export default function ItemsDownloadPage() {
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
   const [printing, setPrinting] = useState(false);
   const [selectedItemsForPrint, setSelectedItemsForPrint] = useState({});
+  const [includeSkuInPdf, setIncludeSkuInPdf] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -342,6 +343,7 @@ export default function ItemsDownloadPage() {
           id: item.id,
           ean13: buildItemEan13(item.sku, item.unitsPerBox),
           code: item.code || '-',
+          sku: item.sku || '-',
           description: item.description || '-'
         }
       };
@@ -361,6 +363,7 @@ export default function ItemsDownloadPage() {
           id: item.id,
           ean13: buildItemEan13(item.sku, item.unitsPerBox),
           code: item.code || '-',
+          sku: item.sku || '-',
           description: item.description || '-'
         };
       });
@@ -509,6 +512,7 @@ export default function ItemsDownloadPage() {
         id: item.id,
         ean13: buildItemEan13(item.sku, item.unitsPerBox),
         code: item.code || '-',
+        sku: item.sku || '-',
         description: item.description || '-'
       };
       setSelectedItemsForPrint(prev => ({ ...prev, [item.id]: singleItemPayload }));
@@ -559,6 +563,7 @@ export default function ItemsDownloadPage() {
             <tr>
               <td>${escapeHtml(item.ean13 || '-')}</td>
               <td>${escapeHtml(item.code || '-')}</td>
+              ${includeSkuInPdf ? `<td>${escapeHtml(item.sku || '-')}</td>` : ''}
               <td>${escapeHtml(item.description || '-')}</td>
             </tr>
           `;
@@ -597,6 +602,7 @@ export default function ItemsDownloadPage() {
                 <tr>
                   <th>EAN13</th>
                   <th>Artículo</th>
+                  ${includeSkuInPdf ? '<th>SKU</th>' : ''}
                   <th>Descripción</th>
                 </tr>
               </thead>
@@ -641,6 +647,14 @@ export default function ItemsDownloadPage() {
         <div className="flex-between">
           <h2>Buscar artículos para descarga o impresión</h2>
           <div className="inline-actions">
+            <label style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center', color: '#475569', fontSize: '0.85rem' }}>
+              <input
+                type="checkbox"
+                checked={includeSkuInPdf}
+                onChange={event => setIncludeSkuInPdf(event.target.checked)}
+              />
+              Mostrar SKU en PDF
+            </label>
             <button
               type="button"
               className="secondary-button"
@@ -793,6 +807,7 @@ export default function ItemsDownloadPage() {
                   <th>Seleccionar</th>
                   <th>EAN13</th>
                   <th>Artículo</th>
+                  {includeSkuInPdf && <th>SKU</th>}
                   <th>Descripción</th>
                   <th>Etiqueta</th>
                 </tr>
@@ -812,6 +827,7 @@ export default function ItemsDownloadPage() {
                       </td>
                       <td>{buildItemEan13(item.sku, item.unitsPerBox) || '-'}</td>
                       <td>{item.code}</td>
+                      {includeSkuInPdf && <td>{item.sku || '-'}</td>}
                       <td>{item.description}</td>
                       <td>
                         <button type="button" className="secondary-button" onClick={() => handlePrintSingleLabel(item)}>
@@ -823,7 +839,7 @@ export default function ItemsDownloadPage() {
                 })}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                    <td colSpan={includeSkuInPdf ? 6 : 5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron artículos para los filtros seleccionados.
                     </td>
                   </tr>
