@@ -40,26 +40,35 @@ function uniqueValues(values) {
 }
 
 function deriveSkusFromInternalEan13(value) {
-  const digits = String(value || '').replace(/\D/g, '');
-  if (!/^04\d{10}\d$/.test(digits)) {
-    return [];
-  }
-  const base12 = digits.slice(0, 12);
-  if (computeEan13CheckDigit(base12) !== digits[12]) {
-    return [];
-  }
+  const rawDigits = String(value || '').replace(/\D/g, '');
+  const eanCandidates = uniqueValues([
+    rawDigits,
+    // Algunos lectores envían los EAN-13 que empiezan con 0 como UPC-A de 12 dígitos.
+    rawDigits.length === 12 ? `0${rawDigits}` : null
+  ]);
 
-  const candidates = [];
-  // Formato actual: 04 + SKU de 6 dígitos + 0000 + verificador.
-  if (digits.slice(8, 12) === '0000') {
-    candidates.push(digits.slice(2, 8));
-  }
-  // Formato legado: 04 + SKU llevado a 7 dígitos + 000 + verificador.
-  // Como el SKU guardado es de 6 dígitos, se toma el final del segmento.
-  if (digits.slice(9, 12) === '000') {
-    candidates.push(digits.slice(2, 9).slice(-6));
-  }
-  return uniqueValues(candidates);
+  const skuCandidates = [];
+  eanCandidates.forEach(digits => {
+    if (!/^04\d{10}\d$/.test(digits)) {
+      return;
+    }
+    const base12 = digits.slice(0, 12);
+    if (computeEan13CheckDigit(base12) !== digits[12]) {
+      return;
+    }
+
+    // Formato actual: 04 + SKU de 6 dígitos + 0000 + verificador.
+    if (digits.slice(8, 12) === '0000') {
+      skuCandidates.push(digits.slice(2, 8));
+    }
+    // Formato legado: 04 + SKU llevado a 7 dígitos + 000 + verificador.
+    // Como el SKU guardado es de 6 dígitos, se toma el final del segmento.
+    if (digits.slice(9, 12) === '000') {
+      skuCandidates.push(digits.slice(2, 9).slice(-6));
+    }
+  });
+
+  return uniqueValues(skuCandidates);
 }
 
 function buildInternalEan13FromSku(sku) {
