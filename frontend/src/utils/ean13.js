@@ -34,3 +34,22 @@ export function buildItemEan13(sku, _unitsPerBox) {
 
   return `${base12}${checkDigit}`;
 }
+
+
+export function buildLegacyItemEan13(sku) {
+  const skuDigits = onlyDigits(sku);
+  if (!skuDigits) {
+    return '';
+  }
+
+  const skuSegment = skuDigits.padStart(7, '0').slice(-7);
+  const unitsSegment = '000';
+  const base12 = `04${skuSegment}${unitsSegment}`;
+  const checkDigit = computeCheckDigit(base12);
+
+  if (checkDigit === null) {
+    return '';
+  }
+
+  return `${base12}${checkDigit}`;
+}
