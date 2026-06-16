@@ -158,10 +158,10 @@ export default function BarcodeReceptionPage() {
         return;
       }
       addScannedItem(exactMatch);
-      setScanValue('');
     } catch (err) {
       setError(err);
     } finally {
+      setScanValue('');
       setScanning(false);
       focusScanner();
     }
