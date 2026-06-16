@@ -24,6 +24,20 @@ function normalizeBarcodeValue(value) {
   return typeof value === 'string' ? value.replace(/\s+/g, '').trim() : '';
 }
 
+function getBarcodeSearchValues(value) {
+  const normalized = normalizeBarcodeValue(value);
+  if (!normalized) {
+    return [];
+  }
+  const digits = normalized.replace(/\D/g, '');
+  return Array.from(
+    new Set([
+      normalized,
+      digits.length === 12 ? `0${digits}` : null
+    ].filter(Boolean))
+  );
+}
+
 function normalizeItem(item) {
   return {
     id: item?.id || item?._id || '',
@@ -160,9 +174,10 @@ export default function BarcodeReceptionPage() {
     setError(null);
     setScanMessage('');
     try {
-      const response = await api.get('/stock/items', { query: { search: normalizedCode, limit: 10 } });
-      const matches = Array.isArray(response) ? response : [];
-      const scanned = normalizedCode.toLowerCase();
+      const searchValues = getBarcodeSearchValues(normalizedCode);
+      const responses = await Promise.all(searchValues.map(value => api.get('/stock/items', { query: { search: value, limit: 10 } })));
+      const matches = responses.flatMap(response => (Array.isArray(response) ? response : []));
+      const scannedValues = searchValues.map(value => value.toLowerCase());
       const getMatchScore = item => {
         const code = normalizeBarcodeValue(item.code).toLowerCase();
         const sku = normalizeBarcodeValue(item.sku).toLowerCase();
@@ -170,10 +185,10 @@ export default function BarcodeReceptionPage() {
         const legacyInternalBarcode = normalizeBarcodeValue(buildLegacyItemEan13(item.sku)).toLowerCase();
         const returnedBarcodes = (Array.isArray(item.internalBarcodes) ? item.internalBarcodes : [])
           .map(value => normalizeBarcodeValue(value).toLowerCase());
-        if (code === scanned || sku === scanned) return 4;
-        if (legacyInternalBarcode === scanned) return 3;
-        if (currentInternalBarcode === scanned) return 2;
-        if (returnedBarcodes.includes(scanned)) return 1;
+        if (scannedValues.includes(code) || scannedValues.includes(sku)) return 4;
+        if (scannedValues.includes(legacyInternalBarcode)) return 3;
+        if (scannedValues.includes(currentInternalBarcode)) return 2;
+        if (returnedBarcodes.some(barcode => scannedValues.includes(barcode))) return 1;
         return 0;
       };
       const exactMatch = matches
