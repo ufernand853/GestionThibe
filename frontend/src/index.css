@@ -967,3 +967,29 @@ th {
   gap: 0.4rem;
   min-width: 110px;
 }
+
+.barcode-reception-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.barcode-scan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border-color: #93c5fd;
+  background: linear-gradient(180deg, #eff6ff 0%, #fff 72%);
+}
+
+.barcode-scan-input input {
+  font-size: 1.35rem;
+  padding: 0.85rem 1rem;
+  letter-spacing: 0.06em;
+}
+
+.barcode-scan-message {
+  margin: 0;
+  color: #1e3a8a;
+  font-weight: 600;
+}
