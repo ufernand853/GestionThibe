@@ -3,6 +3,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { buildItemEan13 } from '../../utils/ean13.js';
 
 const SCAN_MODE_OPTIONS = [
   { value: 'boxes', label: 'Cajas' },
@@ -19,10 +20,16 @@ function normalizeLocation(location) {
   };
 }
 
+function normalizeBarcodeValue(value) {
+  return typeof value === 'string' ? value.replace(/\s+/g, '').trim() : '';
+}
+
 function normalizeItem(item) {
   return {
     id: item?.id || item?._id || '',
     code: item?.code || '',
+    sku: item?.sku || '',
+    internalBarcode: item?.internalBarcode || buildItemEan13(item?.sku),
     description: item?.description || '',
     stock: item?.stock || {}
   };
@@ -142,7 +149,7 @@ export default function BarcodeReceptionPage() {
   );
 
   const handleScan = useCallback(async () => {
-    const normalizedCode = scanValue.trim();
+    const normalizedCode = normalizeBarcodeValue(scanValue);
     if (!normalizedCode || scanning) {
       return;
     }
@@ -152,7 +159,13 @@ export default function BarcodeReceptionPage() {
     try {
       const response = await api.get('/stock/items', { query: { search: normalizedCode, limit: 10 } });
       const matches = Array.isArray(response) ? response : [];
-      const exactMatch = matches.find(item => item.code?.trim().toLowerCase() === normalizedCode.toLowerCase());
+      const exactMatch = matches.find(item => {
+        const code = normalizeBarcodeValue(item.code).toLowerCase();
+        const sku = normalizeBarcodeValue(item.sku).toLowerCase();
+        const internalBarcode = normalizeBarcodeValue(item.internalBarcode || buildItemEan13(item.sku)).toLowerCase();
+        const scanned = normalizedCode.toLowerCase();
+        return code === scanned || sku === scanned || internalBarcode === scanned;
+      });
       if (!exactMatch) {
         setScanMessage(`No se encontró un artículo activo con el código ${normalizedCode}.`);
         return;

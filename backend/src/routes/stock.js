@@ -21,6 +21,46 @@ const { recordAuditEvent } = require('../services/auditService');
 const { parseDateBoundary } = require('../utils/dateRange');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
 
+
+function computeEan13CheckDigit(base12) {
+  if (!/^\d{12}$/.test(base12)) {
+    return null;
+  }
+  let sum = 0;
+  for (let index = 0; index < base12.length; index += 1) {
+    const digit = Number(base12[index]);
+    const position = index + 1;
+    sum += position % 2 === 0 ? digit * 3 : digit;
+  }
+  return String((10 - (sum % 10)) % 10);
+}
+
+function deriveSkuFromInternalEan13(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!/^04\d{10}\d$/.test(digits)) {
+    return null;
+  }
+  const base12 = digits.slice(0, 12);
+  if (computeEan13CheckDigit(base12) !== digits[12]) {
+    return null;
+  }
+  if (digits.slice(8, 12) !== '0000') {
+    return null;
+  }
+  return digits.slice(2, 8);
+}
+
+function buildInternalEan13FromSku(sku) {
+  const skuDigits = String(sku || '').replace(/\D/g, '');
+  if (!skuDigits) {
+    return null;
+  }
+  const skuSegment = skuDigits.padStart(6, '0').slice(-6);
+  const base12 = `04${skuSegment}0000`;
+  const checkDigit = computeEan13CheckDigit(base12);
+  return checkDigit === null ? null : `${base12}${checkDigit}`;
+}
+
 function escapeRegex(value) {
   return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
@@ -296,7 +336,12 @@ router.get(
     const normalizedSearch = typeof search === 'string' ? search.trim() : '';
     if (normalizedSearch) {
       const regex = new RegExp(escapeRegex(normalizedSearch), 'i');
-      filter.$or = [{ code: regex }, { description: regex }];
+      const searchOrFilters = [{ code: regex }, { sku: regex }, { description: regex }];
+      const internalSku = deriveSkuFromInternalEan13(normalizedSearch);
+      if (internalSku) {
+        searchOrFilters.push({ sku: new RegExp(`^${escapeRegex(internalSku)}$`, 'i') });
+      }
+      filter.$or = searchOrFilters;
     }
 
     // El tope anterior de 500 artículos impedía buscar códigos que quedaban
@@ -307,11 +352,13 @@ router.get(
     const items = await Item.find(filter)
       .sort({ code: 1 })
       .limit(limit)
-      .select({ code: 1, description: 1, attributes: 1, group: 1, stock: 1 });
+      .select({ code: 1, sku: 1, description: 1, attributes: 1, group: 1, stock: 1 });
 
     const serialized = items.map(item => ({
       id: item.id,
       code: item.code,
+      sku: item.sku || null,
+      internalBarcode: buildInternalEan13FromSku(item.sku),
       description: item.description,
       groupId: item.group ? String(item.group) : null,
       attributes:
