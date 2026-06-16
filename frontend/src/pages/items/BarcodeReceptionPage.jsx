@@ -3,7 +3,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-import { buildItemEan13 } from '../../utils/ean13.js';
+import { buildItemEan13, buildLegacyItemEan13 } from '../../utils/ean13.js';
 
 const SCAN_MODE_OPTIONS = [
   { value: 'boxes', label: 'Cajas' },
@@ -30,6 +30,9 @@ function normalizeItem(item) {
     code: item?.code || '',
     sku: item?.sku || '',
     internalBarcode: item?.internalBarcode || buildItemEan13(item?.sku),
+    internalBarcodes: Array.isArray(item?.internalBarcodes)
+      ? item.internalBarcodes
+      : [item?.internalBarcode, buildItemEan13(item?.sku), buildLegacyItemEan13(item?.sku)].filter(Boolean),
     description: item?.description || '',
     stock: item?.stock || {}
   };
@@ -159,13 +162,24 @@ export default function BarcodeReceptionPage() {
     try {
       const response = await api.get('/stock/items', { query: { search: normalizedCode, limit: 10 } });
       const matches = Array.isArray(response) ? response : [];
-      const exactMatch = matches.find(item => {
+      const scanned = normalizedCode.toLowerCase();
+      const getMatchScore = item => {
         const code = normalizeBarcodeValue(item.code).toLowerCase();
         const sku = normalizeBarcodeValue(item.sku).toLowerCase();
-        const internalBarcode = normalizeBarcodeValue(item.internalBarcode || buildItemEan13(item.sku)).toLowerCase();
-        const scanned = normalizedCode.toLowerCase();
-        return code === scanned || sku === scanned || internalBarcode === scanned;
-      });
+        const currentInternalBarcode = normalizeBarcodeValue(item.internalBarcode || buildItemEan13(item.sku)).toLowerCase();
+        const legacyInternalBarcode = normalizeBarcodeValue(buildLegacyItemEan13(item.sku)).toLowerCase();
+        const returnedBarcodes = (Array.isArray(item.internalBarcodes) ? item.internalBarcodes : [])
+          .map(value => normalizeBarcodeValue(value).toLowerCase());
+        if (code === scanned || sku === scanned) return 4;
+        if (legacyInternalBarcode === scanned) return 3;
+        if (currentInternalBarcode === scanned) return 2;
+        if (returnedBarcodes.includes(scanned)) return 1;
+        return 0;
+      };
+      const exactMatch = matches
+        .map(item => ({ item, score: getMatchScore(item) }))
+        .filter(match => match.score > 0)
+        .sort((a, b) => b.score - a.score)[0]?.item;
       if (!exactMatch) {
         setScanMessage(`No se encontró un artículo activo con el código ${normalizedCode}.`);
         return;

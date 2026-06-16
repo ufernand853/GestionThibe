@@ -35,19 +35,31 @@ function computeEan13CheckDigit(base12) {
   return String((10 - (sum % 10)) % 10);
 }
 
-function deriveSkuFromInternalEan13(value) {
+function uniqueValues(values) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function deriveSkusFromInternalEan13(value) {
   const digits = String(value || '').replace(/\D/g, '');
   if (!/^04\d{10}\d$/.test(digits)) {
-    return null;
+    return [];
   }
   const base12 = digits.slice(0, 12);
   if (computeEan13CheckDigit(base12) !== digits[12]) {
-    return null;
+    return [];
   }
-  if (digits.slice(8, 12) !== '0000') {
-    return null;
+
+  const candidates = [];
+  // Formato actual: 04 + SKU de 6 dígitos + 0000 + verificador.
+  if (digits.slice(8, 12) === '0000') {
+    candidates.push(digits.slice(2, 8));
   }
-  return digits.slice(2, 8);
+  // Formato legado: 04 + SKU llevado a 7 dígitos + 000 + verificador.
+  // Como el SKU guardado es de 6 dígitos, se toma el final del segmento.
+  if (digits.slice(9, 12) === '000') {
+    candidates.push(digits.slice(2, 9).slice(-6));
+  }
+  return uniqueValues(candidates);
 }
 
 function buildInternalEan13FromSku(sku) {
@@ -59,6 +71,21 @@ function buildInternalEan13FromSku(sku) {
   const base12 = `04${skuSegment}0000`;
   const checkDigit = computeEan13CheckDigit(base12);
   return checkDigit === null ? null : `${base12}${checkDigit}`;
+}
+
+function buildLegacyInternalEan13FromSku(sku) {
+  const skuDigits = String(sku || '').replace(/\D/g, '');
+  if (!skuDigits) {
+    return null;
+  }
+  const skuSegment = skuDigits.padStart(7, '0').slice(-7);
+  const base12 = `04${skuSegment}000`;
+  const checkDigit = computeEan13CheckDigit(base12);
+  return checkDigit === null ? null : `${base12}${checkDigit}`;
+}
+
+function buildInternalEan13VariantsFromSku(sku) {
+  return uniqueValues([buildInternalEan13FromSku(sku), buildLegacyInternalEan13FromSku(sku)]);
 }
 
 function escapeRegex(value) {
@@ -337,10 +364,10 @@ router.get(
     if (normalizedSearch) {
       const regex = new RegExp(escapeRegex(normalizedSearch), 'i');
       const searchOrFilters = [{ code: regex }, { sku: regex }, { description: regex }];
-      const internalSku = deriveSkuFromInternalEan13(normalizedSearch);
-      if (internalSku) {
+      const internalSkus = deriveSkusFromInternalEan13(normalizedSearch);
+      internalSkus.forEach(internalSku => {
         searchOrFilters.push({ sku: new RegExp(`^${escapeRegex(internalSku)}$`, 'i') });
-      }
+      });
       filter.$or = searchOrFilters;
     }
 
@@ -359,6 +386,7 @@ router.get(
       code: item.code,
       sku: item.sku || null,
       internalBarcode: buildInternalEan13FromSku(item.sku),
+      internalBarcodes: buildInternalEan13VariantsFromSku(item.sku),
       description: item.description,
       groupId: item.group ? String(item.group) : null,
       attributes:
