@@ -238,6 +238,12 @@ export default function ItemsPage() {
     return typeof rawId === 'string' ? rawId : String(rawId);
   }, []);
 
+  const getGroupId = useCallback(group => {
+    const rawId = group?.id ?? group?._id;
+    if (!rawId) return '';
+    return typeof rawId === 'string' ? rawId : String(rawId);
+  }, []);
+
   const sortGroupsByName = useCallback(
     list => [...list].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
     []
