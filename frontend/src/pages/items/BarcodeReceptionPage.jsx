@@ -12,11 +12,6 @@ const SCAN_MODE_OPTIONS = [
   { value: 'units', label: 'Unidades' }
 ];
 
-const OPERATION_OPTIONS = [
-  { value: 'reception', label: 'Recepción directa' },
-  { value: 'request', label: 'Solicitud de movimiento' }
-];
-
 const ORIGIN_PRIORITY = [
   'Guadalupe',
   'Justicia',
@@ -117,7 +112,6 @@ export default function BarcodeReceptionPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canReceive = permissions.includes('stock.approve');
   const canRequest = permissions.includes('stock.request');
   const hasRestrictedRequesterRole = ['Operador', 'Supervisor'].includes(user?.role);
   const hasRequesterRestrictions = hasRestrictedRequesterRole && canRequest;
@@ -125,7 +119,6 @@ export default function BarcodeReceptionPage() {
   const scannerRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState([]);
-  const [operationMode, setOperationMode] = useState(canReceive ? 'reception' : 'request');
   const [originLocationId, setOriginLocationId] = useState('');
   const [destinationLocationId, setDestinationLocationId] = useState('');
   const [scanMode, setScanMode] = useState('boxes');
@@ -140,14 +133,6 @@ export default function BarcodeReceptionPage() {
   const [lineSearchTerm, setLineSearchTerm] = useState('');
   const [lineItemFilter, setLineItemFilter] = useState('');
 
-  const activeOrigins = useMemo(
-    () => locations.filter(location => location.type === 'externalOrigin' && location.status !== 'inactive'),
-    [locations]
-  );
-  const activeWarehouses = useMemo(
-    () => locations.filter(location => location.type === 'warehouse' && location.status !== 'inactive'),
-    [locations]
-  );
   const activeLocations = useMemo(
     () => locations.filter(location => location.status !== 'inactive'),
     [locations]
@@ -170,27 +155,16 @@ export default function BarcodeReceptionPage() {
     return resolveMovementType({ fromType: selectedOrigin.type, toType: selectedDestination.type });
   }, [selectedDestination, selectedOrigin]);
 
-
   useEffect(() => {
-    if (operationMode === 'reception' && !canReceive && canRequest) {
-      setOperationMode('request');
-      return;
-    }
-    if (operationMode === 'request' && !canRequest && canReceive) {
-      setOperationMode('reception');
-    }
-  }, [canReceive, canRequest, operationMode]);
-
-  useEffect(() => {
-    const originOptions = operationMode === 'reception' ? activeOrigins : requestOrigins;
-    const destinationOptions = operationMode === 'reception' ? activeWarehouses : requestDestinations;
+    const originOptions = requestOrigins;
+    const destinationOptions = requestDestinations;
     if (originOptions.length > 0 && !originOptions.some(location => location.id === originLocationId)) {
       setOriginLocationId(originOptions[0].id);
     }
     if (destinationOptions.length > 0 && !destinationOptions.some(location => location.id === destinationLocationId)) {
       setDestinationLocationId(destinationOptions[0].id);
     }
-  }, [activeOrigins, activeWarehouses, destinationLocationId, operationMode, originLocationId, requestDestinations, requestOrigins]);
+  }, [destinationLocationId, originLocationId, requestDestinations, requestOrigins]);
 
   const focusScanner = useCallback(() => {
     window.setTimeout(() => scannerRef.current?.focus(), 0);
@@ -208,10 +182,13 @@ export default function BarcodeReceptionPage() {
           ? response.map(normalizeLocation).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
           : [];
         setLocations(normalized);
-        const firstOrigin = normalized.find(location => location.type === 'externalOrigin' && location.status !== 'inactive');
-        const firstWarehouse = normalized.find(location => location.type === 'warehouse' && location.status !== 'inactive');
-        setOriginLocationId(firstOrigin?.id || firstWarehouse?.id || '');
-        setDestinationLocationId(firstWarehouse?.id || '');
+        const activeNormalized = normalized.filter(location => location.status !== 'inactive');
+        const firstOrigin = activeNormalized
+          .filter(location => (hasRequesterRestrictions ? location.type === 'warehouse' : ['warehouse', 'externalOrigin'].includes(location.type)))
+          .sort(compareLocationsByRequestPriority)[0];
+        const firstDestination = activeNormalized.find(location => ['warehouse', 'external'].includes(location.type));
+        setOriginLocationId(firstOrigin?.id || '');
+        setDestinationLocationId(firstDestination?.id || '');
       } catch (err) {
         if (active) setError(err);
       } finally {
@@ -222,7 +199,7 @@ export default function BarcodeReceptionPage() {
     return () => {
       active = false;
     };
-  }, [api]);
+  }, [api, hasRequesterRestrictions]);
 
   useEffect(() => {
     if (!loading) {
@@ -360,8 +337,7 @@ export default function BarcodeReceptionPage() {
 
   const handleConfirm = async () => {
     if (saving) return;
-    if (operationMode === 'reception' && !canReceive) return;
-    if (operationMode === 'request' && !canRequest) return;
+    if (!canRequest) return;
     if (!originLocationId || !destinationLocationId) {
       setError(new Error('Seleccioná un origen externo y un destino.'));
       return;
@@ -386,31 +362,21 @@ export default function BarcodeReceptionPage() {
       if (originLocationId === destinationLocationId) {
         throw new Error('La ubicación de origen y destino no pueden ser la misma.');
       }
-      if (operationMode === 'request' && hasRequesterRestrictions) {
+      if (hasRequesterRestrictions) {
         const isFromWarehouse = selectedOrigin?.type === 'warehouse';
         const isToAllowed = ['warehouse', 'external'].includes(selectedDestination?.type);
         if (!isFromWarehouse || !isToAllowed) {
           throw new Error('Como operador o supervisor solo puede solicitar desde depósitos internos hacia depósitos internos o externos.');
         }
       }
-      if (operationMode === 'reception') {
-        const response = await api.post('/stock/barcode-reception', {
-          fromLocation: originLocationId,
-          toLocation: destinationLocationId,
-          lines: payloadLines,
-          reason
-        });
-        setSuccessMessage(`Recepción confirmada: ${response.lines?.length || payloadLines.length} artículo(s) ingresados.`);
-      } else {
-        await Promise.all(payloadLines.map(line => api.post('/stock/request', {
-          itemId: line.itemId,
-          fromLocation: originLocationId,
-          toLocation: destinationLocationId,
-          quantity: line.quantity,
-          reason
-        })));
-        setSuccessMessage(`Solicitudes registradas: ${payloadLines.length} artículo(s).`);
-      }
+      await Promise.all(payloadLines.map(line => api.post('/stock/request', {
+        itemId: line.itemId,
+        fromLocation: originLocationId,
+        toLocation: destinationLocationId,
+        quantity: line.quantity,
+        reason
+      })));
+      setSuccessMessage(`Solicitudes registradas: ${payloadLines.length} artículo(s).`);
       setLines([]);
       setLineSearchTerm('');
       setLineItemFilter('');
@@ -429,11 +395,11 @@ export default function BarcodeReceptionPage() {
     return <LoadingIndicator message="Cargando recepción por códigos…" />;
   }
 
-  if (!canReceive && !canRequest) {
+  if (!canRequest) {
     return (
       <div className="section-card">
         <h2>Movimientos por códigos de barra</h2>
-        <ErrorMessage error="Necesitás permiso de stock para operar con códigos de barra." />
+        <ErrorMessage error="Necesitás permiso de solicitud de stock para operar con códigos de barra." />
       </div>
     );
   }
@@ -454,7 +420,7 @@ export default function BarcodeReceptionPage() {
       {successMessage && <div className="success-message">{successMessage}</div>}
 
       <div className="section-card">
-        <h3>{operationMode === 'reception' ? 'Nueva recepción por código' : 'Nueva solicitud por código'}</h3>
+        <h3>Nueva solicitud por código</h3>
         <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           <div className="input-group">
             <label htmlFor="barcodeScan">Código de barra *</label>
@@ -480,18 +446,10 @@ export default function BarcodeReceptionPage() {
             {scanMessage && <p className="barcode-scan-message">{scanMessage}</p>}
           </div>
           <div className="input-group">
-            <label htmlFor="operationMode">Operación</label>
-            <select id="operationMode" value={operationMode} onChange={event => setOperationMode(event.target.value)}>
-              {OPERATION_OPTIONS.filter(option => (option.value === 'reception' ? canReceive : canRequest)).map(option => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="input-group">
             <label htmlFor="originLocationId">Ubicación origen *</label>
             <select id="originLocationId" value={originLocationId} onChange={event => setOriginLocationId(event.target.value)}>
               <option value="">Seleccione origen</option>
-              {(operationMode === 'reception' ? activeOrigins : requestOrigins).map(location => (
+              {requestOrigins.map(location => (
                 <option key={location.id} value={location.id}>{location.name}{locationTypeSuffix(location.type)}</option>
               ))}
             </select>
@@ -500,7 +458,7 @@ export default function BarcodeReceptionPage() {
             <label htmlFor="destinationLocationId">Ubicación destino *</label>
             <select id="destinationLocationId" value={destinationLocationId} onChange={event => setDestinationLocationId(event.target.value)}>
               <option value="">Seleccione destino</option>
-              {(operationMode === 'reception' ? activeWarehouses : requestDestinations).map(location => (
+              {requestDestinations.map(location => (
                 <option key={location.id} value={location.id}>{location.name}{locationTypeSuffix(location.type)}</option>
               ))}
             </select>
@@ -524,7 +482,7 @@ export default function BarcodeReceptionPage() {
           </div>
           <div className="inline-actions" style={{ gridColumn: '1 / -1' }}>
             <button type="button" disabled={lines.length === 0 || saving} onClick={handleConfirm}>
-              {saving ? 'Confirmando…' : operationMode === 'reception' ? 'Registrar recepción' : 'Registrar solicitudes'}
+              {saving ? 'Confirmando…' : 'Registrar solicitudes'}
             </button>
             <button type="button" className="secondary-button" disabled={lines.length === 0 || saving} onClick={() => setLines([])}>
               Vaciar lecturas
@@ -535,7 +493,7 @@ export default function BarcodeReceptionPage() {
 
       <div className="section-card">
         <div className="flex-between">
-          <h3>{operationMode === 'reception' ? 'Recepciones registradas' : 'Solicitudes registradas'}</h3>
+          <h3>Solicitudes registradas</h3>
           <div className="inline-actions" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
             <div className="input-group" style={{ minWidth: '220px' }}>
               <label htmlFor="lineFilterSearch">Buscar artículo</label>
