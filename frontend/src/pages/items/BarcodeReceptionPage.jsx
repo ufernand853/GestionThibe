@@ -240,7 +240,7 @@ export default function BarcodeReceptionPage() {
   const handleConfirm = async () => {
     if (!canReceive || saving) return;
     if (!originLocationId || !destinationLocationId) {
-      setError(new Error('Seleccioná un origen externo y un depósito destino.'));
+      setError(new Error('Seleccioná un origen externo y un destino.'));
       return;
     }
     const payloadLines = lines
@@ -296,7 +296,7 @@ export default function BarcodeReceptionPage() {
         <div>
           <h2>Recepción por códigos de barra</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-            Seleccioná el depósito destino y escaneá cajas o unidades. Cada lectura suma 1 al artículo encontrado.
+            Seleccioná el destino y escaneá cajas o unidades. Cada lectura suma 1 al artículo encontrado.
           </p>
         </div>
         <span className="badge">Lecturas: {totalScans}</span>
@@ -318,7 +318,7 @@ export default function BarcodeReceptionPage() {
             <p className="input-helper">Usá una ubicación de tipo “Origen externo”.</p>
           </div>
           <div className="input-group">
-            <label htmlFor="destinationLocationId">Depósito destino</label>
+            <label htmlFor="destinationLocationId">Destino</label>
             <select id="destinationLocationId" value={destinationLocationId} onChange={event => setDestinationLocationId(event.target.value)}>
               <option value="">Seleccionar depósito</option>
               {activeWarehouses.map(location => (
