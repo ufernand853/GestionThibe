@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { buildItemEan13, buildLegacyItemEan13 } from '../../utils/ean13.js';
+import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 import { MOVEMENT_TYPE_BADGE_CLASS, MOVEMENT_TYPE_LABELS, resolveMovementType, locationTypeSuffix } from '../../utils/movements.js';
 
 const SCAN_MODE_OPTIONS = [
@@ -14,6 +15,17 @@ const SCAN_MODE_OPTIONS = [
 const OPERATION_OPTIONS = [
   { value: 'reception', label: 'Recepción directa' },
   { value: 'request', label: 'Solicitud de movimiento' }
+];
+
+const ORIGIN_PRIORITY = [
+  'Guadalupe',
+  'Justicia',
+  'Arnavia',
+  'Flex',
+  'Sobrestock Arenal Import',
+  'Sobrestock Thibe',
+  'Sobrestock General',
+  'Sobrestock Thibe Kids'
 ];
 
 function normalizeLocation(location) {
@@ -56,6 +68,40 @@ function normalizeItem(item) {
     description: item?.description || '',
     stock: item?.stock || {}
   };
+}
+
+function compareLocationsByRequestPriority(a, b) {
+  const priorityMap = new Map(ORIGIN_PRIORITY.map((name, index) => [name.toLowerCase(), index]));
+  const aName = (a.name || '').toLowerCase();
+  const bName = (b.name || '').toLowerCase();
+  const aPriority = priorityMap.has(aName) ? priorityMap.get(aName) : Number.MAX_SAFE_INTEGER;
+  const bPriority = priorityMap.has(bName) ? priorityMap.get(bName) : Number.MAX_SAFE_INTEGER;
+  if (aPriority !== bPriority) {
+    return aPriority - bPriority;
+  }
+  return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+}
+
+function getWarehouseStockEntries(item, locations) {
+  if (!item?.stock || !Array.isArray(locations)) {
+    return [];
+  }
+  const locationMap = new Map(locations.map(location => [String(location.id), location]));
+  return Object.entries(item.stock)
+    .map(([locationId, quantity]) => {
+      const normalized = ensureQuantity(quantity);
+      if (normalized.boxes === 0 && normalized.units === 0) return null;
+      const location = locationMap.get(String(locationId));
+      if (location?.type && location.type !== 'warehouse') return null;
+      return {
+        locationId,
+        locationName: location?.name || `Depósito ${String(locationId).slice(-4)}`,
+        locationType: location?.type || null,
+        quantity: normalized
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.locationName.localeCompare(b.locationName, 'es', { sensitivity: 'base' }));
 }
 
 function quantityLabel(quantity = {}) {
@@ -105,7 +151,10 @@ export default function BarcodeReceptionPage() {
     [locations]
   );
   const requestOrigins = useMemo(
-    () => activeLocations.filter(location => (hasRequesterRestrictions ? location.type === 'warehouse' : ['warehouse', 'externalOrigin'].includes(location.type))),
+    () => activeLocations
+      .filter(location => (hasRequesterRestrictions ? location.type === 'warehouse' : ['warehouse', 'externalOrigin'].includes(location.type)))
+      .slice()
+      .sort(compareLocationsByRequestPriority),
     [activeLocations, hasRequesterRestrictions]
   );
   const requestDestinations = useMemo(
@@ -192,7 +241,8 @@ export default function BarcodeReceptionPage() {
               code: normalizedItem.code,
               description: normalizedItem.description,
               quantity: quantityIncrement,
-              scans: 1
+              scans: 1,
+              stock: normalizedItem.stock
             },
             ...prev
           ];
@@ -205,7 +255,8 @@ export default function BarcodeReceptionPage() {
                   boxes: (Number(line.quantity.boxes) || 0) + quantityIncrement.boxes,
                   units: (Number(line.quantity.units) || 0) + quantityIncrement.units
                 },
-                scans: (Number(line.scans) || 0) + 1
+                scans: (Number(line.scans) || 0) + 1,
+                stock: normalizedItem.stock || line.stock
               }
             : line
         );
@@ -482,6 +533,7 @@ export default function BarcodeReceptionPage() {
                   <th>Cajas</th>
                   <th>Unidades</th>
                   <th>Lecturas</th>
+                  <th>Stock disponible</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -509,6 +561,23 @@ export default function BarcodeReceptionPage() {
                       />
                     </td>
                     <td>{line.scans}</td>
+                    <td>
+                      {getWarehouseStockEntries(line, locations).length > 0 ? (
+                        <ul className="stock-summary-list stock-summary-list--compact">
+                          {getWarehouseStockEntries(line, locations).map(entry => (
+                            <li key={entry.locationId} className="stock-summary-item">
+                              <span className="stock-summary-location">
+                                {entry.locationName}
+                                {locationTypeSuffix(entry.locationType)}
+                              </span>
+                              <span className="stock-summary-quantity">{formatQuantity(entry.quantity)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span style={{ color: '#94a3b8' }}>Sin stock registrado</span>
+                      )}
+                    </td>
                     <td>
                       <div className="inline-actions">
                         <span className="badge">{quantityLabel(line.quantity)}</span>
