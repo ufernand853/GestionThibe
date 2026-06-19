@@ -137,6 +137,8 @@ export default function BarcodeReceptionPage() {
   const [scanMessage, setScanMessage] = useState('');
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lineSearchTerm, setLineSearchTerm] = useState('');
+  const [lineItemFilter, setLineItemFilter] = useState('');
 
   const activeOrigins = useMemo(
     () => locations.filter(location => location.type === 'externalOrigin' && location.status !== 'inactive'),
@@ -343,6 +345,18 @@ export default function BarcodeReceptionPage() {
   };
 
   const totalScans = useMemo(() => lines.reduce((sum, line) => sum + (Number(line.scans) || 0), 0), [lines]);
+  const filteredLineOptions = useMemo(() => {
+    const search = lineSearchTerm.trim().toLowerCase();
+    return lines.filter(line => {
+      if (!search) return true;
+      return [line.code, line.description].some(value => String(value || '').toLowerCase().includes(search));
+    });
+  }, [lineSearchTerm, lines]);
+  const visibleLines = useMemo(
+    () => filteredLineOptions.filter(line => !lineItemFilter || line.itemId === lineItemFilter),
+    [filteredLineOptions, lineItemFilter]
+  );
+
 
   const handleConfirm = async () => {
     if (saving) return;
@@ -398,6 +412,8 @@ export default function BarcodeReceptionPage() {
         setSuccessMessage(`Solicitudes registradas: ${payloadLines.length} artículo(s).`);
       }
       setLines([]);
+      setLineSearchTerm('');
+      setLineItemFilter('');
       setScanValue('');
       setReason('');
       setScanMessage('Listo para escanear la próxima operación.');
@@ -438,7 +454,31 @@ export default function BarcodeReceptionPage() {
       {successMessage && <div className="success-message">{successMessage}</div>}
 
       <div className="section-card">
-        <div className="form-grid form-grid--spaced">
+        <h3>{operationMode === 'reception' ? 'Nueva recepción por código' : 'Nueva solicitud por código'}</h3>
+        <div className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          <div className="input-group">
+            <label htmlFor="barcodeScan">Código de barra *</label>
+            <input
+              id="barcodeScan"
+              ref={scannerRef}
+              value={scanValue}
+              onChange={event => setScanValue(event.target.value)}
+              onKeyDown={handleScannerKeyDown}
+              autoComplete="off"
+              inputMode="none"
+              placeholder="Escaneá o ingresá el código"
+              disabled={scanning || saving}
+              style={{ marginBottom: '0.5rem' }}
+            />
+            <div className="inline-actions" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button type="button" className="secondary-button" onClick={handleScan} disabled={scanning || saving || !scanValue.trim()}>
+                {scanning ? 'Buscando…' : 'Agregar lectura'}
+              </button>
+              <button type="button" className="secondary-button" onClick={focusScanner}>Enfocar lector</button>
+            </div>
+            <p className="input-helper">La lectora debe enviar Enter al finalizar; cada lectura suma 1 caja o unidad.</p>
+            {scanMessage && <p className="barcode-scan-message">{scanMessage}</p>}
+          </div>
           <div className="input-group">
             <label htmlFor="operationMode">Operación</label>
             <select id="operationMode" value={operationMode} onChange={event => setOperationMode(event.target.value)}>
@@ -448,19 +488,18 @@ export default function BarcodeReceptionPage() {
             </select>
           </div>
           <div className="input-group">
-            <label htmlFor="originLocationId">Origen</label>
+            <label htmlFor="originLocationId">Ubicación origen *</label>
             <select id="originLocationId" value={originLocationId} onChange={event => setOriginLocationId(event.target.value)}>
-              <option value="">Seleccionar origen</option>
+              <option value="">Seleccione origen</option>
               {(operationMode === 'reception' ? activeOrigins : requestOrigins).map(location => (
                 <option key={location.id} value={location.id}>{location.name}{locationTypeSuffix(location.type)}</option>
               ))}
             </select>
-            <p className="input-helper">Para baja elegí un destino externo; para movimiento elegí depósitos internos.</p>
           </div>
           <div className="input-group">
-            <label htmlFor="destinationLocationId">Destino</label>
+            <label htmlFor="destinationLocationId">Ubicación destino *</label>
             <select id="destinationLocationId" value={destinationLocationId} onChange={event => setDestinationLocationId(event.target.value)}>
-              <option value="">Seleccionar depósito</option>
+              <option value="">Seleccione destino</option>
               {(operationMode === 'reception' ? activeWarehouses : requestDestinations).map(location => (
                 <option key={location.id} value={location.id}>{location.name}{locationTypeSuffix(location.type)}</option>
               ))}
@@ -468,61 +507,66 @@ export default function BarcodeReceptionPage() {
           </div>
           <div className="input-group">
             <label htmlFor="scanMode">Cada lectura suma</label>
-            <select id="scanMode" value={scanMode} onChange={event => setScanMode(event.target.value)}>
-              {SCAN_MODE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            {currentMovementType && (
-              <span className={`badge ${MOVEMENT_TYPE_BADGE_CLASS[currentMovementType] || MOVEMENT_TYPE_BADGE_CLASS.transfer}`}>
-                {MOVEMENT_TYPE_LABELS[currentMovementType]}
-              </span>
-            )}
+            <div className="quantity-with-flag">
+              <select id="scanMode" value={scanMode} onChange={event => setScanMode(event.target.value)}>
+                {SCAN_MODE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              {currentMovementType && (
+                <span className={`badge ${MOVEMENT_TYPE_BADGE_CLASS[currentMovementType] || MOVEMENT_TYPE_BADGE_CLASS.transfer}`}>
+                  {MOVEMENT_TYPE_LABELS[currentMovementType]}
+                </span>
+              )}
+            </div>
           </div>
           <div className="input-group" style={{ gridColumn: '1 / -1' }}>
             <label htmlFor="reason">Motivo</label>
             <textarea id="reason" value={reason} onChange={event => setReason(event.target.value)} rows={2} placeholder="Opcional" />
           </div>
+          <div className="inline-actions" style={{ gridColumn: '1 / -1' }}>
+            <button type="button" disabled={lines.length === 0 || saving} onClick={handleConfirm}>
+              {saving ? 'Confirmando…' : operationMode === 'reception' ? 'Registrar recepción' : 'Registrar solicitudes'}
+            </button>
+            <button type="button" className="secondary-button" disabled={lines.length === 0 || saving} onClick={() => setLines([])}>
+              Vaciar lecturas
+            </button>
+          </div>
         </div>
-      </div>
-
-      <div className="section-card barcode-scan-card">
-        <div className="input-group barcode-scan-input">
-          <label htmlFor="barcodeScan">Código escaneado</label>
-          <input
-            id="barcodeScan"
-            ref={scannerRef}
-            value={scanValue}
-            onChange={event => setScanValue(event.target.value)}
-            onKeyDown={handleScannerKeyDown}
-            autoComplete="off"
-            inputMode="none"
-            placeholder="Escaneá y presioná Enter"
-            disabled={scanning || saving}
-          />
-          <p className="input-helper">La lectora Bluetooth debe estar configurada como teclado y enviar Enter al finalizar.</p>
-        </div>
-        <div className="inline-actions">
-          <button type="button" onClick={handleScan} disabled={scanning || saving || !scanValue.trim()}>
-            {scanning ? 'Buscando…' : 'Agregar lectura'}
-          </button>
-          <button type="button" className="secondary-button" onClick={focusScanner}>Enfocar lector</button>
-        </div>
-        {scanMessage && <p className="barcode-scan-message">{scanMessage}</p>}
       </div>
 
       <div className="section-card">
         <div className="flex-between">
-          <h3>Resumen de operación</h3>
-          <div className="inline-actions">
-            <button type="button" className="secondary-button" disabled={lines.length === 0 || saving} onClick={() => setLines([])}>
-              Vaciar
-            </button>
-            <button type="button" disabled={lines.length === 0 || saving} onClick={handleConfirm}>
-              {saving ? 'Confirmando…' : operationMode === 'reception' ? 'Confirmar ingreso' : 'Registrar solicitudes'}
-            </button>
+          <h3>{operationMode === 'reception' ? 'Recepciones registradas' : 'Solicitudes registradas'}</h3>
+          <div className="inline-actions" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div className="input-group" style={{ minWidth: '220px' }}>
+              <label htmlFor="lineFilterSearch">Buscar artículo</label>
+              <input
+                id="lineFilterSearch"
+                type="search"
+                placeholder="Código o descripción"
+                value={lineSearchTerm}
+                onChange={event => {
+                  setLineSearchTerm(event.target.value);
+                  setLineItemFilter('');
+                }}
+              />
+            </div>
+            <div className="input-group" style={{ minWidth: '220px' }}>
+              <label htmlFor="lineItemFilter">Artículo</label>
+              <select id="lineItemFilter" value={lineItemFilter} onChange={event => setLineItemFilter(event.target.value)}>
+                <option value="">Todos</option>
+                {filteredLineOptions.map(line => (
+                  <option key={line.itemId} value={line.itemId}>
+                    {line.code} · {line.description}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         {lines.length === 0 ? (
           <p style={{ color: '#64748b' }}>Todavía no hay artículos escaneados.</p>
+        ) : visibleLines.length === 0 ? (
+          <p style={{ color: '#64748b' }}>No hay lecturas registradas con el filtro seleccionado.</p>
         ) : (
           <div className="table-wrapper">
             <table>
@@ -538,7 +582,7 @@ export default function BarcodeReceptionPage() {
                 </tr>
               </thead>
               <tbody>
-                {lines.map(line => (
+                {visibleLines.map(line => (
                   <tr key={line.itemId}>
                     <td>{line.code}</td>
                     <td>{line.description}</td>
