@@ -340,8 +340,8 @@ function buildLabels100x100Document(itemsToPrint) {
             page-break-after: auto;
           }
           .barcode-wrap {
-            width: 58.8mm;
-            height: 32.2mm;
+            width: 60mm;
+            height: 30mm;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -349,8 +349,8 @@ function buildLabels100x100Document(itemsToPrint) {
           }
           .barcode-svg {
             display: block;
-            width: 58.8mm;
-            height: 32.2mm;
+            width: 60mm;
+            height: 30mm;
           }
           .ean-text {
             margin: 2.8mm 0 0;
@@ -363,7 +363,11 @@ function buildLabels100x100Document(itemsToPrint) {
             flex: 0 0 auto;
           }
           .barcode-error {
-            width: 58.8mm;
+            width: 60mm;
+            min-height: 30mm;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             border: 0.5mm solid #000;
             color: #000;
             font-size: 12.6pt;
