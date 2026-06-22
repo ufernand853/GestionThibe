@@ -196,7 +196,148 @@ function buildEan13SvgMarkup(ean13) {
 }
 
 
+const BLUETOOTH_PRINTER_SERVICE_UUIDS = [
+  0x18f0,
+  0xff00,
+  0xffe0,
+  '000018f0-0000-1000-8000-00805f9b34fb',
+  '0000ff00-0000-1000-8000-00805f9b34fb',
+  '0000ffe0-0000-1000-8000-00805f9b34fb'
+];
+const BLUETOOTH_WRITE_CHARACTERISTIC_UUIDS = new Set([
+  '0000ff01-0000-1000-8000-00805f9b34fb',
+  '0000ffe1-0000-1000-8000-00805f9b34fb'
+]);
+const BLUETOOTH_CHUNK_SIZE = 180;
+
+function getWebBluetoothUnavailableReason() {
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    return 'Bluetooth directo requiere abrir la app con HTTPS. Con HTTP desde una IP del local, usá Imprimir etiquetas 10 × 10.';
+  }
+  if (typeof navigator === 'undefined' || !navigator.bluetooth?.requestDevice) {
+    return 'Este navegador no ofrece Bluetooth web. Usá Chrome/Edge Android con HTTPS o Imprimir etiquetas 10 × 10.';
+  }
+  return '';
+}
+
+function isWebBluetoothAvailable() {
+  return getWebBluetoothUnavailableReason() === '';
+}
+
+function buildTsplLabelCommand(item) {
+  const ean13 = sanitizeEan13(item?.ean13);
+  if (!ean13) {
+    throw new Error(`El artículo ${item?.code || item?.description || ''} no tiene un EAN-13 válido para imprimir por Bluetooth.`);
+  }
+
+  return [
+    'SIZE 100 mm,100 mm',
+    'GAP 2 mm,0 mm',
+    'DIRECTION 1',
+    'REFERENCE 0,0',
+    'CLS',
+    `BARCODE 165,260,"EAN13",220,1,0,4,8,"${ean13}"`,
+    `TEXT 250,520,"3",0,2,2,"${ean13}"`,
+    'PRINT 1,1',
+    ''
+  ].join('\r\n');
+}
+
+async function findWritableBluetoothCharacteristic(server) {
+  const services = await server.getPrimaryServices();
+  for (const service of services) {
+    const characteristics = await service.getCharacteristics();
+    const writableCharacteristic = characteristics.find(characteristic => {
+      const properties = characteristic.properties || {};
+      return properties.write || properties.writeWithoutResponse || BLUETOOTH_WRITE_CHARACTERISTIC_UUIDS.has(characteristic.uuid);
+    });
+    if (writableCharacteristic) {
+      return writableCharacteristic;
+    }
+  }
+  throw new Error('No se encontró un canal Bluetooth compatible para enviar la etiqueta.');
+}
+
+async function writeBluetoothChunks(characteristic, data) {
+  const writeValue = characteristic.writeValueWithoutResponse
+    ? chunk => characteristic.writeValueWithoutResponse(chunk)
+    : chunk => characteristic.writeValue(chunk);
+
+  for (let offset = 0; offset < data.length; offset += BLUETOOTH_CHUNK_SIZE) {
+    const chunk = data.slice(offset, offset + BLUETOOTH_CHUNK_SIZE);
+    await writeValue(chunk);
+  }
+}
+
+async function printLabelsWithBluetooth(itemsToPrint) {
+  if (!isWebBluetoothAvailable()) {
+    throw new Error(getWebBluetoothUnavailableReason() || 'Este navegador no permite imprimir por Bluetooth.');
+  }
+
+  const device = await navigator.bluetooth.requestDevice({
+    acceptAllDevices: true,
+    optionalServices: BLUETOOTH_PRINTER_SERVICE_UUIDS
+  });
+  const server = await device.gatt.connect();
+  try {
+    const characteristic = await findWritableBluetoothCharacteristic(server);
+    const encoder = new TextEncoder();
+    for (const item of itemsToPrint) {
+      await writeBluetoothChunks(characteristic, encoder.encode(buildTsplLabelCommand(item)));
+    }
+  } finally {
+    if (device.gatt.connected) {
+      device.gatt.disconnect();
+    }
+  }
+}
+
+function shouldUseStandalonePrintWindow() {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
+  const userAgent = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod/i.test(userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth <= 900);
+}
+
+function printHtmlInStandaloneWindow(html) {
+  return new Promise((resolve, reject) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      reject(new Error('No se pudo abrir la ventana de impresión. Verificá si el navegador bloqueó la ventana emergente.'));
+      return;
+    }
+
+    const cleanup = () => {
+      try {
+        printWindow.close();
+      } catch (error) {
+        console.warn('No se pudo cerrar la ventana de impresión', error);
+      }
+    };
+
+    try {
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.addEventListener('afterprint', cleanup, { once: true });
+      printWindow.setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        resolve();
+      }, 250);
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+}
+
 function printHtmlInHiddenFrame(html) {
+  if (shouldUseStandalonePrintWindow()) {
+    return printHtmlInStandaloneWindow(html);
+  }
+
   return new Promise((resolve, reject) => {
     const printFrame = document.createElement('iframe');
     printFrame.setAttribute('aria-hidden', 'true');
@@ -252,8 +393,10 @@ export default function ItemsDownloadPage() {
   const [colorFilterOptions, setColorFilterOptions] = useState(DEFAULT_COLOR_FILTER_OPTIONS);
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
   const [printing, setPrinting] = useState(false);
+  const [bluetoothPrinting, setBluetoothPrinting] = useState(false);
   const [selectedItemsForPrint, setSelectedItemsForPrint] = useState({});
   const [includeSkuInPdf, setIncludeSkuInPdf] = useState(false);
+  const bluetoothUnavailableReason = getWebBluetoothUnavailableReason();
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -505,6 +648,23 @@ export default function ItemsDownloadPage() {
     handlePrintLabels100x100(selectedItemsList);
   }, [handlePrintLabels100x100, selectedItemsList]);
 
+  const handlePrintSelectedLabelsWithBluetooth = useCallback(async () => {
+    if (bluetoothPrinting || printing) return;
+    setBluetoothPrinting(true);
+    setError(null);
+    try {
+      const collectedItems = [...selectedItemsList];
+      if (collectedItems.length === 0) {
+        throw new Error('Seleccioná al menos un artículo para imprimir por Bluetooth.');
+      }
+      await printLabelsWithBluetooth(collectedItems);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBluetoothPrinting(false);
+    }
+  }, [bluetoothPrinting, printing, selectedItemsList]);
+
   const handlePrintSingleLabel = useCallback(
     item => {
       if (!item?.id) return;
@@ -633,7 +793,7 @@ export default function ItemsDownloadPage() {
         <div>
           <h2>Descarga de artículos</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-            Seleccioná artículos para descargar el PDF o imprimir etiquetas de código de barras de 10 × 10 cm.
+            Seleccioná artículos para descargar el PDF o imprimir etiquetas de código de barras de 10 × 10 cm, incluyendo impresoras Bluetooth compatibles desde el celular.
           </p>
         </div>
         <div>
@@ -659,7 +819,7 @@ export default function ItemsDownloadPage() {
               type="button"
               className="secondary-button"
               onClick={handleDownloadSelectedPdf}
-              disabled={printing || selectedItemsList.length === 0}
+              disabled={printing || bluetoothPrinting || selectedItemsList.length === 0}
               title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : undefined}
             >
               {printing ? 'Preparando impresión…' : 'Descargar PDF'}
@@ -668,11 +828,25 @@ export default function ItemsDownloadPage() {
               type="button"
               className="secondary-button"
               onClick={handlePrintSelectedLabels}
-              disabled={printing || selectedItemsList.length === 0}
+              disabled={printing || bluetoothPrinting || selectedItemsList.length === 0}
               title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la impresión.' : 'Imprime una etiqueta de 10 × 10 cm por cada artículo seleccionado.'}
             >
               {printing ? 'Preparando impresión…' : 'Imprimir etiquetas 10 × 10'}
             </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handlePrintSelectedLabelsWithBluetooth}
+              disabled={printing || bluetoothPrinting || selectedItemsList.length === 0 || Boolean(bluetoothUnavailableReason)}
+              title={bluetoothUnavailableReason || 'Conecta con una impresora Bluetooth BLE desde el celular y envía etiquetas TSPL de 10 × 10 cm.'}
+            >
+              {bluetoothPrinting ? 'Enviando por Bluetooth…' : 'Imprimir por Bluetooth'}
+            </button>
+            {bluetoothUnavailableReason && (
+              <small style={{ color: '#b45309', maxWidth: '18rem' }}>
+                {bluetoothUnavailableReason}
+              </small>
+            )}
           </div>
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
@@ -768,7 +942,7 @@ export default function ItemsDownloadPage() {
               Seleccionados: <strong>{selectedItemsList.length}</strong>
             </span>
             <p style={{ margin: '0.15rem 0 0', color: '#64748b', fontSize: '0.78rem' }}>
-              Podés marcar uno o varios artículos para descargar el PDF o imprimir una etiqueta por código.
+              Podés marcar uno o varios artículos para descargar el PDF, imprimir normal o enviar etiquetas por Bluetooth desde Chrome/Edge en Android.
             </p>
           </div>
           <div className="inline-actions">
