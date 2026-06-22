@@ -282,7 +282,52 @@ async function printLabelsWithBluetooth(itemsToPrint) {
   }
 }
 
+function shouldUseStandalonePrintWindow() {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
+  const userAgent = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod/i.test(userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth <= 900);
+}
+
+function printHtmlInStandaloneWindow(html) {
+  return new Promise((resolve, reject) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      reject(new Error('No se pudo abrir la ventana de impresión. Verificá si el navegador bloqueó la ventana emergente.'));
+      return;
+    }
+
+    const cleanup = () => {
+      try {
+        printWindow.close();
+      } catch (error) {
+        console.warn('No se pudo cerrar la ventana de impresión', error);
+      }
+    };
+
+    try {
+      printWindow.document.open();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.addEventListener('afterprint', cleanup, { once: true });
+      printWindow.setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        resolve();
+      }, 250);
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+}
+
 function printHtmlInHiddenFrame(html) {
+  if (shouldUseStandalonePrintWindow()) {
+    return printHtmlInStandaloneWindow(html);
+  }
+
   return new Promise((resolve, reject) => {
     const printFrame = document.createElement('iframe');
     printFrame.setAttribute('aria-hidden', 'true');
