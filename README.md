@@ -276,3 +276,14 @@ La pantalla de etiquetas imprime cada EAN-13 en una página física de 100 × 10
    ```
 
 Sin `--kiosk-printing`, los navegadores muestran obligatoriamente su diálogo de impresión. La aplicación genera el trabajo en un marco oculto y no abre una pestaña o ventana adicional.
+
+### Impresión de etiquetas por Bluetooth desde celular
+
+La pantalla **PDF e Impresión** también incluye el botón **Imprimir por Bluetooth** para enviar las etiquetas seleccionadas a una impresora Bluetooth compatible con BLE y comandos TSPL, sin quitar la impresión normal existente. Para usarlo desde un teléfono:
+
+1. Abre la aplicación en **Chrome o Edge para Android** desde una URL segura (`https://`). Web Bluetooth no está disponible si se accede por `http://` a una IP del local.
+2. Vincula o enciende la impresora Bluetooth cerca del celular.
+3. Selecciona uno o varios artículos en **PDF e Impresión** y toca **Imprimir por Bluetooth**.
+4. El navegador mostrará el selector Bluetooth; elige la impresora y confirma la conexión.
+
+Si el navegador no ofrece Bluetooth web, usa el botón normal **Imprimir etiquetas 10 × 10** o abre la aplicación en un navegador compatible.

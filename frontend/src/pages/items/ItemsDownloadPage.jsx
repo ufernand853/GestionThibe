@@ -303,8 +303,10 @@ export default function ItemsDownloadPage() {
   const [colorFilterOptions, setColorFilterOptions] = useState(DEFAULT_COLOR_FILTER_OPTIONS);
   const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
   const [printing, setPrinting] = useState(false);
+  const [bluetoothPrinting, setBluetoothPrinting] = useState(false);
   const [selectedItemsForPrint, setSelectedItemsForPrint] = useState({});
   const [includeSkuInPdf, setIncludeSkuInPdf] = useState(false);
+  const bluetoothUnavailableReason = getWebBluetoothUnavailableReason();
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -556,6 +558,23 @@ export default function ItemsDownloadPage() {
     handlePrintLabels100x100(selectedItemsList);
   }, [handlePrintLabels100x100, selectedItemsList]);
 
+  const handlePrintSelectedLabelsWithBluetooth = useCallback(async () => {
+    if (bluetoothPrinting || printing) return;
+    setBluetoothPrinting(true);
+    setError(null);
+    try {
+      const collectedItems = [...selectedItemsList];
+      if (collectedItems.length === 0) {
+        throw new Error('Seleccioná al menos un artículo para imprimir por Bluetooth.');
+      }
+      await printLabelsWithBluetooth(collectedItems);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBluetoothPrinting(false);
+    }
+  }, [bluetoothPrinting, printing, selectedItemsList]);
+
   const handlePrintSingleLabel = useCallback(
     item => {
       if (!item?.id) return;
@@ -684,7 +703,7 @@ export default function ItemsDownloadPage() {
         <div>
           <h2>Descarga de artículos</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-            Seleccioná artículos para descargar el PDF o imprimir etiquetas de código de barras de 10 × 10 cm.
+            Seleccioná artículos para descargar el PDF o imprimir etiquetas de código de barras de 10 × 10 cm, incluyendo impresoras Bluetooth compatibles desde el celular.
           </p>
         </div>
         <div>
@@ -710,7 +729,7 @@ export default function ItemsDownloadPage() {
               type="button"
               className="secondary-button"
               onClick={handleDownloadSelectedPdf}
-              disabled={printing || selectedItemsList.length === 0}
+              disabled={printing || bluetoothPrinting || selectedItemsList.length === 0}
               title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : undefined}
             >
               {printing ? 'Preparando impresión…' : 'Descargar PDF'}
@@ -719,11 +738,25 @@ export default function ItemsDownloadPage() {
               type="button"
               className="secondary-button"
               onClick={handlePrintSelectedLabels}
-              disabled={printing || selectedItemsList.length === 0}
+              disabled={printing || bluetoothPrinting || selectedItemsList.length === 0}
               title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la impresión.' : 'Imprime una etiqueta de 10 × 10 cm por cada artículo seleccionado.'}
             >
               {printing ? 'Preparando impresión…' : 'Imprimir etiquetas 10 × 10'}
             </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handlePrintSelectedLabelsWithBluetooth}
+              disabled={printing || bluetoothPrinting || selectedItemsList.length === 0 || Boolean(bluetoothUnavailableReason)}
+              title={bluetoothUnavailableReason || 'Conecta con una impresora Bluetooth BLE desde el celular y envía etiquetas TSPL de 10 × 10 cm.'}
+            >
+              {bluetoothPrinting ? 'Enviando por Bluetooth…' : 'Imprimir por Bluetooth'}
+            </button>
+            {bluetoothUnavailableReason && (
+              <small style={{ color: '#b45309', maxWidth: '18rem' }}>
+                {bluetoothUnavailableReason}
+              </small>
+            )}
           </div>
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
@@ -819,7 +852,7 @@ export default function ItemsDownloadPage() {
               Seleccionados: <strong>{selectedItemsList.length}</strong>
             </span>
             <p style={{ margin: '0.15rem 0 0', color: '#64748b', fontSize: '0.78rem' }}>
-              Podés marcar uno o varios artículos para descargar el PDF o imprimir una etiqueta por código.
+              Podés marcar uno o varios artículos para descargar el PDF, imprimir normal o enviar etiquetas por Bluetooth desde Chrome/Edge en Android.
             </p>
           </div>
           <div className="inline-actions">
