@@ -287,6 +287,99 @@ function printHtmlInHiddenFrame(html) {
   });
 }
 
+function buildLabels100x100Document(itemsToPrint) {
+  const labelCards = itemsToPrint
+    .map(item => {
+      return `
+        <article class="label-card">
+          <div class="barcode-wrap">
+            ${buildEan13SvgMarkup(item.ean13)}
+          </div>
+          <p class="ean-text">${escapeHtml(item.ean13 || '-')}</p>
+        </article>
+      `;
+    })
+    .join('');
+
+  return `
+    <!doctype html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <title>Etiquetas 10 × 10 cm</title>
+        <style>
+          @page { size: 100mm 100mm; margin: 0; }
+          * { box-sizing: border-box; }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100mm;
+            font-family: Arial, sans-serif;
+            color: #000;
+            background: #fff;
+          }
+          .label-card {
+            width: 99mm;
+            height: 99mm;
+            margin: 0;
+            padding: 0;
+            transform: translate(0.5mm, 0.5mm);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background: #fff;
+            break-after: page;
+            page-break-after: always;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+          .label-card:last-child {
+            break-after: auto;
+            page-break-after: auto;
+          }
+          .barcode-wrap {
+            width: 58.8mm;
+            height: 32.2mm;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex: 0 0 auto;
+          }
+          .barcode-svg {
+            display: block;
+            width: 58.8mm;
+            height: 32.2mm;
+          }
+          .ean-text {
+            margin: 2.8mm 0 0;
+            color: #000;
+            font-size: 12.6pt;
+            font-weight: 700;
+            letter-spacing: 0.84mm;
+            line-height: 1;
+            text-align: center;
+            flex: 0 0 auto;
+          }
+          .barcode-error {
+            width: 58.8mm;
+            border: 0.5mm solid #000;
+            color: #000;
+            font-size: 12.6pt;
+            font-weight: 700;
+            text-align: center;
+            padding: 4mm;
+          }
+        </style>
+      </head>
+      <body>
+        ${labelCards}
+      </body>
+    </html>
+  `;
+}
+
 export default function ItemsDownloadPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -456,99 +549,37 @@ export default function ItemsDownloadPage() {
         throw new Error('Seleccioná al menos un artículo para generar etiquetas.');
       }
 
-      const labelCards = collectedItems
-        .map(item => {
-          return `
-            <article class="label-card">
-              <div class="barcode-wrap">
-                ${buildEan13SvgMarkup(item.ean13)}
-              </div>
-              <p class="ean-text">${escapeHtml(item.ean13 || '-')}</p>
-            </article>
-          `;
-        })
-        .join('');
-
-      const printableContent = `
-        <!doctype html>
-        <html lang="es">
-          <head>
-            <meta charset="utf-8" />
-            <title>Etiquetas 10 × 10 cm</title>
-            <style>
-              @page { size: 100mm 100mm; margin: 0; }
-              * { box-sizing: border-box; }
-              html, body {
-                margin: 0 !important;
-                padding: 0 !important;
-                width: 100mm;
-                font-family: Arial, sans-serif;
-                color: #000;
-                background: #fff;
-              }
-              .label-card {
-                width: 99mm;
-                height: 99mm;
-                margin: 0;
-                padding: 0;
-                transform: translate(0.5mm, 0.5mm);
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                overflow: hidden;
-                background: #fff;
-                break-after: page;
-                page-break-after: always;
-                break-inside: avoid;
-                page-break-inside: avoid;
-              }
-              .label-card:last-child {
-                break-after: auto;
-                page-break-after: auto;
-              }
-              .barcode-wrap {
-                width: 58.8mm;
-                height: 32.2mm;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                flex: 0 0 auto;
-              }
-              .barcode-svg {
-                display: block;
-                width: 58.8mm;
-                height: 32.2mm;
-              }
-              .ean-text {
-                margin: 2.8mm 0 0;
-                color: #000;
-                font-size: 12.6pt;
-                font-weight: 700;
-                letter-spacing: 0.84mm;
-                line-height: 1;
-                text-align: center;
-                flex: 0 0 auto;
-              }
-              .barcode-error {
-                width: 58.8mm;
-                border: 0.5mm solid #000;
-                color: #000;
-                font-size: 12.6pt;
-                font-weight: 700;
-                text-align: center;
-                padding: 4mm;
-              }
-            </style>
-          </head>
-          <body>
-            ${labelCards}
-          </body>
-        </html>
-      `;
-
-      await printHtmlInHiddenFrame(printableContent);
+      await printHtmlInHiddenFrame(buildLabels100x100Document(collectedItems));
     } catch (err) {
+      setError(err);
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const handleDownloadSelectedLabelsPdf = async () => {
+    if (printing) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setError(new Error('No se pudo abrir la ventana para descargar etiquetas. Verificá si el navegador bloqueó la ventana emergente.'));
+      return;
+    }
+
+    setPrinting(true);
+    setError(null);
+    try {
+      const collectedItems = [...selectedItemsList];
+      if (collectedItems.length === 0) {
+        throw new Error('Seleccioná al menos un artículo para generar etiquetas.');
+      }
+
+      printWindow.document.open();
+      printWindow.document.write(buildLabels100x100Document(collectedItems));
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    } catch (err) {
+      printWindow.close();
       setError(err);
     } finally {
       setPrinting(false);
@@ -716,7 +747,16 @@ export default function ItemsDownloadPage() {
               disabled={printing || selectedItemsList.length === 0}
               title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : undefined}
             >
-              {printing ? 'Preparando impresión…' : 'Descargar PDF'}
+              {printing ? 'Preparando impresión…' : 'Descargar Lista PDF'}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={handleDownloadSelectedLabelsPdf}
+              disabled={printing || selectedItemsList.length === 0}
+              title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : 'Descarga una etiqueta de 10 × 10 cm por página para cada artículo seleccionado.'}
+            >
+              {printing ? 'Preparando impresión…' : 'Descargar PDF Etiqueta 10x10'}
             </button>
             <button
               type="button"
