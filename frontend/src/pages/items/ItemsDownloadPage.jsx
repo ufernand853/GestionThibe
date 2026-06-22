@@ -196,7 +196,58 @@ function buildEan13SvgMarkup(ean13) {
 }
 
 
+function shouldPrintInCurrentDocumentOnMobile() {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
+  const userAgent = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod/i.test(userAgent) || (navigator.maxTouchPoints > 1 && window.innerWidth <= 900);
+}
+
+function printHtmlInCurrentDocument(html) {
+  return new Promise((resolve, reject) => {
+    try {
+      const parser = new DOMParser();
+      const printableDocument = parser.parseFromString(html, 'text/html');
+      const printRoot = document.createElement('div');
+      const printStyle = document.createElement('style');
+
+      printRoot.className = 'mobile-label-print-root';
+      printRoot.setAttribute('aria-hidden', 'true');
+      printRoot.innerHTML = printableDocument.body.innerHTML;
+      printStyle.textContent = `
+        ${Array.from(printableDocument.querySelectorAll('style')).map(style => style.textContent).join('\n')}
+        @media screen { .mobile-label-print-root { display: none !important; } }
+        @media print {
+          body > *:not(.mobile-label-print-root) { display: none !important; }
+          .mobile-label-print-root { display: block !important; }
+        }
+      `;
+
+      const cleanup = () => {
+        printRoot.remove();
+        printStyle.remove();
+      };
+
+      window.addEventListener('afterprint', cleanup, { once: true });
+      document.head.appendChild(printStyle);
+      document.body.appendChild(printRoot);
+      window.setTimeout(cleanup, 60000);
+      window.setTimeout(() => {
+        window.print();
+        resolve();
+      }, 100);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
 function printHtmlInHiddenFrame(html) {
+  if (shouldPrintInCurrentDocumentOnMobile()) {
+    return printHtmlInCurrentDocument(html);
+  }
+
   return new Promise((resolve, reject) => {
     const printFrame = document.createElement('iframe');
     printFrame.setAttribute('aria-hidden', 'true');
