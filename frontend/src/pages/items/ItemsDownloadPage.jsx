@@ -756,15 +756,6 @@ export default function ItemsDownloadPage() {
             <button
               type="button"
               className="secondary-button"
-              onClick={handleDownloadSelectedLabelsPdf}
-              disabled={printing || selectedItemsList.length === 0}
-              title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la descarga.' : 'Descarga una etiqueta de 10 × 10 cm por página para cada artículo seleccionado.'}
-            >
-              {printing ? 'Preparando impresión…' : 'Descargar PDF Etiqueta 10x10'}
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
               onClick={handlePrintSelectedLabels}
               disabled={printing || selectedItemsList.length === 0}
               title={selectedItemsList.length === 0 ? 'Seleccioná artículos para habilitar la impresión.' : 'Imprime una etiqueta de 10 × 10 cm por cada artículo seleccionado.'}
