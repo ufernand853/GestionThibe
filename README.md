@@ -276,3 +276,5 @@ La pantalla de etiquetas imprime cada EAN-13 en una página física de 100 × 10
    ```
 
 Sin `--kiosk-printing`, los navegadores muestran obligatoriamente su diálogo de impresión. La aplicación genera el trabajo en un marco oculto y no abre una pestaña o ventana adicional.
+
+> Nota: la impresión de etiquetas se mantiene con el flujo del navegador y la impresora configurada; no incluye un flujo Bluetooth propio dentro de la aplicación.
