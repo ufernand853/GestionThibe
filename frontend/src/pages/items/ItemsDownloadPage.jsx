@@ -252,9 +252,12 @@ function printHtmlInHiddenFrame(html) {
     const printFrame = document.createElement('iframe');
     printFrame.setAttribute('aria-hidden', 'true');
     printFrame.style.position = 'fixed';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
+    printFrame.style.left = '-10000px';
+    printFrame.style.top = '0';
+    printFrame.style.width = '100mm';
+    printFrame.style.height = '100mm';
     printFrame.style.border = '0';
+    printFrame.style.opacity = '0';
 
     const removeFrame = () => {
       if (printFrame.parentNode) {
