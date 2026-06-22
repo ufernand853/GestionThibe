@@ -210,8 +210,18 @@ const BLUETOOTH_WRITE_CHARACTERISTIC_UUIDS = new Set([
 ]);
 const BLUETOOTH_CHUNK_SIZE = 180;
 
+function getWebBluetoothUnavailableReason() {
+  if (typeof window !== 'undefined' && !window.isSecureContext) {
+    return 'Bluetooth directo requiere abrir la app con HTTPS. Con HTTP desde una IP del local, usá Imprimir etiquetas 10 × 10.';
+  }
+  if (typeof navigator === 'undefined' || !navigator.bluetooth?.requestDevice) {
+    return 'Este navegador no ofrece Bluetooth web. Usá Chrome/Edge Android con HTTPS o Imprimir etiquetas 10 × 10.';
+  }
+  return '';
+}
+
 function isWebBluetoothAvailable() {
-  return typeof navigator !== 'undefined' && Boolean(navigator.bluetooth?.requestDevice);
+  return getWebBluetoothUnavailableReason() === '';
 }
 
 function buildTsplLabelCommand(item) {
@@ -261,7 +271,7 @@ async function writeBluetoothChunks(characteristic, data) {
 
 async function printLabelsWithBluetooth(itemsToPrint) {
   if (!isWebBluetoothAvailable()) {
-    throw new Error('Este navegador no permite imprimir por Bluetooth. Usá Chrome o Edge en Android con HTTPS, o la impresión normal.');
+    throw new Error(getWebBluetoothUnavailableReason() || 'Este navegador no permite imprimir por Bluetooth.');
   }
 
   const device = await navigator.bluetooth.requestDevice({
@@ -386,6 +396,7 @@ export default function ItemsDownloadPage() {
   const [bluetoothPrinting, setBluetoothPrinting] = useState(false);
   const [selectedItemsForPrint, setSelectedItemsForPrint] = useState({});
   const [includeSkuInPdf, setIncludeSkuInPdf] = useState(false);
+  const bluetoothUnavailableReason = getWebBluetoothUnavailableReason();
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -826,11 +837,16 @@ export default function ItemsDownloadPage() {
               type="button"
               className="secondary-button"
               onClick={handlePrintSelectedLabelsWithBluetooth}
-              disabled={printing || bluetoothPrinting || selectedItemsList.length === 0}
-              title={isWebBluetoothAvailable() ? 'Conecta con una impresora Bluetooth BLE desde el celular y envía etiquetas TSPL de 10 × 10 cm.' : 'Bluetooth web requiere Chrome o Edge en Android con conexión HTTPS.'}
+              disabled={printing || bluetoothPrinting || selectedItemsList.length === 0 || Boolean(bluetoothUnavailableReason)}
+              title={bluetoothUnavailableReason || 'Conecta con una impresora Bluetooth BLE desde el celular y envía etiquetas TSPL de 10 × 10 cm.'}
             >
               {bluetoothPrinting ? 'Enviando por Bluetooth…' : 'Imprimir por Bluetooth'}
             </button>
+            {bluetoothUnavailableReason && (
+              <small style={{ color: '#b45309', maxWidth: '18rem' }}>
+                {bluetoothUnavailableReason}
+              </small>
+            )}
           </div>
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>

@@ -281,7 +281,7 @@ Sin `--kiosk-printing`, los navegadores muestran obligatoriamente su diálogo de
 
 La pantalla **PDF e Impresión** también incluye el botón **Imprimir por Bluetooth** para enviar las etiquetas seleccionadas a una impresora Bluetooth compatible con BLE y comandos TSPL, sin quitar la impresión normal existente. Para usarlo desde un teléfono:
 
-1. Abre la aplicación en **Chrome o Edge para Android** desde una URL segura (`https://`) o desde una dirección local permitida por el navegador.
+1. Abre la aplicación en **Chrome o Edge para Android** desde una URL segura (`https://`). Web Bluetooth no está disponible si se accede por `http://` a una IP del local.
 2. Vincula o enciende la impresora Bluetooth cerca del celular.
 3. Selecciona uno o varios artículos en **PDF e Impresión** y toca **Imprimir por Bluetooth**.
 4. El navegador mostrará el selector Bluetooth; elige la impresora y confirma la conexión.
