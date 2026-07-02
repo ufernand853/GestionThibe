@@ -39,6 +39,15 @@ function uniqueValues(values) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function buildSkuLookupVariants(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) {
+    return [];
+  }
+  const trimmed = digits.replace(/^0+(?=\d)/, '');
+  return uniqueValues([digits, trimmed]);
+}
+
 function deriveSkusFromInternalEan13(value) {
   const rawDigits = String(value || '').replace(/\D/g, '');
   const eanCandidates = uniqueValues([
@@ -59,12 +68,12 @@ function deriveSkusFromInternalEan13(value) {
 
     // Formato actual: 04 + SKU de 6 dígitos + 0000 + verificador.
     if (digits.slice(8, 12) === '0000') {
-      skuCandidates.push(digits.slice(2, 8));
+      skuCandidates.push(...buildSkuLookupVariants(digits.slice(2, 8)));
     }
     // Formato legado: 04 + SKU llevado a 7 dígitos + 000 + verificador.
     // Como el SKU guardado es de 6 dígitos, se toma el final del segmento.
     if (digits.slice(9, 12) === '000') {
-      skuCandidates.push(digits.slice(2, 9).slice(-6));
+      skuCandidates.push(...buildSkuLookupVariants(digits.slice(2, 9).slice(-6)));
     }
   });
 
