@@ -259,8 +259,10 @@ export default function BarcodeReceptionPage() {
       const returnedBarcodes = (Array.isArray(item.internalBarcodes) ? item.internalBarcodes : [])
         .map(value => normalizeBarcodeValue(value).toLowerCase());
       if (scannedValues.includes(code) || scannedValues.includes(sku)) return 4;
-      if (scannedValues.includes(legacyInternalBarcode)) return 3;
-      if (scannedValues.includes(currentInternalBarcode)) return 2;
+      // El formato actual debe ganar sobre el legado: un mismo EAN puede
+      // representar SKU 27 en el formato actual y SKU 270 en el legacy.
+      if (scannedValues.includes(currentInternalBarcode)) return 3;
+      if (scannedValues.includes(legacyInternalBarcode)) return 2;
       if (returnedBarcodes.some(barcodeValue => scannedValues.includes(barcodeValue))) return 1;
       return 0;
     };
