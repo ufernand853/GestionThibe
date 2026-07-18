@@ -16,6 +16,7 @@ const logsRoutes = require('./routes/logs');
 const reportsRoutes = require('./routes/reports');
 const rolesRoutes = require('./routes/roles');
 const preferencesRoutes = require('./routes/preferences');
+const shopifyRoutes = require('./routes/shopify');
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/preferences', preferencesRoutes);
+app.use('/api/shopify', shopifyRoutes);
 
 app.use((req, res, next) => {
   next(new HttpError(404, 'Ruta no encontrada'));
