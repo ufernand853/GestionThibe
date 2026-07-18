@@ -125,6 +125,15 @@ Una vez liberado el puerto, vuelve a iniciar el servicio con `pm2 start` o `pm2 
 | `REFRESH_TOKEN_TTL` | Tiempo de vida del refresh token (segundos) | `604800` |
 | `ADMIN_EMAIL` | Email del usuario administrador semilla | `admin@example.com` |
 | `ADMIN_PASSWORD` | Contraseña del usuario administrador semilla | `ChangeMe123!` |
+| `SHOPIFY_STORE` / `SHOPIFY_SHOP_DOMAIN` | Dominio `*.myshopify.com` de la tienda para Admin API | - |
+| `SHOPIFY_CLIENT_ID` | ID de cliente de la app creada en Shopify Dev Dashboard para client credentials | - |
+| `SHOPIFY_CLIENT_SECRET` | Secreto de cliente de la app creada en Shopify Dev Dashboard para client credentials | - |
+| `SHOPIFY_ADMIN_ACCESS_TOKEN` | Token privado de Admin API, si ya se obtuvo manualmente; si no existe, el backend puede pedirlo con client credentials | - |
+| `SHOPIFY_API_VERSION` | Versión de Shopify Admin API a usar | `2026-07` |
+| `SHOPIFY_DRY_RUN` | Mantiene Shopify en modo preparación sin llamadas reales (`true`/`false`) | `true` |
+| `SHOPIFY_DEFAULT_LOCATION_ID` | Ubicación Shopify predeterminada para mapear inventario | - |
+
+> 📘 Para configurar Shopify paso a paso, ver `docs/shopify-setup.md`.
 
 > 💡 **Tip:** si ves el error `MongoServerError: Authentication failed` asegurate de que las variables `MONGO_USER`, `MONGO_PASSWORD` y `MONGO_AUTH_SOURCE` coincidan con el usuario creado en tu instancia. Alternativamente podés incluirlas directamente en `MONGO_URI`, recordando sumar los parámetros como `authSource=admin` cuando corresponda.
 
