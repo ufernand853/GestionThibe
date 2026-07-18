@@ -33,7 +33,16 @@ const itemSchema = new Schema(
     lastCountedBy: { type: String, default: null, trim: true },
     deletedAt: { type: Date, default: null, index: true },
     deletedBy: { type: String, default: null, trim: true },
-    scheduledDeletionAt: { type: Date, default: null, index: true }
+    scheduledDeletionAt: { type: Date, default: null, index: true },
+    shopify: {
+      productId: { type: String, default: null, trim: true },
+      variantId: { type: String, default: null, trim: true },
+      handle: { type: String, default: null, trim: true },
+      status: { type: String, enum: ['draft', 'active', 'archived', 'deleted'], default: 'draft' },
+      lastSyncedAt: { type: Date, default: null },
+      lastAction: { type: String, default: null, trim: true },
+      lastError: { type: String, default: null, trim: true }
+    }
   },
   {
     timestamps: true,
