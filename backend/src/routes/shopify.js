@@ -7,6 +7,7 @@ const Item = require('../models/Item');
 const Location = require('../models/Location');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus, getAdminAccessToken } = require('../services/shopifyAuthService');
+const { syncShopifyProduct, archiveShopifyProduct } = require('../services/shopifyProductService');
 
 const router = express.Router();
 const MAX_BULK_ITEMS = 100;
@@ -187,12 +188,23 @@ router.post(
     }
     const now = new Date();
     const results = [];
+    const locations = await Location.find().sort({ name: 1 });
     for (const item of items) {
+      const nextStatus = payload.status === 'draft' ? 'draft' : 'active';
+      const productPayload = buildShopifyPayload(item, locations);
+      const syncedProduct = shopifyConfig.configured
+        ? await syncShopifyProduct({ existingProductId: item.shopify?.productId || null, payload: productPayload, status: nextStatus })
+        : {
+            productId: item.shopify?.productId || `local-${item.id}`,
+            variantId: item.shopify?.variantId || `variant-${item.id}`,
+            handle: item.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || item.code,
+            status: nextStatus
+          };
       setShopifyFields(item, {
-        productId: item.shopify?.productId || `local-${item.id}`,
-        variantId: item.shopify?.variantId || `variant-${item.id}`,
-        handle: item.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || item.code,
-        status: payload.status === 'draft' ? 'draft' : 'active',
+        productId: syncedProduct.productId,
+        variantId: syncedProduct.variantId,
+        handle: syncedProduct.handle,
+        status: syncedProduct.status,
         lastSyncedAt: now,
         lastAction: shopifyConfig.configured ? 'sync' : 'dry-run',
         lastError: null
@@ -202,7 +214,8 @@ router.post(
         itemId: item.id,
         code: item.code,
         status: shopifyConfig.configured ? 'synced' : 'dry-run',
-        productId: item.shopify.productId
+        productId: syncedProduct.productId,
+        handle: syncedProduct.handle
       });
     }
     await recordAuditEvent({
@@ -227,15 +240,19 @@ router.post(
     }
     const now = new Date();
     const results = [];
+    const locations = await Location.find().sort({ name: 1 });
     for (const item of items) {
+      const archivedProduct = shopifyConfig.configured && item.shopify?.productId
+        ? await archiveShopifyProduct(item.shopify.productId, buildShopifyPayload(item, locations))
+        : null;
       setShopifyFields(item, {
-        status: 'archived',
+        status: archivedProduct?.status || 'archived',
         lastSyncedAt: now,
         lastAction: shopifyConfig.configured ? 'archive' : 'dry-run-archive',
         lastError: null
       });
       await item.save();
-      results.push({ itemId: item.id, code: item.code, status: 'archived' });
+      results.push({ itemId: item.id, code: item.code, status: archivedProduct?.status || 'archived' });
     }
     await recordAuditEvent({
       action: 'Shopify',
