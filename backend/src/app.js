@@ -21,7 +21,7 @@ const shopifyRoutes = require('./routes/shopify');
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '75mb' }));
+app.use(express.json({ limit: '75mb', strict: false }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.use(authenticate);
