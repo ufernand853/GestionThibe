@@ -90,6 +90,21 @@ function serializeShopifyItem(item, locations = []) {
   };
 }
 
+function getRequestBody(body) {
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    return body;
+  }
+  if (typeof body === 'string' && body.trim()) {
+    try {
+      const parsed = JSON.parse(body);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    } catch (error) {
+      throw new HttpError(400, 'El formato del payload Shopify es inválido.');
+    }
+  }
+  return {};
+}
+
 async function loadItemsByIds(ids) {
   const normalizedIds = [...new Set((ids || []).map(id => String(id || '').trim()).filter(Boolean))];
   if (normalizedIds.length === 0) {
@@ -158,7 +173,8 @@ router.post(
   '/products/sync',
   requirePermission('items.write'),
   asyncHandler(async (req, res) => {
-    const items = await loadItemsByIds(req.body?.itemIds);
+    const payload = getRequestBody(req.body);
+    const items = await loadItemsByIds(payload.itemIds);
     const shopifyConfig = getShopifyAuthStatus();
     if (!shopifyConfig.dryRun && shopifyConfig.configured) {
       await getAdminAccessToken();
@@ -171,7 +187,7 @@ router.post(
         productId: item.shopify?.productId || `local-${item.id}`,
         variantId: item.shopify?.variantId || `variant-${item.id}`,
         handle: item.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || item.code,
-        status: req.body?.status === 'draft' ? 'draft' : 'active',
+        status: payload.status === 'draft' ? 'draft' : 'active',
         lastSyncedAt: now,
         lastAction: shopifyConfig.configured ? 'sync' : 'dry-run',
         lastError: null
@@ -198,7 +214,8 @@ router.post(
   '/products/archive',
   requirePermission('items.write'),
   asyncHandler(async (req, res) => {
-    const items = await loadItemsByIds(req.body?.itemIds);
+    const payload = getRequestBody(req.body);
+    const items = await loadItemsByIds(payload.itemIds);
     const shopifyConfig = getShopifyAuthStatus();
     if (!shopifyConfig.dryRun && shopifyConfig.configured) {
       await getAdminAccessToken();

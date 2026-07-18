@@ -79,7 +79,7 @@ export default function ShopifyPage() {
     setMessage('');
     try {
       const endpoint = action === 'archive' ? '/shopify/products/archive' : '/shopify/products/sync';
-      const data = await api.post(endpoint, JSON.stringify({ itemIds: selectedIds, status }), { headers: { 'Content-Type': 'application/json' } });
+      const data = await api.post(endpoint, { itemIds: selectedIds, status });
       const mode = data.config?.dryRun ? ' (dry-run: no se llamó a Shopify)' : '';
       setMessage(`Operación completada: ${data.processed} artículo(s) procesado(s)${mode}.`);
       setSelectedIds([]);
