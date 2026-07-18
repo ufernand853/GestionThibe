@@ -69,6 +69,12 @@ function buildShopifyPayload(item, locations = []) {
   };
 }
 
+function setShopifyFields(item, fields) {
+  Object.entries(fields).forEach(([key, value]) => {
+    item.set(`shopify.${key}`, value);
+  });
+}
+
 function serializeShopifyItem(item, locations = []) {
   return {
     id: item.id,
@@ -182,8 +188,7 @@ router.post(
     const now = new Date();
     const results = [];
     for (const item of items) {
-      item.shopify = {
-        ...(item.shopify || {}),
+      setShopifyFields(item, {
         productId: item.shopify?.productId || `local-${item.id}`,
         variantId: item.shopify?.variantId || `variant-${item.id}`,
         handle: item.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || item.code,
@@ -191,7 +196,7 @@ router.post(
         lastSyncedAt: now,
         lastAction: shopifyConfig.configured ? 'sync' : 'dry-run',
         lastError: null
-      };
+      });
       await item.save();
       results.push({
         itemId: item.id,
@@ -223,7 +228,12 @@ router.post(
     const now = new Date();
     const results = [];
     for (const item of items) {
-      item.shopify = { ...(item.shopify || {}), status: 'archived', lastSyncedAt: now, lastAction: shopifyConfig.configured ? 'archive' : 'dry-run-archive', lastError: null };
+      setShopifyFields(item, {
+        status: 'archived',
+        lastSyncedAt: now,
+        lastAction: shopifyConfig.configured ? 'archive' : 'dry-run-archive',
+        lastError: null
+      });
       await item.save();
       results.push({ itemId: item.id, code: item.code, status: 'archived' });
     }
