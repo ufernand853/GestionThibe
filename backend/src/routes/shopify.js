@@ -198,7 +198,7 @@ router.post(
     const results = [];
     const locations = await Location.find().sort({ name: 1 });
     for (const item of items) {
-      const nextStatus = payload.status === 'draft' ? 'draft' : 'active';
+      const nextStatus = payload.status === 'active' ? 'active' : 'draft';
       const productPayload = buildShopifyPayload(item, locations);
       const syncedProduct = shopifyConfig.configured
         ? await syncShopifyProduct({ existingProductId: getPersistedShopifyProductId(item), payload: productPayload, status: nextStatus })

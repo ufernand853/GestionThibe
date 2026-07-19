@@ -110,7 +110,7 @@ export default function ShopifyPage() {
             )}
           </div>
           <div className="shopify-actions">
-            <button type="button" onClick={() => runBulkAction('sync', 'active')} disabled={!canWrite || saving || selectedIds.length === 0}>Enviar seleccionados</button>
+            <button type="button" onClick={() => runBulkAction('sync', 'draft')} disabled={!canWrite || saving || selectedIds.length === 0}>Enviar a Shopify</button>
             <button type="button" className="secondary-button" onClick={() => runBulkAction('sync', 'draft')} disabled={!canWrite || saving || selectedIds.length === 0}>Guardar como borrador</button>
             <button type="button" className="danger-button" onClick={() => runBulkAction('archive')} disabled={!canWrite || saving || selectedIds.length === 0}>Dar de baja</button>
           </div>

@@ -50,6 +50,41 @@ function assertNoUserErrors(operation, userErrors = []) {
   }
 }
 
+function buildVariantInput(variantId, payload) {
+  if (!variantId) return null;
+  const variant = { id: variantId };
+  if (payload.price !== null && payload.price !== undefined) {
+    variant.price = String(payload.price);
+  }
+  if (payload.sku) {
+    variant.inventoryItem = { sku: payload.sku };
+  }
+  return variant;
+}
+
+async function updateDefaultVariant(productId, variantId, payload) {
+  const variant = buildVariantInput(variantId, payload);
+  if (!variant || (!variant.price && !variant.inventoryItem)) {
+    return null;
+  }
+  const query = `
+    mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+        productVariants {
+          id
+          price
+          inventoryItem { sku }
+        }
+        userErrors { field message }
+      }
+    }
+  `;
+  const data = await shopifyGraphql(query, { productId, variants: [variant] });
+  const result = data.productVariantsBulkUpdate;
+  assertNoUserErrors('la actualización de precio/SKU de variante', result?.userErrors);
+  return result?.productVariants?.[0] || null;
+}
+
 async function createShopifyProduct(payload, status) {
   const query = `
     mutation productCreate($product: ProductCreateInput!) {
@@ -73,11 +108,13 @@ async function createShopifyProduct(payload, status) {
   if (!product?.id) {
     throw new HttpError(502, 'Shopify no devolvió el producto creado.');
   }
+  const variantId = product.variants?.nodes?.[0]?.id || null;
+  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload);
   return {
     productId: product.id,
-    variantId: product.variants?.nodes?.[0]?.id || null,
+    variantId: updatedVariant?.id || variantId,
     handle: product.handle || null,
-    status: String(product.status || status || 'active').toLowerCase()
+    status: String(product.status || status || 'draft').toLowerCase()
   };
 }
 
@@ -104,11 +141,13 @@ async function updateShopifyProduct(productId, payload, status) {
   if (!product?.id) {
     throw new HttpError(502, 'Shopify no devolvió el producto actualizado.');
   }
+  const variantId = product.variants?.nodes?.[0]?.id || null;
+  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload);
   return {
     productId: product.id,
-    variantId: product.variants?.nodes?.[0]?.id || null,
+    variantId: updatedVariant?.id || variantId,
     handle: product.handle || null,
-    status: String(product.status || status || 'active').toLowerCase()
+    status: String(product.status || status || 'draft').toLowerCase()
   };
 }
 
