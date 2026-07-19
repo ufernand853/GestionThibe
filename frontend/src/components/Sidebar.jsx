@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/approvals', label: 'Aprobaciones', permission: 'stock.approve', hiddenForRoles: ['Operador'] },
   { to: '/locations', label: 'Ubicaciones', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/reports', label: 'Reportes', permission: 'reports.read', hiddenForRoles: ['Operador'] },
+  { to: '/shopify', label: 'Shopify', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/audit', label: 'Auditoría', permission: 'stock.logs.read', hiddenForRoles: ['Operador'] },
   { to: '/users', label: 'Usuarios', permission: 'users.read', hiddenForRoles: ['Operador'] }
 ];
