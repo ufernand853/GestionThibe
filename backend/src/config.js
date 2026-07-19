@@ -32,7 +32,17 @@ const config = {
   accessTokenTtl: parseInt(process.env.ACCESS_TOKEN_TTL || '3600', 10),
   refreshTokenTtl: parseInt(process.env.REFRESH_TOKEN_TTL || '604800', 10),
   adminEmail: process.env.ADMIN_EMAIL || 'admin@example.com',
-  adminPassword: process.env.ADMIN_PASSWORD || 'ChangeMe123!'
+  adminPassword: process.env.ADMIN_PASSWORD || 'ChangeMe123!',
+  shopify: {
+    shopDomain: process.env.SHOPIFY_STORE || process.env.SHOPIFY_SHOP_DOMAIN || '',
+    clientId: process.env.SHOPIFY_CLIENT_ID || '',
+    clientSecret: process.env.SHOPIFY_CLIENT_SECRET || '',
+    adminAccessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',
+    apiVersion: process.env.SHOPIFY_API_VERSION || '2026-07',
+    dryRun: normalizeBoolean(process.env.SHOPIFY_DRY_RUN) ?? true,
+    defaultLocationId: process.env.SHOPIFY_DEFAULT_LOCATION_ID || '',
+    publicBackendUrl: (process.env.PUBLIC_BACKEND_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
+  }
 };
 
 module.exports = config;
