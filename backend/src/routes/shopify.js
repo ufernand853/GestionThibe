@@ -8,6 +8,7 @@ const Location = require('../models/Location');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus, getAdminAccessToken } = require('../services/shopifyAuthService');
 const { syncShopifyProduct, archiveShopifyProduct } = require('../services/shopifyProductService');
+const config = require('../config');
 
 const router = express.Router();
 const MAX_BULK_ITEMS = 100;
@@ -40,6 +41,35 @@ function plainAttributes(attributes) {
   return attributes;
 }
 
+function resolvePublicImageUrl(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || /^data:image\//i.test(trimmed)) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  const publicBackendUrl = config.shopify.publicBackendUrl;
+  if (!publicBackendUrl) return null;
+  try {
+    return new URL(trimmed.replace(/^\/+/, ''), `${publicBackendUrl}/`).toString();
+  } catch (error) {
+    return null;
+  }
+}
+
+function buildShopifyMedia(item) {
+  const images = Array.isArray(item.images) ? item.images : [];
+  return images
+    .map((image, index) => {
+      const originalSource = resolvePublicImageUrl(image);
+      if (!originalSource) return null;
+      return {
+        mediaContentType: 'IMAGE',
+        originalSource,
+        alt: `${item.code || item.sku || 'Artículo'} - ${item.description || `Imagen ${index + 1}`}`.slice(0, 512)
+      };
+    })
+    .filter(Boolean);
+}
+
 function buildShopifyPayload(item, locations = []) {
   const locationNames = new Map(locations.map(location => [String(location.id), location.name]));
   const stockByLocation = [];
@@ -66,7 +96,8 @@ function buildShopifyPayload(item, locations = []) {
     tags: Object.values(plainAttributes(item.attributes)).filter(Boolean),
     inventory: sumStock(item.stock),
     stockByLocation,
-    images: Array.isArray(item.images) ? item.images : []
+    images: Array.isArray(item.images) ? item.images : [],
+    media: buildShopifyMedia(item)
   };
 }
 

@@ -40,7 +40,8 @@ const config = {
     adminAccessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',
     apiVersion: process.env.SHOPIFY_API_VERSION || '2026-07',
     dryRun: normalizeBoolean(process.env.SHOPIFY_DRY_RUN) ?? true,
-    defaultLocationId: process.env.SHOPIFY_DEFAULT_LOCATION_ID || ''
+    defaultLocationId: process.env.SHOPIFY_DEFAULT_LOCATION_ID || '',
+    publicBackendUrl: (process.env.PUBLIC_BACKEND_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
   }
 };
 

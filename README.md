@@ -132,6 +132,7 @@ Una vez liberado el puerto, vuelve a iniciar el servicio con `pm2 start` o `pm2 
 | `SHOPIFY_API_VERSION` | Versión de Shopify Admin API a usar | `2026-07` |
 | `SHOPIFY_DRY_RUN` | Mantiene Shopify en modo preparación sin llamadas reales (`true`/`false`) | `true` |
 | `SHOPIFY_DEFAULT_LOCATION_ID` | Ubicación Shopify predeterminada para mapear inventario | - |
+| `PUBLIC_BACKEND_URL` / `BACKEND_PUBLIC_URL` | URL pública del backend usada para que Shopify pueda descargar imágenes de artículos desde `/uploads/items`. | - |
 
 > 📘 Para configurar Shopify paso a paso, ver `docs/shopify-setup.md`.
 

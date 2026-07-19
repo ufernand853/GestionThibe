@@ -17,7 +17,7 @@ Para que el ABM de Shopify deje de funcionar como preparación local y pueda con
   - si los productos se crean como `draft` o `active` por defecto;
   - qué ubicación Shopify se toma como stock principal;
   - si el stock se envía en unidades, cajas o ambas;
-  - si las imágenes locales deben subirse a Shopify o solo quedar como referencia interna.
+  - si las imágenes locales deben subirse a Shopify o solo quedar como referencia interna. Para subirlas, el backend necesita `PUBLIC_BACKEND_URL` y que `/uploads/items` sea accesible públicamente.
 
 ## 2. Variables de entorno del backend
 
@@ -31,6 +31,7 @@ SHOPIFY_ADMIN_ACCESS_TOKEN=
 SHOPIFY_API_VERSION=2026-07
 SHOPIFY_DRY_RUN=true
 SHOPIFY_DEFAULT_LOCATION_ID=
+PUBLIC_BACKEND_URL=https://tu-dominio-o-ip
 ```
 
 | Variable | Obligatoria | Descripción |
@@ -42,6 +43,7 @@ SHOPIFY_DEFAULT_LOCATION_ID=
 | `SHOPIFY_API_VERSION` | No | Versión de Admin API. Por defecto: `2026-07`. |
 | `SHOPIFY_DRY_RUN` | No | Si está en `true`, el sistema prepara payloads y registra estado local sin llamar a Shopify. |
 | `SHOPIFY_DEFAULT_LOCATION_ID` | No | ID de ubicación Shopify para sincronizar inventario cuando se defina el mapeo. |
+| `PUBLIC_BACKEND_URL` / `BACKEND_PUBLIC_URL` | Recomendado para imágenes | URL pública desde donde Shopify puede descargar imágenes guardadas en `uploads/items`. Debe apuntar al backend y ser accesible desde internet. |
 
 > Seguridad: el secreto y cualquier token solo deben existir en el backend. Nunca deben exponerse en React, commits, capturas ni logs.
 
@@ -64,4 +66,5 @@ Con esas credenciales, el backend ya puede obtener un token por `client_credenti
 - actualizar producto si ya existe;
 - archivar producto para la baja;
 - actualizar variante/precio/SKU;
+- enviar imágenes públicas del artículo como media del producto;
 - mapear inventario por ubicación.

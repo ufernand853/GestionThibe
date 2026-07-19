@@ -87,8 +87,8 @@ async function updateDefaultVariant(productId, variantId, payload) {
 
 async function createShopifyProduct(payload, status) {
   const query = `
-    mutation productCreate($product: ProductCreateInput!) {
-      productCreate(product: $product) {
+    mutation productCreate($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
+      productCreate(product: $product, media: $media) {
         product {
           id
           handle
@@ -101,7 +101,8 @@ async function createShopifyProduct(payload, status) {
       }
     }
   `;
-  const data = await shopifyGraphql(query, { product: buildProductInput(payload, status) });
+  const media = Array.isArray(payload.media) && payload.media.length > 0 ? payload.media : null;
+  const data = await shopifyGraphql(query, { product: buildProductInput(payload, status), media });
   const result = data.productCreate;
   assertNoUserErrors('la creación del producto', result?.userErrors);
   const product = result?.product;
@@ -116,6 +117,37 @@ async function createShopifyProduct(payload, status) {
     handle: product.handle || null,
     status: String(product.status || status || 'draft').toLowerCase()
   };
+}
+
+
+async function productHasMedia(productId) {
+  const query = `
+    query productMediaExists($id: ID!) {
+      product(id: $id) {
+        media(first: 1) { nodes { id } }
+      }
+    }
+  `;
+  const data = await shopifyGraphql(query, { id: productId });
+  return Boolean(data.product?.media?.nodes?.length);
+}
+
+async function appendProductMediaIfEmpty(productId, media = []) {
+  if (!Array.isArray(media) || media.length === 0) return false;
+  if (await productHasMedia(productId)) return false;
+  const query = `
+    mutation productUpdateMedia($product: ProductUpdateInput!, $media: [CreateMediaInput!]) {
+      productUpdate(product: $product, media: $media) {
+        product { id }
+        media { id status mediaContentType }
+        userErrors { field message }
+      }
+    }
+  `;
+  const data = await shopifyGraphql(query, { product: { id: productId }, media });
+  const result = data.productUpdate;
+  assertNoUserErrors('la carga de imágenes del producto', result?.userErrors);
+  return true;
 }
 
 async function updateShopifyProduct(productId, payload, status) {
@@ -143,6 +175,7 @@ async function updateShopifyProduct(productId, payload, status) {
   }
   const variantId = product.variants?.nodes?.[0]?.id || null;
   const updatedVariant = await updateDefaultVariant(product.id, variantId, payload);
+  await appendProductMediaIfEmpty(product.id, payload.media);
   return {
     productId: product.id,
     variantId: updatedVariant?.id || variantId,
