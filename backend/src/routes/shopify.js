@@ -76,6 +76,14 @@ function setShopifyFields(item, fields) {
   });
 }
 
+function getPersistedShopifyProductId(item) {
+  const productId = item.shopify?.productId;
+  if (typeof productId === 'string' && productId.startsWith('gid://shopify/Product/')) {
+    return productId;
+  }
+  return null;
+}
+
 function serializeShopifyItem(item, locations = []) {
   return {
     id: item.id,
@@ -193,7 +201,7 @@ router.post(
       const nextStatus = payload.status === 'draft' ? 'draft' : 'active';
       const productPayload = buildShopifyPayload(item, locations);
       const syncedProduct = shopifyConfig.configured
-        ? await syncShopifyProduct({ existingProductId: item.shopify?.productId || null, payload: productPayload, status: nextStatus })
+        ? await syncShopifyProduct({ existingProductId: getPersistedShopifyProductId(item), payload: productPayload, status: nextStatus })
         : {
             productId: item.shopify?.productId || `local-${item.id}`,
             variantId: item.shopify?.variantId || `variant-${item.id}`,
@@ -242,8 +250,9 @@ router.post(
     const results = [];
     const locations = await Location.find().sort({ name: 1 });
     for (const item of items) {
-      const archivedProduct = shopifyConfig.configured && item.shopify?.productId
-        ? await archiveShopifyProduct(item.shopify.productId, buildShopifyPayload(item, locations))
+      const persistedProductId = getPersistedShopifyProductId(item);
+      const archivedProduct = shopifyConfig.configured && persistedProductId
+        ? await archiveShopifyProduct(persistedProductId, buildShopifyPayload(item, locations))
         : null;
       setShopifyFields(item, {
         status: archivedProduct?.status || 'archived',
