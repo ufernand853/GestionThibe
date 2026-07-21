@@ -1014,22 +1014,6 @@ th {
   color: #64748b;
 }
 
-.secondary-button {
-  background-color: #64748b;
-}
-
-.secondary-button:hover:not(:disabled) {
-  background-color: #475569;
-}
-
-.danger-button {
-  background-color: #dc2626;
-}
-
-.danger-button:hover:not(:disabled) {
-  background-color: #b91c1c;
-}
-
 .table-responsive {
   overflow-x: auto;
 }
