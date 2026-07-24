@@ -16,6 +16,18 @@ function formatMoney(value) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(value) || 0);
 }
 
+function formatLocationQuantity(location) {
+  const parts = [];
+  if (location.boxes > 0) parts.push(`${location.boxes} caja(s)`);
+  if (location.units > 0) parts.push(`${location.units} unidad(es)`);
+  return parts.length > 0 ? parts.join(', ') : 'sin stock';
+}
+
+function getCurrentLocations(item) {
+  const locations = Array.isArray(item?.payload?.stockByLocation) ? item.payload.stockByLocation : [];
+  return locations.filter(location => (Number(location.boxes) || 0) > 0 || (Number(location.units) || 0) > 0);
+}
+
 export default function ShopifyPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -123,7 +135,81 @@ export default function ShopifyPage() {
         {message && <div className="success-message">{message}</div>}
       </section>
       <section className="section-card">
-        {loading ? <LoadingIndicator /> : <><div className="table-toolbar"><span>{selectedIds.length} seleccionado(s) de {total}</span><button type="button" className="secondary-button" onClick={toggleVisible}>{allVisibleSelected ? 'Quitar visibles' : 'Seleccionar visibles'}</button></div><div className="table-responsive"><table className="data-table"><thead><tr><th><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} /></th><th>Artículo</th><th>Grupo</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Última sync</th><th>Payload Shopify</th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><input type="checkbox" checked={selectedSet.has(item.id)} onChange={() => toggleItem(item.id)} /></td><td><strong>{item.code}</strong><br /><span className="muted-text">{item.description}</span><br /><small>SKU: {item.sku || '-'}</small></td><td>{item.group?.name || '-'}</td><td>{formatMoney(item.precio)}</td><td>{item.payload.inventory.boxes} caja(s), {item.payload.inventory.units} unidad(es)</td><td><span className={`status-pill status-pill--${item.shopify.status}`}>{STATUS_LABELS[item.shopify.status] || item.shopify.status}</span></td><td>{formatDate(item.shopify.lastSyncedAt)}</td><td><small>{item.payload.title} · {item.payload.productType}</small></td></tr>)}{items.length === 0 && <tr><td colSpan="8">No hay artículos para mostrar.</td></tr>}</tbody></table></div><div className="pagination-controls"><button type="button" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page <= 1}>Anterior</button><span>Página {page} de {totalPages}</span><button type="button" onClick={() => setPage(value => Math.min(totalPages, value + 1))} disabled={page >= totalPages}>Siguiente</button></div></>}
+        {loading ? <LoadingIndicator /> : <>
+          <div className="table-toolbar">
+            <span>{selectedIds.length} seleccionado(s) de {total}</span>
+            <button type="button" className="secondary-button" onClick={toggleVisible}>
+              {allVisibleSelected ? 'Quitar visibles' : 'Seleccionar visibles'}
+            </button>
+          </div>
+          <div className="table-responsive">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} /></th>
+                  <th>Artículo</th>
+                  <th>Grupo</th>
+                  <th>Precio</th>
+                  <th>Stock</th>
+                  <th>Ubicación actual</th>
+                  <th>Estado</th>
+                  <th>Última sync</th>
+                  <th>Payload Shopify</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(item => {
+                  const currentLocations = getCurrentLocations(item);
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        <input checked={selectedSet.has(item.id)} type="checkbox" onChange={() => toggleItem(item.id)} />
+                      </td>
+                      <td>
+                        <strong>{item.code}</strong><br />
+                        <span className="muted-text">{item.description}</span><br />
+                        <small>SKU: {item.sku || '-'}</small>
+                      </td>
+                      <td>{item.group?.name || '-'}</td>
+                      <td>{formatMoney(item.precio)}</td>
+                      <td>{item.payload.inventory.boxes} caja(s), {item.payload.inventory.units} unidad(es)</td>
+                      <td>
+                        {currentLocations.length > 0
+                          ? currentLocations.map(location => (
+                              <small key={location.locationId} className="muted-text" style={{ display: 'block' }}>
+                                {location.locationName}: {formatLocationQuantity(location)}
+                              </small>
+                            ))
+                          : '-'}
+                      </td>
+                      <td>
+                        <span className={`status-pill status-pill--${item.shopify.status}`}>
+                          {STATUS_LABELS[item.shopify.status] || item.shopify.status}
+                        </span>
+                      </td>
+                      <td>{formatDate(item.shopify.lastSyncedAt)}</td>
+                      <td><small>{item.payload.title} · {item.payload.productType}</small></td>
+                    </tr>
+                  );
+                })}
+                {items.length === 0 && <tr><td colSpan="9">No hay artículos para mostrar.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="pagination-controls">
+            <button type="button" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page <= 1}>
+              Anterior
+            </button>
+            <span>Página {page} de {totalPages}</span>
+            <button
+              type="button"
+              onClick={() => setPage(value => Math.min(totalPages, value + 1))}
+              disabled={page >= totalPages}
+            >
+              Siguiente
+            </button>
+          </div>
+        </>}
       </section>
     </div>
   );
