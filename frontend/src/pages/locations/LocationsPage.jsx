@@ -364,6 +364,16 @@ export default function LocationsPage() {
               </div>
             )}
             <div className="input-group">
+              <label htmlFor="locationShopify">ID ubicación Shopify</label>
+              <input
+                id="locationShopify"
+                name="shopifyLocationId"
+                value={formValues.shopifyLocationId}
+                onChange={handleFormChange}
+                placeholder="Ej: 123456789 o gid://shopify/Location/123456789"
+              />
+            </div>
+            <div className="input-group">
               <label htmlFor="locationContact">Contacto</label>
               <input
                 id="locationContact"
