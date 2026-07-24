@@ -530,6 +530,27 @@ th {
   width: 100%;
 }
 
+.shopify-image-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.shopify-image-thumbnails {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.shopify-image-thumbnails img {
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
 .image-lightbox {
   position: fixed;
   inset: 0;

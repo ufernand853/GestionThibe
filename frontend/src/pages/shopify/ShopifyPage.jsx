@@ -3,6 +3,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { API_ROOT_URL } from '../../utils/apiConfig.js';
 
 const STATUS_LABELS = { draft: 'Borrador', active: 'Activo', archived: 'Archivado', deleted: 'Eliminado' };
 
@@ -30,6 +31,26 @@ function formatLocationQuantity(location) {
 function getCurrentLocations(item) {
   const locations = Array.isArray(item?.payload?.stockByLocation) ? item.payload.stockByLocation : [];
   return locations.filter(location => (Number(location.boxes) || 0) > 0 || (Number(location.units) || 0) > 0);
+}
+
+function getImageUrl(path) {
+  if (!path) return '';
+  if (/^data:image\//i.test(path) || /^https?:\/\//i.test(path)) return path;
+  return `${API_ROOT_URL}/${String(path).replace(/^\/+/, '')}`;
+}
+
+function getShopifyImageSummary(item) {
+  const images = Array.isArray(item?.payload?.images) ? item.payload.images : [];
+  const media = Array.isArray(item?.payload?.media) ? item.payload.media : [];
+  return {
+    images,
+    media,
+    previewImages: images.slice(0, 3).map((image, index) => ({
+      src: getImageUrl(image),
+      alt: `${item.code || item.sku || 'Artículo'} · imagen ${index + 1}`,
+      key: `${item.id}-${index}-${image}`
+    }))
+  };
 }
 
 export default function ShopifyPage() {
@@ -126,6 +147,7 @@ export default function ShopifyPage() {
                   : shopifyConfig.configured
                     ? `credenciales cargadas (${shopifyConfig.authMode})`
                     : 'faltan credenciales'}
+                {' '}· imágenes públicas {shopifyConfig.hasPublicBackendUrl ? 'configuradas' : 'sin configurar'}
               </p>
             )}
           </div>
@@ -160,6 +182,7 @@ export default function ShopifyPage() {
                   <th>Precio</th>
                   <th>Stock</th>
                   <th>Ubicación actual</th>
+                  <th>Imágenes</th>
                   <th>Estado</th>
                   <th>Última sync</th>
                   <th>Payload Shopify</th>
@@ -168,6 +191,7 @@ export default function ShopifyPage() {
               <tbody>
                 {items.map(item => {
                   const currentLocations = getCurrentLocations(item);
+                  const imageSummary = getShopifyImageSummary(item);
                   return (
                     <tr key={item.id}>
                       <td>
@@ -191,16 +215,39 @@ export default function ShopifyPage() {
                           : '-'}
                       </td>
                       <td>
+                        {imageSummary.images.length > 0 ? (
+                          <div className="shopify-image-summary">
+                            <div className="shopify-image-thumbnails">
+                              {imageSummary.previewImages.map(image => (
+                                <img key={image.key} src={image.src} alt={image.alt} loading="lazy" />
+                              ))}
+                            </div>
+                            <small className="muted-text">
+                              {imageSummary.images.length} asociada(s) · {imageSummary.media.length} enviable(s)
+                            </small>
+                            {imageSummary.media.length === 0 && (
+                              <small className="muted-text" style={{ display: 'block' }}>
+                                Requiere URL pública para Shopify
+                              </small>
+                            )}
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td>
                         <span className={`status-pill status-pill--${item.shopify.status}`}>
                           {STATUS_LABELS[item.shopify.status] || item.shopify.status}
                         </span>
                       </td>
                       <td>{formatDate(item.shopify.lastSyncedAt)}</td>
-                      <td><small>{item.payload.title} · {item.payload.productType}</small></td>
+                      <td>
+                        <small>
+                          {item.payload.title} · {item.payload.productType} · {imageSummary.media.length} imagen(es) para Shopify
+                        </small>
+                      </td>
                     </tr>
                   );
                 })}
-                {items.length === 0 && <tr><td colSpan="9">No hay artículos para mostrar.</td></tr>}
+                {items.length === 0 && <tr><td colSpan="10">No hay artículos para mostrar.</td></tr>}
               </tbody>
             </table>
           </div>

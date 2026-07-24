@@ -45,7 +45,7 @@ PUBLIC_BACKEND_URL=https://tu-dominio-o-ip
 | `SHOPIFY_DRY_RUN` | No | Si está en `true`, el sistema prepara payloads y registra estado local sin llamar a Shopify. |
 | `SHOPIFY_DEFAULT_LOCATION_ID` | No | ID de ubicación Shopify para sincronizar inventario cuando se defina el mapeo. |
 | `SHOPIFY_INVENTORY_WEBHOOK_SYNC_ENABLED` | No | Habilita la aplicación automática de webhooks `inventory_levels/update` sobre el stock local. Por defecto queda en `true`; usar `false` solo si se quiere recibir webhooks sin modificar stock local. |
-| `PUBLIC_BACKEND_URL` / `BACKEND_PUBLIC_URL` | Recomendado para imágenes | URL pública desde donde Shopify puede descargar imágenes guardadas en `uploads/items`. Debe apuntar al backend y ser accesible desde internet. |
+| `PUBLIC_BACKEND_URL` / `BACKEND_PUBLIC_URL` | Requerido para enviar imágenes locales | URL pública desde donde Shopify puede descargar imágenes guardadas en `uploads/items`. Debe apuntar al backend y ser accesible desde internet. Las imágenes en formato `data:image/...` quedan visibles en Thibe, pero no se envían a Shopify porque Shopify necesita una URL pública. |
 
 > Seguridad: el secreto y cualquier token solo deben existir en el backend. Nunca deben exponerse en React, commits, capturas ni logs.
 
