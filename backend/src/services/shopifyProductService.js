@@ -85,11 +85,40 @@ function getMappedInventoryQuantities(inventoryItemId, payload) {
       return {
         inventoryItemId: normalizedInventoryItemId,
         locationId,
-        quantity: getLocationAvailableQuantity(location),
-        compareQuantity: null
+        quantity: getLocationAvailableQuantity(location)
       };
     })
     .filter(Boolean);
+}
+
+async function getCurrentAvailableQuantity(inventoryItemId, locationId) {
+  const query = `
+    query InventoryLevelAvailable($inventoryItemId: ID!, $locationId: ID!) {
+      inventoryItem(id: $inventoryItemId) {
+        inventoryLevel(locationId: $locationId, includeInactive: true) {
+          quantities(names: ["available"]) {
+            name
+            quantity
+          }
+        }
+      }
+    }
+  `;
+  const data = await shopifyGraphql(query, { inventoryItemId, locationId });
+  const available = data.inventoryItem?.inventoryLevel?.quantities?.find(quantity => quantity.name === 'available');
+  return Number(available?.quantity) || 0;
+}
+
+async function withCurrentInventoryQuantities(quantities) {
+  const resolvedQuantities = [];
+  for (const quantity of quantities) {
+    const currentQuantity = await getCurrentAvailableQuantity(quantity.inventoryItemId, quantity.locationId);
+    resolvedQuantities.push({
+      ...quantity,
+      changeFromQuantity: currentQuantity
+    });
+  }
+  return resolvedQuantities;
 }
 
 function isAlreadyActiveInventoryError(error) {
@@ -134,7 +163,6 @@ async function setInventoryQuantities(quantities, referenceDocumentUri) {
   `;
   const data = await shopifyGraphql(query, {
     input: {
-      ignoreCompareQuantity: true,
       name: 'available',
       reason: 'correction',
       referenceDocumentUri,
@@ -153,8 +181,9 @@ async function syncInventoryLevels(inventoryItemId, payload) {
   for (const quantity of quantities) {
     await activateInventoryLocation(quantity);
   }
+  const quantitiesWithCurrentValues = await withCurrentInventoryQuantities(quantities);
   await setInventoryQuantities(
-    quantities,
+    quantitiesWithCurrentValues,
     `gestionthibe://shopify/inventory-sync/${encodeURIComponent(payload.sku || inventoryItemId)}`
   );
   return { updated: quantities.length, skipped: false };
