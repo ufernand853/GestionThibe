@@ -169,7 +169,98 @@ Si ya tienes una copia, actualízala con `git pull`.
 2. Inicia sesión con las credenciales del administrador definidas en el backend (`admin@example.com` / `ChangeMe123!`, salvo cambios).
 3. Realiza acciones de prueba: crear un artículo, generar una solicitud de movimiento y revisar los reportes.
 
-## 7. Resolución de problemas frecuentes
+
+## 7. HTTPS público para Shopify manteniendo HTTP local/demo
+
+Shopify puede seguir conviviendo con la demo HTTP. La idea es **no apagar** los servicios actuales:
+
+- frontend demo: `http://<IP>:4173`;
+- backend demo/API: `http://<IP>:3000`;
+
+Y agregar una entrada HTTPS pública solo para que Shopify descargue imágenes y, si se desea, llame webhooks/API:
+
+```env
+PUBLIC_BACKEND_URL=https://api.tu-dominio.com
+```
+
+> Importante: para certificados confiables de Let's Encrypt necesitás un dominio o subdominio apuntando al servidor. Con una IP pública sin dominio no alcanza para un certificado válido que Shopify acepte. Para pruebas rápidas se puede usar un túnel HTTPS como Cloudflare Tunnel o ngrok y poner esa URL en `PUBLIC_BACKEND_URL`.
+
+### Opción recomendada con Nginx + Certbot
+
+1. Crear un DNS tipo `A` apuntando al servidor, por ejemplo:
+
+   ```text
+   api.tu-dominio.com -> <IP_DEL_SERVIDOR>
+   ```
+
+2. Instalar Nginx y Certbot en Ubuntu/Debian:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y nginx certbot python3-certbot-nginx
+   ```
+
+3. Crear el sitio de Nginx para proxy al backend local `3000`:
+
+   ```nginx
+   server {
+       listen 80;
+       server_name api.tu-dominio.com;
+
+       location / {
+           proxy_pass http://127.0.0.1:3000;
+           proxy_http_version 1.1;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+   }
+   ```
+
+   Guardarlo, por ejemplo, en:
+
+   ```bash
+   sudo nano /etc/nginx/sites-available/gestionthibe-api
+   sudo ln -s /etc/nginx/sites-available/gestionthibe-api /etc/nginx/sites-enabled/gestionthibe-api
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+4. Emitir el certificado HTTPS:
+
+   ```bash
+   sudo certbot --nginx -d api.tu-dominio.com
+   ```
+
+5. Configurar el backend:
+
+   ```env
+   PUBLIC_BACKEND_URL=https://api.tu-dominio.com
+   ```
+
+6. Reiniciar el backend para que tome el `.env`.
+
+7. Verificar desde navegador/incógnito o desde otra red:
+
+   ```text
+   https://api.tu-dominio.com/uploads/items/1778891837425-9cb20abbfed8eeed.png
+   ```
+
+Si esa URL HTTPS abre la imagen sin login, Shopify debería poder procesarla.
+
+### ¿Sigue funcionando por HTTP?
+
+Sí. Mientras no apagues los procesos ni cierres puertos, estas URLs pueden seguir funcionando:
+
+```text
+http://<IP>:4173
+http://<IP>:3000
+```
+
+Nginx agrega una entrada adicional por HTTPS; no reemplaza necesariamente la demo HTTP.
+
+## 8. Resolución de problemas frecuentes
 
 - **El backend no arranca**: revisa la cadena `MONGO_URI` y que MongoDB esté en ejecución (`docker ps` o `systemctl status mongod`).
 - **Error de CORS**: confirma que `VITE_API_BASE_URL` usa la misma URL y puerto en la que está publicado el backend.
