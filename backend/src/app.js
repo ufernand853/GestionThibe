@@ -17,10 +17,29 @@ const reportsRoutes = require('./routes/reports');
 const rolesRoutes = require('./routes/roles');
 const preferencesRoutes = require('./routes/preferences');
 const shopifyRoutes = require('./routes/shopify');
+const { verifyShopifyWebhook, parseWebhookBody, applyInventoryLevelUpdate } = require('./services/shopifyWebhookService');
 
 const app = express();
 
 app.use(cors());
+
+app.post('/api/shopify/webhooks/inventory-levels-update', express.raw({ type: 'application/json', limit: '2mb' }), async (req, res, next) => {
+  try {
+    const verification = verifyShopifyWebhook(req.body, req.get('X-Shopify-Hmac-Sha256'));
+    if (!verification.ok) {
+      throw new HttpError(401, verification.reason);
+    }
+    const payload = parseWebhookBody(req.body);
+    if (!payload) {
+      throw new HttpError(400, 'Payload Shopify inválido.');
+    }
+    const result = await applyInventoryLevelUpdate(payload);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use(express.json({ limit: '75mb', strict: false }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));

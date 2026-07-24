@@ -9,6 +9,7 @@ const INITIAL_FORM_STATE = {
   type: 'warehouse',
   description: '',
   contactInfo: '',
+  shopifyLocationId: '',
   status: 'active'
 };
 
@@ -53,6 +54,7 @@ export default function LocationsPage() {
       type: normalizedType,
       description: location.description || '',
       contactInfo: location.contactInfo || '',
+      shopifyLocationId: location.shopifyLocationId || '',
       status: location.status === 'inactive' ? 'inactive' : 'active'
     };
   };
@@ -118,6 +120,7 @@ export default function LocationsPage() {
       type: location.type,
       description: location.description,
       contactInfo: location.contactInfo,
+      shopifyLocationId: location.shopifyLocationId || '',
       status: location.status
     });
     setSuccessMessage('');
@@ -239,6 +242,7 @@ export default function LocationsPage() {
                 <th>Descripción</th>
                 <th>Contacto</th>
                 <th>Estado</th>
+                <th>Shopify</th>
                 {canWrite && <th>Acciones</th>}
               </tr>
             </thead>
@@ -256,6 +260,7 @@ export default function LocationsPage() {
                       {location.status}
                     </span>
                   </td>
+                  <td>{location.shopifyLocationId || '-'}</td>
                   {canWrite && (
                     <td>
                       <div className="inline-actions">
@@ -277,7 +282,7 @@ export default function LocationsPage() {
               ))}
               {filteredLocations.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 6 : 5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <td colSpan={canWrite ? 7 : 6} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay ubicaciones registradas con el filtro seleccionado.
                   </td>
                 </tr>
@@ -333,6 +338,16 @@ export default function LocationsPage() {
                 name="description"
                 value={formValues.description}
                 onChange={handleFormChange}
+              />
+            </div>
+            <div className="input-group">
+              <label htmlFor="locationShopify">ID ubicación Shopify</label>
+              <input
+                id="locationShopify"
+                name="shopifyLocationId"
+                value={formValues.shopifyLocationId}
+                onChange={handleFormChange}
+                placeholder="Ej: 123456789 o gid://shopify/Location/123456789"
               />
             </div>
             <div className="input-group">
