@@ -6,6 +6,10 @@ import ErrorMessage from '../../components/ErrorMessage.jsx';
 
 const STATUS_LABELS = { draft: 'Borrador', active: 'Activo', archived: 'Archivado', deleted: 'Eliminado' };
 
+function getUpdatedInventoryLocations(results = []) {
+  return results.reduce((total, result) => total + (Number(result?.inventorySync?.updated) || 0), 0);
+}
+
 function formatDate(value) {
   if (!value) return 'Sin sincronizar';
   return new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
@@ -93,7 +97,11 @@ export default function ShopifyPage() {
       const endpoint = action === 'archive' ? '/shopify/products/archive' : '/shopify/products/sync';
       const data = await api.post(endpoint, { itemIds: selectedIds, status });
       const mode = data.config?.dryRun ? ' (dry-run: no se llamó a Shopify)' : '';
-      setMessage(`Operación completada: ${data.processed} artículo(s) procesado(s)${mode}.`);
+      const updatedInventoryLocations = getUpdatedInventoryLocations(data.results || []);
+      const inventoryDetail = updatedInventoryLocations > 0
+        ? ` Inventario actualizado en ${updatedInventoryLocations} ubicación(es).`
+        : '';
+      setMessage(`Actualización completada correctamente: ${data.processed} artículo(s) procesado(s)${mode}.${inventoryDetail}`);
       setSelectedIds([]);
       await fetchItems();
     } catch (err) {
@@ -131,8 +139,8 @@ export default function ShopifyPage() {
           <label>Buscar<input value={filters.search} onChange={event => { setFilters(current => ({ ...current, search: event.target.value })); setPage(1); }} placeholder="Código, SKU o descripción" /></label>
           <label>Estado Shopify<select value={filters.status} onChange={event => { setFilters(current => ({ ...current, status: event.target.value })); setPage(1); }}><option value="">Todos</option><option value="draft">Borrador</option><option value="active">Activo</option><option value="archived">Archivado</option></select></label>
         </div>
-        {error && <ErrorMessage message={error} />}
-        {message && <div className="success-message">{message}</div>}
+        {error && <ErrorMessage error={error} />}
+        {message && <div className="success-message" role="status">{message}</div>}
       </section>
       <section className="section-card">
         {loading ? <LoadingIndicator /> : <>

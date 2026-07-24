@@ -211,7 +211,7 @@ export default function LocationsPage() {
       </p>
 
       {error && <ErrorMessage error={error} />}
-      {successMessage && <div className="success-message">{successMessage}</div>}
+      {successMessage && <div className="success-message" role="status">{successMessage}</div>}
 
       <div className="section-card">
         <div className="flex-between" style={{ alignItems: 'center' }}>
@@ -309,6 +309,7 @@ export default function LocationsPage() {
               </button>
             )}
           </div>
+          {successMessage && <div className="success-message" role="status">{successMessage}</div>}
           <form
             className="form-grid"
             style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
