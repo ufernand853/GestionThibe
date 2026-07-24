@@ -227,7 +227,7 @@ export default function ShopifyPage() {
                             </small>
                             {imageSummary.media.length === 0 && (
                               <small className="muted-text" style={{ display: 'block' }}>
-                                Requiere URL pública para Shopify
+                                Requiere URL pública HTTPS para Shopify
                               </small>
                             )}
                           </div>

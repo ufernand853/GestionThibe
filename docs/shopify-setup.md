@@ -10,6 +10,7 @@ Para que el ABM de Shopify deje de funcionar como preparación local y pueda con
 - **Permisos/scopes Admin API** mínimos:
   - `read_products`
   - `write_products`
+  - `write_files`
   - `read_inventory`
   - `write_inventory`
   - `read_locations`
@@ -45,7 +46,7 @@ PUBLIC_BACKEND_URL=https://tu-dominio-o-ip
 | `SHOPIFY_DRY_RUN` | No | Si está en `true`, el sistema prepara payloads y registra estado local sin llamar a Shopify. |
 | `SHOPIFY_DEFAULT_LOCATION_ID` | No | ID de ubicación Shopify para sincronizar inventario cuando se defina el mapeo. |
 | `SHOPIFY_INVENTORY_WEBHOOK_SYNC_ENABLED` | No | Habilita la aplicación automática de webhooks `inventory_levels/update` sobre el stock local. Por defecto queda en `true`; usar `false` solo si se quiere recibir webhooks sin modificar stock local. |
-| `PUBLIC_BACKEND_URL` / `BACKEND_PUBLIC_URL` | Requerido para enviar imágenes locales | URL pública desde donde Shopify puede descargar imágenes guardadas en `uploads/items`. Debe apuntar al backend y ser accesible desde internet. Las imágenes en formato `data:image/...` quedan visibles en Thibe, pero no se envían a Shopify porque Shopify necesita una URL pública. |
+| `PUBLIC_BACKEND_URL` / `BACKEND_PUBLIC_URL` | Requerido para enviar imágenes locales | URL pública HTTPS desde donde Shopify puede descargar imágenes guardadas en `uploads/items`. Debe apuntar al backend y ser accesible desde internet. Las imágenes en formato `data:image/...` o servidas por `http://` quedan visibles en Thibe, pero no se envían a Shopify porque Shopify necesita una URL pública HTTPS estable. Si Shopify informa errores de procesamiento multimedia, validar que la app tenga `write_files`, que la URL abra desde internet sin login y que el archivo no sea demasiado pesado. |
 
 > Seguridad: el secreto y cualquier token solo deben existir en el backend. Nunca deben exponerse en React, commits, capturas ni logs.
 

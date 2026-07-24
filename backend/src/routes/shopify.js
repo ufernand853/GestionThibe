@@ -45,11 +45,13 @@ function resolvePublicImageUrl(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed || /^data:image\//i.test(trimmed)) return null;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^http:\/\//i.test(trimmed)) return null;
+  if (/^https:\/\//i.test(trimmed)) return trimmed;
   const publicBackendUrl = config.shopify.publicBackendUrl;
   if (!publicBackendUrl) return null;
   try {
-    return new URL(trimmed.replace(/^\/+/, ''), `${publicBackendUrl}/`).toString();
+    const publicUrl = new URL(trimmed.replace(/^\/+/, ''), `${publicBackendUrl}/`).toString();
+    return publicUrl.startsWith('https://') ? publicUrl : null;
   } catch (error) {
     return null;
   }
