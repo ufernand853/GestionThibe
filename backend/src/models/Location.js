@@ -8,6 +8,7 @@ const locationSchema = new Schema(
     type: { type: String, enum: LOCATION_TYPES, default: 'warehouse' },
     description: { type: String, default: '' },
     contactInfo: { type: String, default: '' },
+    shopifyLocationId: { type: String, default: null, trim: true, index: true },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' }
   },
   {

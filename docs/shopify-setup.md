@@ -31,6 +31,7 @@ SHOPIFY_ADMIN_ACCESS_TOKEN=
 SHOPIFY_API_VERSION=2026-07
 SHOPIFY_DRY_RUN=true
 SHOPIFY_DEFAULT_LOCATION_ID=
+SHOPIFY_INVENTORY_WEBHOOK_SYNC_ENABLED=false
 PUBLIC_BACKEND_URL=https://tu-dominio-o-ip
 ```
 
@@ -43,6 +44,7 @@ PUBLIC_BACKEND_URL=https://tu-dominio-o-ip
 | `SHOPIFY_API_VERSION` | No | Versión de Admin API. Por defecto: `2026-07`. |
 | `SHOPIFY_DRY_RUN` | No | Si está en `true`, el sistema prepara payloads y registra estado local sin llamar a Shopify. |
 | `SHOPIFY_DEFAULT_LOCATION_ID` | No | ID de ubicación Shopify para sincronizar inventario cuando se defina el mapeo. |
+| `SHOPIFY_INVENTORY_WEBHOOK_SYNC_ENABLED` | No | Habilita la aplicación automática de webhooks `inventory_levels/update` sobre el stock local. Por seguridad queda en `false` por defecto. |
 | `PUBLIC_BACKEND_URL` / `BACKEND_PUBLIC_URL` | Recomendado para imágenes | URL pública desde donde Shopify puede descargar imágenes guardadas en `uploads/items`. Debe apuntar al backend y ser accesible desde internet. |
 
 > Seguridad: el secreto y cualquier token solo deben existir en el backend. Nunca deben exponerse en React, commits, capturas ni logs.
@@ -68,3 +70,17 @@ Con esas credenciales, el backend ya puede obtener un token por `client_credenti
 - actualizar variante/precio/SKU;
 - enviar imágenes públicas del artículo como media del producto;
 - mapear inventario por ubicación.
+
+## 5. Mapeo de ubicaciones y baja automática por ventas
+
+Para que una venta o cualquier ajuste de inventario en Shopify impacte el stock local sin intervención del usuario, primero activar explícitamente `SHOPIFY_INVENTORY_WEBHOOK_SYNC_ENABLED=true` en el backend. Por seguridad, si la variable queda en `false`, el webhook responde correctamente pero no modifica stock local.
+
+1. En el sistema, abrir **Ubicaciones** y cargar en cada depósito interno el **ID ubicación Shopify** correspondiente. Puede guardarse como número (`123456789`) o como GID (`gid://shopify/Location/123456789`).
+2. Sincronizar los artículos desde la pantalla **Shopify**. La sincronización guarda el `InventoryItem` de la variante Shopify en cada artículo local.
+3. En Shopify, crear un webhook Admin API para el topic `inventory_levels/update` apuntando a:
+
+```text
+https://TU_BACKEND_PUBLICO/api/shopify/webhooks/inventory-levels-update
+```
+
+El backend valida la firma `X-Shopify-Hmac-Sha256` con `SHOPIFY_CLIENT_SECRET`. Cuando llega el webhook, busca el artículo por `inventory_item_id`, busca la ubicación por `location_id` y reemplaza el stock de esa ubicación con el `available` recibido desde Shopify. Si Shopify informa `0`, la ubicación se elimina del mapa de stock del artículo.

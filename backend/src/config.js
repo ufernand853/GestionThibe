@@ -41,6 +41,7 @@ const config = {
     apiVersion: process.env.SHOPIFY_API_VERSION || '2026-07',
     dryRun: normalizeBoolean(process.env.SHOPIFY_DRY_RUN) ?? true,
     defaultLocationId: process.env.SHOPIFY_DEFAULT_LOCATION_ID || '',
+    inventoryWebhookSyncEnabled: normalizeBoolean(process.env.SHOPIFY_INVENTORY_WEBHOOK_SYNC_ENABLED) ?? false,
     publicBackendUrl: (process.env.PUBLIC_BACKEND_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
   }
 };
