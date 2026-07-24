@@ -1,4 +1,5 @@
 const config = require('../config');
+const crypto = require('crypto');
 const { HttpError } = require('../utils/errors');
 const { getAdminAccessToken, normalizeShopDomain } = require('./shopifyAuthService');
 
@@ -60,6 +61,103 @@ function buildVariantInput(variantId, payload) {
     variant.inventoryItem = { sku: payload.sku };
   }
   return variant;
+}
+
+function shopifyGid(resource, value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  if (normalized.startsWith('gid://shopify/')) return normalized;
+  return /^\d+$/.test(normalized) ? `gid://shopify/${resource}/${normalized}` : normalized;
+}
+
+function getLocationAvailableQuantity(location) {
+  return (Number(location?.boxes) || 0) + (Number(location?.units) || 0);
+}
+
+function getMappedInventoryQuantities(inventoryItemId, payload) {
+  const normalizedInventoryItemId = shopifyGid('InventoryItem', inventoryItemId);
+  if (!normalizedInventoryItemId) return [];
+  const locations = Array.isArray(payload?.stockByLocation) ? payload.stockByLocation : [];
+  return locations
+    .map(location => {
+      const locationId = shopifyGid('Location', location.shopifyLocationId);
+      if (!locationId) return null;
+      return {
+        inventoryItemId: normalizedInventoryItemId,
+        locationId,
+        quantity: getLocationAvailableQuantity(location),
+        compareQuantity: null
+      };
+    })
+    .filter(Boolean);
+}
+
+function isAlreadyActiveInventoryError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('already') || message.includes('active') || message.includes('activado');
+}
+
+async function activateInventoryLocation(quantity) {
+  const query = `
+    mutation ActivateInventoryItem(
+      $inventoryItemId: ID!,
+      $locationId: ID!,
+      $available: Int,
+      $idempotencyKey: String!
+    ) {
+      inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available)
+        @idempotent(key: $idempotencyKey) {
+        inventoryLevel { id }
+        userErrors { field message }
+      }
+    }
+  `;
+  const data = await shopifyGraphql(query, {
+    inventoryItemId: quantity.inventoryItemId,
+    locationId: quantity.locationId,
+    available: quantity.quantity,
+    idempotencyKey: crypto.randomUUID()
+  });
+  const userErrors = data.inventoryActivate?.userErrors || [];
+  const blockingErrors = userErrors.filter(error => !isAlreadyActiveInventoryError(error));
+  assertNoUserErrors('la activación de inventario por ubicación', blockingErrors);
+}
+
+async function setInventoryQuantities(quantities, referenceDocumentUri) {
+  const query = `
+    mutation InventorySet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+      inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+        inventoryAdjustmentGroup { id }
+        userErrors { field message }
+      }
+    }
+  `;
+  const data = await shopifyGraphql(query, {
+    input: {
+      ignoreCompareQuantity: true,
+      name: 'available',
+      reason: 'correction',
+      referenceDocumentUri,
+      quantities
+    },
+    idempotencyKey: crypto.randomUUID()
+  });
+  assertNoUserErrors('la actualización de inventario por ubicación', data.inventorySetQuantities?.userErrors);
+}
+
+async function syncInventoryLevels(inventoryItemId, payload) {
+  const quantities = getMappedInventoryQuantities(inventoryItemId, payload);
+  if (quantities.length === 0) {
+    return { updated: 0, skipped: true };
+  }
+  for (const quantity of quantities) {
+    await activateInventoryLocation(quantity);
+  }
+  await setInventoryQuantities(
+    quantities,
+    `gestionthibe://shopify/inventory-sync/${encodeURIComponent(payload.sku || inventoryItemId)}`
+  );
+  return { updated: quantities.length, skipped: false };
 }
 
 async function updateDefaultVariant(productId, variantId, payload) {
@@ -189,10 +287,13 @@ async function updateShopifyProduct(productId, payload, status) {
 }
 
 async function syncShopifyProduct({ existingProductId, payload, status }) {
-  if (existingProductId) {
-    return updateShopifyProduct(existingProductId, payload, status);
-  }
-  return createShopifyProduct(payload, status);
+  const product = existingProductId
+    ? await updateShopifyProduct(existingProductId, payload, status)
+    : await createShopifyProduct(payload, status);
+  return {
+    ...product,
+    inventorySync: await syncInventoryLevels(product.inventoryItemId, payload)
+  };
 }
 
 async function archiveShopifyProduct(productId, payload = {}) {

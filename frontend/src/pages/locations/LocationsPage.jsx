@@ -38,7 +38,6 @@ export default function LocationsPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [successMessage, setSuccessMessage] = useState('');
-  const [showShopifyMapping, setShowShopifyMapping] = useState(false);
 
   const normalizeLocation = location => {
     const rawId = location.id || location._id;
@@ -71,13 +70,8 @@ export default function LocationsPage() {
           setLoading(false);
           return;
         }
-        const [locationsResponse, shopifyConfigResponse] = await Promise.all([
-          api.get('/locations'),
-          api.get('/shopify/config').catch(() => null)
-        ]);
+        const response = await api.get('/locations');
         if (!active) return;
-        setShowShopifyMapping(Boolean(shopifyConfigResponse?.inventoryWebhookSyncEnabled));
-        const response = locationsResponse;
         const normalized = Array.isArray(response)
           ? response
               .map(normalizeLocation)
@@ -99,7 +93,7 @@ export default function LocationsPage() {
     };
   }, [api, canRead]);
 
-  const locationsTableColSpan = 5 + (showShopifyMapping ? 1 : 0) + (canWrite ? 1 : 0);
+  const locationsTableColSpan = 6 + (canWrite ? 1 : 0);
 
   const filteredLocations = useMemo(() => {
     if (filterType === 'all') {
@@ -147,9 +141,6 @@ export default function LocationsPage() {
     setError(null);
     try {
       const payload = { ...formValues, name: trimmedName };
-      if (!showShopifyMapping) {
-        delete payload.shopifyLocationId;
-      }
       if (editingId) {
         const updated = await api.put(`/locations/${editingId}`, payload);
         const normalized = normalizeLocation(updated);
@@ -253,7 +244,7 @@ export default function LocationsPage() {
                 <th>Descripción</th>
                 <th>Contacto</th>
                 <th>Estado</th>
-                {showShopifyMapping && <th>Shopify</th>}
+                <th>Shopify</th>
                 {canWrite && <th>Acciones</th>}
               </tr>
             </thead>
@@ -271,7 +262,7 @@ export default function LocationsPage() {
                       {location.status}
                     </span>
                   </td>
-                  {showShopifyMapping && <td>{location.shopifyLocationId || '-'}</td>}
+                  <td>{location.shopifyLocationId || '-'}</td>
                   {canWrite && (
                     <td>
                       <div className="inline-actions">
@@ -351,18 +342,6 @@ export default function LocationsPage() {
                 onChange={handleFormChange}
               />
             </div>
-            {showShopifyMapping && (
-              <div className="input-group">
-                <label htmlFor="locationShopify">ID ubicación Shopify</label>
-                <input
-                  id="locationShopify"
-                  name="shopifyLocationId"
-                  value={formValues.shopifyLocationId}
-                  onChange={handleFormChange}
-                  placeholder="Ej: 123456789 o gid://shopify/Location/123456789"
-                />
-              </div>
-            )}
             <div className="input-group">
               <label htmlFor="locationShopify">ID ubicación Shopify</label>
               <input
