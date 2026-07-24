@@ -22,6 +22,7 @@ function getShopifyAuthStatus() {
     hasClientCredentials,
     authMode: hasAdminAccessToken ? 'admin_access_token' : hasClientCredentials ? 'client_credentials' : 'missing',
     defaultLocationId: config.shopify.defaultLocationId || null,
+    inventoryWebhookSyncEnabled: Boolean(config.shopify.inventoryWebhookSyncEnabled),
     hasPublicBackendUrl: Boolean(config.shopify.publicBackendUrl)
   };
 }
