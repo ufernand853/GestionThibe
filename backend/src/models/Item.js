@@ -37,6 +37,7 @@ const itemSchema = new Schema(
     shopify: {
       productId: { type: String, default: null, trim: true },
       variantId: { type: String, default: null, trim: true },
+      inventoryItemId: { type: String, default: null, trim: true, index: true },
       handle: { type: String, default: null, trim: true },
       status: { type: String, enum: ['draft', 'active', 'archived', 'deleted'], default: 'draft' },
       lastSyncedAt: { type: Date, default: null },

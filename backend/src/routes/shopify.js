@@ -126,6 +126,7 @@ function serializeShopifyItem(item, locations = []) {
     shopify: {
       productId: item.shopify?.productId || null,
       variantId: item.shopify?.variantId || null,
+      inventoryItemId: item.shopify?.inventoryItemId || null,
       handle: item.shopify?.handle || null,
       status: getShopifyStatus(item),
       lastSyncedAt: item.shopify?.lastSyncedAt || null,
@@ -236,12 +237,14 @@ router.post(
         : {
             productId: item.shopify?.productId || `local-${item.id}`,
             variantId: item.shopify?.variantId || `variant-${item.id}`,
+            inventoryItemId: item.shopify?.inventoryItemId || `inventory-${item.id}`,
             handle: item.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || item.code,
             status: nextStatus
           };
       setShopifyFields(item, {
         productId: syncedProduct.productId,
         variantId: syncedProduct.variantId,
+        inventoryItemId: syncedProduct.inventoryItemId || item.shopify?.inventoryItemId || null,
         handle: syncedProduct.handle,
         status: syncedProduct.status,
         lastSyncedAt: now,

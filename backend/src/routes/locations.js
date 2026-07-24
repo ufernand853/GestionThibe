@@ -18,6 +18,7 @@ function serializeLocation(location) {
     type: location.type,
     description: location.description || '',
     contactInfo: location.contactInfo || '',
+    shopifyLocationId: location.shopifyLocationId || '',
     status: location.status
   };
 }
@@ -58,7 +59,7 @@ router.post(
   '/',
   requirePermission('items.write'),
   asyncHandler(async (req, res) => {
-    const { name, description, contactInfo, status, type } = req.body || {};
+    const { name, description, contactInfo, shopifyLocationId, status, type } = req.body || {};
     if (!name || typeof name !== 'string' || !name.trim()) {
       throw new HttpError(400, 'El nombre es obligatorio');
     }
@@ -67,6 +68,7 @@ router.post(
       type: ensureValidType(type),
       description: sanitizeOptionalString(description),
       contactInfo: sanitizeOptionalString(contactInfo),
+      shopifyLocationId: sanitizeOptionalString(shopifyLocationId) || null,
       status: status === 'inactive' ? 'inactive' : 'active'
     });
     res.status(201).json(serializeLocation(location));
@@ -82,7 +84,7 @@ router.put(
     if (!location) {
       throw new HttpError(404, 'Ubicación no encontrada');
     }
-    const { name, description, contactInfo, status, type } = req.body || {};
+    const { name, description, contactInfo, shopifyLocationId, status, type } = req.body || {};
     if (name !== undefined) {
       if (typeof name !== 'string' || !name.trim()) {
         throw new HttpError(400, 'El nombre es obligatorio');
@@ -97,6 +99,9 @@ router.put(
     }
     if (contactInfo !== undefined) {
       location.contactInfo = sanitizeOptionalString(contactInfo);
+    }
+    if (shopifyLocationId !== undefined) {
+      location.shopifyLocationId = sanitizeOptionalString(shopifyLocationId) || null;
     }
     if (status !== undefined) {
       if (!['active', 'inactive'].includes(status)) {

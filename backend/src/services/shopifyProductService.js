@@ -73,7 +73,7 @@ async function updateDefaultVariant(productId, variantId, payload) {
         productVariants {
           id
           price
-          inventoryItem { sku }
+          inventoryItem { id sku }
         }
         userErrors { field message }
       }
@@ -94,7 +94,7 @@ async function createShopifyProduct(payload, status) {
           handle
           status
           variants(first: 1) {
-            nodes { id }
+            nodes { id inventoryItem { id } }
           }
         }
         userErrors { field message }
@@ -109,11 +109,13 @@ async function createShopifyProduct(payload, status) {
   if (!product?.id) {
     throw new HttpError(502, 'Shopify no devolvió el producto creado.');
   }
-  const variantId = product.variants?.nodes?.[0]?.id || null;
+  const variantNode = product.variants?.nodes?.[0] || null;
+  const variantId = variantNode?.id || null;
   const updatedVariant = await updateDefaultVariant(product.id, variantId, payload);
   return {
     productId: product.id,
     variantId: updatedVariant?.id || variantId,
+    inventoryItemId: updatedVariant?.inventoryItem?.id || variantNode?.inventoryItem?.id || null,
     handle: product.handle || null,
     status: String(product.status || status || 'draft').toLowerCase()
   };
@@ -159,7 +161,7 @@ async function updateShopifyProduct(productId, payload, status) {
           handle
           status
           variants(first: 1) {
-            nodes { id }
+            nodes { id inventoryItem { id } }
           }
         }
         userErrors { field message }
@@ -173,12 +175,14 @@ async function updateShopifyProduct(productId, payload, status) {
   if (!product?.id) {
     throw new HttpError(502, 'Shopify no devolvió el producto actualizado.');
   }
-  const variantId = product.variants?.nodes?.[0]?.id || null;
+  const variantNode = product.variants?.nodes?.[0] || null;
+  const variantId = variantNode?.id || null;
   const updatedVariant = await updateDefaultVariant(product.id, variantId, payload);
   await appendProductMediaIfEmpty(product.id, payload.media);
   return {
     productId: product.id,
     variantId: updatedVariant?.id || variantId,
+    inventoryItemId: updatedVariant?.inventoryItem?.id || variantNode?.inventoryItem?.id || null,
     handle: product.handle || null,
     status: String(product.status || status || 'draft').toLowerCase()
   };
