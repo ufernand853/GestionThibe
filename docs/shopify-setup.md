@@ -69,7 +69,7 @@ Con esas credenciales, el backend ya puede obtener un token por `client_credenti
 - archivar producto para la baja;
 - actualizar variante/precio/SKU;
 - enviar imágenes públicas del artículo como media del producto;
-- mapear inventario por ubicación.
+- mapear inventario por ubicación y enviar la existencia disponible a Shopify cuando la ubicación local tenga `shopifyLocationId`.
 
 ## 5. Mapeo de ubicaciones y baja automática por ventas
 
