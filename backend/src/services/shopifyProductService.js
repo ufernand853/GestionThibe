@@ -268,7 +268,6 @@ async function appendProductMediaIfEmpty(productId, media = []) {
     mutation productUpdateMedia($product: ProductUpdateInput!, $media: [CreateMediaInput!]) {
       productUpdate(product: $product, media: $media) {
         product { id }
-        media { id status mediaContentType }
         userErrors { field message }
       }
     }
