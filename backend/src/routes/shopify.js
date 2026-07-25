@@ -45,11 +45,13 @@ function resolvePublicImageUrl(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed || /^data:image\//i.test(trimmed)) return null;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^http:\/\//i.test(trimmed)) return null;
+  if (/^https:\/\//i.test(trimmed)) return trimmed;
   const publicBackendUrl = config.shopify.publicBackendUrl;
   if (!publicBackendUrl) return null;
   try {
-    return new URL(trimmed.replace(/^\/+/, ''), `${publicBackendUrl}/`).toString();
+    const publicUrl = new URL(trimmed.replace(/^\/+/, ''), `${publicBackendUrl}/`).toString();
+    return publicUrl.startsWith('https://') ? publicUrl : null;
   } catch (error) {
     return null;
   }
@@ -71,16 +73,26 @@ function buildShopifyMedia(item) {
 }
 
 function buildShopifyPayload(item, locations = []) {
-  const locationNames = new Map(locations.map(location => [String(location.id), location.name]));
+  const locationsById = new Map(
+    locations.map(location => [
+      String(location.id),
+      {
+        name: location.name,
+        shopifyLocationId: location.shopifyLocationId || null
+      }
+    ])
+  );
   const stockByLocation = [];
   const entries = item.stock instanceof Map ? Array.from(item.stock.entries()) : Object.entries(item.stock || {});
   entries.forEach(([locationId, quantity]) => {
     const boxes = Number(quantity?.boxes) || 0;
     const units = Number(quantity?.units) || 0;
     if (boxes <= 0 && units <= 0) return;
+    const locationInfo = locationsById.get(String(locationId));
     stockByLocation.push({
       locationId,
-      locationName: locationNames.get(String(locationId)) || 'Ubicación',
+      locationName: locationInfo?.name || 'Ubicación',
+      shopifyLocationId: locationInfo?.shopifyLocationId || null,
       boxes,
       units
     });
@@ -257,7 +269,8 @@ router.post(
         code: item.code,
         status: shopifyConfig.configured ? 'synced' : 'dry-run',
         productId: syncedProduct.productId,
-        handle: syncedProduct.handle
+        handle: syncedProduct.handle,
+        inventorySync: syncedProduct.inventorySync || null
       });
     }
     await recordAuditEvent({
