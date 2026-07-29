@@ -187,7 +187,14 @@ export default function ItemsPage() {
   const [groups, setGroups] = useState([]);
   const [locations, setLocations] = useState([]);
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
-  const [filters, setFilters] = useState({ search: '', groupId: '', gender: '', size: '', color: '' });
+  const [filters, setFilters] = useState({
+    search: '',
+    groupId: '',
+    locationId: '',
+    gender: '',
+    size: '',
+    color: ''
+  });
   const [formValues, setFormValues] = useState({
     code: '',
     description: '',
@@ -336,6 +343,7 @@ export default function ItemsPage() {
           pageSize,
           search: filters.search,
           groupId: filters.groupId,
+          locationId: filters.locationId,
           gender: filters.gender,
           size: filters.size,
           color: filters.color
@@ -365,6 +373,7 @@ export default function ItemsPage() {
     filters.color,
     filters.gender,
     filters.groupId,
+    filters.locationId,
     filters.search,
     filters.size,
     page,
@@ -1305,6 +1314,27 @@ export default function ItemsPage() {
                 return (
                   <option key={id || group.name} value={id}>
                     {group.name}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+          <div className="input-group">
+            <label htmlFor="filterLocation">Ubicación</label>
+            <select
+              id="filterLocation"
+              value={filters.locationId}
+              onChange={event => {
+                setFilters(prev => ({ ...prev, locationId: event.target.value }));
+                setPage(1);
+              }}
+            >
+              <option value="">Todas</option>
+              {locations.map(location => {
+                const id = getLocationId(location);
+                return (
+                  <option key={id || location.name} value={id}>
+                    {location.name}
                   </option>
                 );
               })}
