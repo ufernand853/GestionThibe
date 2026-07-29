@@ -1394,6 +1394,27 @@ export default function ItemsPage() {
               ))}
             </select>
           </div>
+          <div className="input-group">
+            <label htmlFor="filterLocation">Ubicación de stock</label>
+            <select
+              id="filterLocation"
+              value={filters.locationId}
+              onChange={event => {
+                setFilters(prev => ({ ...prev, locationId: event.target.value }));
+                setPage(1);
+              }}
+            >
+              <option value="">Todas</option>
+              {locations.map(location => {
+                const id = getLocationId(location);
+                return (
+                  <option key={id || location.name} value={id}>
+                    {location.name}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
         </form>
 
         {loading ? (
