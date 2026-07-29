@@ -172,7 +172,7 @@ git pull
 ./scripts/deploy_frontend_production.sh
 ```
 
-El script instala las dependencias, ejecuta la compilación y comprueba que el bundle generado contiene el filtro **Ubicación**. Si el frontend se ejecuta mediante un proceso PM2 llamado `gestionthibe-frontend`, también lo reinicia; si Nginx sirve `frontend/dist` directamente, no hace falta reiniciar el backend.
+El script instala las dependencias, ejecuta la compilación y comprueba que el bundle generado contiene un único filtro **Ubicación** y que ya no contiene el texto anterior **Ubicación de stock**. Si el frontend se ejecuta mediante un proceso PM2 llamado `gestionthibe-frontend`, también lo reinicia; si Nginx sirve `frontend/dist` directamente, no hace falta reiniciar el backend.
 
 Si el proceso PM2 tiene otro nombre, indícalo al ejecutar el script:
 
