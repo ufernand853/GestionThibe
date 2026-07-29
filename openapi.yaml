@@ -69,7 +69,13 @@ paths:
           description: No Content
   /api/items:
     get:
-      summary: List items (filters by attributes and group)
+      summary: List items (filters by attributes, group and location)
+      parameters:
+        - in: query
+          name: locationId
+          schema:
+            type: string
+          description: Return only items that have stock registered at this location
       responses:
         '200':
           description: OK

@@ -529,7 +529,7 @@ router.get(
       await ensureItemSkus();
     }
 
-    const { page = '1', pageSize = '20', groupId, search, sku, gender, size, color } = req.query || {};
+    const { page = '1', pageSize = '20', groupId, locationId, search, sku, gender, size, color } = req.query || {};
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
     const filter = { deletedAt: null };
@@ -541,6 +541,13 @@ router.get(
         return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
       }
       filter.group = { $in: groupFilterValues };
+    }
+    const normalizedLocationId = typeof locationId === 'string' ? locationId.trim() : '';
+    if (normalizedLocationId) {
+      if (!Types.ObjectId.isValid(normalizedLocationId)) {
+        return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
+      }
+      filter[`stock.${normalizedLocationId}`] = { $exists: true };
     }
     const attributeFilters = {};
     const genderFilter = buildCaseInsensitiveExactFilter(gender);
