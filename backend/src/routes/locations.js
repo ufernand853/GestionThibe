@@ -11,6 +11,16 @@ const MovementRequest = require('../models/MovementRequest');
 
 const router = express.Router();
 
+function isLocationLocal(location) {
+  if (!location) {
+    return false;
+  }
+  if (typeof location.isLocal === 'boolean') {
+    return location.isLocal;
+  }
+  return location.type === 'warehouse';
+}
+
 function serializeLocation(location) {
   return {
     id: location.id,
