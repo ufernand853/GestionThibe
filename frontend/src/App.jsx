@@ -32,8 +32,8 @@ export default function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="inventory/alerts" element={<InventoryAlertsPage />} />
-        <Route path="items" element={<ItemsPage />} />
-        <Route path="items/local" element={<ItemsPage localOnly />} />
+        <Route path="items" element={<ItemsPage key="items-all" />} />
+        <Route path="items/local" element={<ItemsPage key="items-local" localOnly />} />
         <Route path="overstock" element={<OverstockPage />} />
         <Route path="items/barcode-reception" element={<BarcodeReceptionPage />} />
         <Route path="items/download" element={<ItemsDownloadPage />} />

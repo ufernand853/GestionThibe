@@ -337,6 +337,8 @@ export default function ItemsPage({ localOnly = false } = {}) {
     const loadItems = async () => {
       setLoading(true);
       setError(null);
+      setItems([]);
+      setTotal(0);
       try {
         const query = {
           page,
@@ -909,7 +911,8 @@ export default function ItemsPage({ localOnly = false } = {}) {
           <button
             type="button"
             className="secondary-button"
-            onClick={() => navigate(localOnly ? '/items' : '/items/local')}
+            aria-pressed={localOnly}
+            onClick={() => navigate(localOnly ? '/items' : '/items/local', { replace: true })}
           >
             {localOnly ? 'Ver todos los artículos' : 'Ver solo artículos locales'}
           </button>
