@@ -10,7 +10,7 @@ const INITIAL_FORM_STATE = {
   description: '',
   contactInfo: '',
   shopifyLocationId: '',
-  isLocal: true,
+  isLocal: false,
   status: 'active'
 };
 
@@ -56,7 +56,7 @@ export default function LocationsPage() {
       description: location.description || '',
       contactInfo: location.contactInfo || '',
       shopifyLocationId: location.shopifyLocationId || '',
-      isLocal: location.isLocal !== false,
+      isLocal: Boolean(location.isLocal),
       status: location.status === 'inactive' ? 'inactive' : 'active'
     };
   };
@@ -128,7 +128,7 @@ export default function LocationsPage() {
       description: location.description,
       contactInfo: location.contactInfo,
       shopifyLocationId: location.shopifyLocationId || '',
-      isLocal: location.isLocal !== false,
+      isLocal: Boolean(location.isLocal),
       status: location.status
     });
     setSuccessMessage('');

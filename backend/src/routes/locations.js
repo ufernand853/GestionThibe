@@ -30,7 +30,7 @@ function serializeLocation(location) {
     contactInfo: location.contactInfo || '',
     shopifyLocationId: location.shopifyLocationId || '',
     status: location.status,
-    isLocal: isLocationLocal(location)
+    isLocal: Boolean(location.isLocal)
   };
 }
 
@@ -38,9 +38,9 @@ function sanitizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function normalizeLocalFlag(value, { defaultValue = false } = {}) {
+function normalizeLocalFlag(value) {
   if (value === undefined || value === null) {
-    return defaultValue;
+    return false;
   }
   if (typeof value === 'boolean') {
     return value;
@@ -98,7 +98,7 @@ router.post(
       description: sanitizeOptionalString(description),
       contactInfo: sanitizeOptionalString(contactInfo),
       shopifyLocationId: sanitizeOptionalString(shopifyLocationId) || null,
-      isLocal: normalizeLocalFlag(isLocal, { defaultValue: normalizedType === 'warehouse' }),
+      isLocal: normalizeLocalFlag(isLocal),
       status: status === 'inactive' ? 'inactive' : 'active'
     });
     res.status(201).json(serializeLocation(location));

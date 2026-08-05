@@ -293,7 +293,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
         setLocations(
           Array.isArray(locationsResponse)
             ? [...locationsResponse]
-                .filter(location => location.type === 'warehouse' && (!localOnly || location.isLocal !== false))
+                .filter(location => location.type === 'warehouse' && (!localOnly || location.isLocal === true))
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
             : []
         );
@@ -346,7 +346,8 @@ export default function ItemsPage({ localOnly = false } = {}) {
           locationId: filters.locationId,
           gender: filters.gender,
           size: filters.size,
-          color: filters.color
+          color: filters.color,
+          localOnly: localOnly ? 'true' : undefined
         };
         const response = await api.get('/items', { query });
         if (!active) return;
