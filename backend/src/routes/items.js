@@ -505,6 +505,24 @@ function escapeRegex(value) {
   return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
+
+function buildPositiveStockFilters(locationIds) {
+  return locationIds.flatMap(locationId => [
+    { [`stock.${locationId}.boxes`]: { $gt: 0 } },
+    { [`stock.${locationId}.units`]: { $gt: 0 } }
+  ]);
+}
+
+function appendAndFilter(filter, condition) {
+  if (!condition) {
+    return;
+  }
+  if (!Array.isArray(filter.$and)) {
+    filter.$and = [];
+  }
+  filter.$and.push(condition);
+}
+
 function buildCaseInsensitiveExactFilter(value) {
   if (typeof value !== 'string') {
     return null;
@@ -529,7 +547,7 @@ router.get(
       await ensureItemSkus();
     }
 
-    const { page = '1', pageSize = '20', groupId, locationId, search, sku, gender, size, color } = req.query || {};
+    const { page = '1', pageSize = '20', groupId, locationId, search, sku, gender, size, color, localOnly } = req.query || {};
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
     const filter = { deletedAt: null };
@@ -543,10 +561,27 @@ router.get(
       filter.group = { $in: groupFilterValues };
     }
     const normalizedLocationId = typeof locationId === 'string' ? locationId.trim() : '';
-    if (normalizedLocationId) {
-      if (!Types.ObjectId.isValid(normalizedLocationId)) {
+    if (normalizedLocationId && !Types.ObjectId.isValid(normalizedLocationId)) {
+      return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
+    }
+
+    const shouldFilterLocalOnly = ['true', '1', 'yes', 'si', 'sí', 's'].includes(
+      String(localOnly || '').trim().toLowerCase()
+    );
+    if (shouldFilterLocalOnly) {
+      const localLocationIds = normalizedLocationId
+        ? (await Location.exists({ _id: normalizedLocationId, type: 'warehouse', isLocal: true })
+            ? [normalizedLocationId]
+            : [])
+        : (await Location.find({ type: 'warehouse', isLocal: true }).select('_id').lean()).map(location =>
+            String(location._id)
+          );
+      const positiveStockFilters = buildPositiveStockFilters(localLocationIds);
+      if (positiveStockFilters.length === 0) {
         return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
       }
+      appendAndFilter(filter, { $or: positiveStockFilters });
+    } else if (normalizedLocationId) {
       filter[`stock.${normalizedLocationId}`] = { $exists: true };
     }
     const attributeFilters = {};
@@ -559,7 +594,7 @@ router.get(
     Object.assign(filter, attributeFilters);
     if (search) {
       const regex = new RegExp(search, 'i');
-      filter.$or = [{ code: regex }, { description: regex }];
+      appendAndFilter(filter, { $or: [{ code: regex }, { description: regex }] });
     }
     if (typeof sku === 'string' && sku.trim()) {
       filter.sku = new RegExp(escapeRegex(sku.trim()), 'i');
