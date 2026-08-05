@@ -10,6 +10,7 @@ const INITIAL_FORM_STATE = {
   description: '',
   contactInfo: '',
   shopifyLocationId: '',
+  isLocal: true,
   status: 'active'
 };
 
@@ -55,6 +56,7 @@ export default function LocationsPage() {
       description: location.description || '',
       contactInfo: location.contactInfo || '',
       shopifyLocationId: location.shopifyLocationId || '',
+      isLocal: location.isLocal !== false,
       status: location.status === 'inactive' ? 'inactive' : 'active'
     };
   };
@@ -93,19 +95,22 @@ export default function LocationsPage() {
     };
   }, [api, canRead]);
 
-  const locationsTableColSpan = 6 + (canWrite ? 1 : 0);
+  const locationsTableColSpan = 7 + (canWrite ? 1 : 0);
 
   const filteredLocations = useMemo(() => {
     if (filterType === 'all') {
       return locations;
     }
+    if (filterType === 'local') {
+      return locations.filter(location => location.isLocal);
+    }
     return locations.filter(location => location.type === filterType);
   }, [filterType, locations]);
 
   const handleFormChange = event => {
-    const { name, value } = event.target;
+    const { name, type, checked, value } = event.target;
     setSuccessMessage('');
-    setFormValues(prev => ({ ...prev, [name]: value }));
+    setFormValues(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleCreateNew = () => {
@@ -123,6 +128,7 @@ export default function LocationsPage() {
       description: location.description,
       contactInfo: location.contactInfo,
       shopifyLocationId: location.shopifyLocationId || '',
+      isLocal: location.isLocal !== false,
       status: location.status
     });
     setSuccessMessage('');
@@ -207,7 +213,8 @@ export default function LocationsPage() {
     <div>
       <h2>Ubicaciones</h2>
       <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-        Administre depósitos internos y destinos externos desde un único catálogo.
+        Administre depósitos internos y destinos externos desde un único catálogo. La columna Local (S/N) define qué
+        ubicaciones aparecen en Artículos Locales.
       </p>
 
       {error && <ErrorMessage error={error} />}
@@ -224,6 +231,7 @@ export default function LocationsPage() {
             >
               <option value="all">Todos los tipos</option>
               <option value="warehouse">Depósitos internos</option>
+              <option value="local">Solo locales</option>
               <option value="external">Destinos externos</option>
               <option value="externalOrigin">Orígenes externos</option>
             </select>
@@ -244,6 +252,7 @@ export default function LocationsPage() {
                 <th>Descripción</th>
                 <th>Contacto</th>
                 <th>Estado</th>
+                <th>Local</th>
                 <th>Shopify</th>
                 {canWrite && <th>Acciones</th>}
               </tr>
@@ -262,6 +271,7 @@ export default function LocationsPage() {
                       {location.status}
                     </span>
                   </td>
+                  <td>{location.isLocal ? 'S' : 'N'}</td>
                   <td>{location.shopifyLocationId || '-'}</td>
                   {canWrite && (
                     <td>
@@ -352,6 +362,19 @@ export default function LocationsPage() {
                 onChange={handleFormChange}
                 placeholder="Ej: 123456789 o gid://shopify/Location/123456789"
               />
+            </div>
+            <div className="input-group">
+              <label htmlFor="locationLocal">Local (S/N)</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  id="locationLocal"
+                  name="isLocal"
+                  type="checkbox"
+                  checked={Boolean(formValues.isLocal)}
+                  onChange={handleFormChange}
+                />
+                <span>{formValues.isLocal ? 'S' : 'N'}</span>
+              </div>
             </div>
             <div className="input-group">
               <label htmlFor="locationContact">Contacto</label>

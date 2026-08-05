@@ -11,6 +11,16 @@ const MovementRequest = require('../models/MovementRequest');
 
 const router = express.Router();
 
+function isLocationLocal(location) {
+  if (!location) {
+    return false;
+  }
+  if (typeof location.isLocal === 'boolean') {
+    return location.isLocal;
+  }
+  return location.type === 'warehouse';
+}
+
 function serializeLocation(location) {
   return {
     id: location.id,
@@ -19,12 +29,30 @@ function serializeLocation(location) {
     description: location.description || '',
     contactInfo: location.contactInfo || '',
     shopifyLocationId: location.shopifyLocationId || '',
-    status: location.status
+    status: location.status,
+    isLocal: isLocationLocal(location)
   };
 }
 
 function sanitizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeLocalFlag(value, { defaultValue = false } = {}) {
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return ['s', 'si', 'sí', 'true', '1', 'yes', 'y', 'on'].includes(normalized);
+  }
+  return false;
 }
 
 function ensureValidType(type) {
@@ -59,16 +87,18 @@ router.post(
   '/',
   requirePermission('items.write'),
   asyncHandler(async (req, res) => {
-    const { name, description, contactInfo, shopifyLocationId, status, type } = req.body || {};
+    const { name, description, contactInfo, shopifyLocationId, status, type, isLocal } = req.body || {};
     if (!name || typeof name !== 'string' || !name.trim()) {
       throw new HttpError(400, 'El nombre es obligatorio');
     }
+    const normalizedType = ensureValidType(type);
     const location = await Location.create({
       name: name.trim(),
-      type: ensureValidType(type),
+      type: normalizedType,
       description: sanitizeOptionalString(description),
       contactInfo: sanitizeOptionalString(contactInfo),
       shopifyLocationId: sanitizeOptionalString(shopifyLocationId) || null,
+      isLocal: normalizeLocalFlag(isLocal, { defaultValue: normalizedType === 'warehouse' }),
       status: status === 'inactive' ? 'inactive' : 'active'
     });
     res.status(201).json(serializeLocation(location));
@@ -84,7 +114,7 @@ router.put(
     if (!location) {
       throw new HttpError(404, 'Ubicación no encontrada');
     }
-    const { name, description, contactInfo, shopifyLocationId, status, type } = req.body || {};
+    const { name, description, contactInfo, shopifyLocationId, status, type, isLocal } = req.body || {};
     if (name !== undefined) {
       if (typeof name !== 'string' || !name.trim()) {
         throw new HttpError(400, 'El nombre es obligatorio');
@@ -102,6 +132,9 @@ router.put(
     }
     if (shopifyLocationId !== undefined) {
       location.shopifyLocationId = sanitizeOptionalString(shopifyLocationId) || null;
+    }
+    if (isLocal !== undefined) {
+      location.isLocal = normalizeLocalFlag(isLocal);
     }
     if (status !== undefined) {
       if (!['active', 'inactive'].includes(status)) {
