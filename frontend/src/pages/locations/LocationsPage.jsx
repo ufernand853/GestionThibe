@@ -10,7 +10,7 @@ const INITIAL_FORM_STATE = {
   description: '',
   contactInfo: '',
   shopifyLocationId: '',
-  isLocal: false,
+  isLocal: true,
   status: 'active'
 };
 
@@ -56,7 +56,7 @@ export default function LocationsPage() {
       description: location.description || '',
       contactInfo: location.contactInfo || '',
       shopifyLocationId: location.shopifyLocationId || '',
-      isLocal: Boolean(location.isLocal),
+      isLocal: location.isLocal !== false,
       status: location.status === 'inactive' ? 'inactive' : 'active'
     };
   };
@@ -101,6 +101,9 @@ export default function LocationsPage() {
     if (filterType === 'all') {
       return locations;
     }
+    if (filterType === 'local') {
+      return locations.filter(location => location.isLocal);
+    }
     return locations.filter(location => location.type === filterType);
   }, [filterType, locations]);
 
@@ -125,7 +128,7 @@ export default function LocationsPage() {
       description: location.description,
       contactInfo: location.contactInfo,
       shopifyLocationId: location.shopifyLocationId || '',
-      isLocal: Boolean(location.isLocal),
+      isLocal: location.isLocal !== false,
       status: location.status
     });
     setSuccessMessage('');
@@ -210,7 +213,8 @@ export default function LocationsPage() {
     <div>
       <h2>Ubicaciones</h2>
       <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-        Administre depósitos internos y destinos externos desde un único catálogo.
+        Administre depósitos internos y destinos externos desde un único catálogo. La columna Local (S/N) define qué
+        ubicaciones aparecen en Artículos Locales.
       </p>
 
       {error && <ErrorMessage error={error} />}
@@ -227,6 +231,7 @@ export default function LocationsPage() {
             >
               <option value="all">Todos los tipos</option>
               <option value="warehouse">Depósitos internos</option>
+              <option value="local">Solo locales</option>
               <option value="external">Destinos externos</option>
               <option value="externalOrigin">Orígenes externos</option>
             </select>

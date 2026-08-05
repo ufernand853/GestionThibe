@@ -9,7 +9,12 @@ const locationSchema = new Schema(
     description: { type: String, default: '' },
     contactInfo: { type: String, default: '' },
     shopifyLocationId: { type: String, default: null, trim: true, index: true },
-    isLocal: { type: Boolean, default: false },
+    isLocal: {
+      type: Boolean,
+      default() {
+        return this.type === 'warehouse';
+      }
+    },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' }
   },
   {

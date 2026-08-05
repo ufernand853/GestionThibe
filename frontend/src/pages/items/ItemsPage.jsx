@@ -293,7 +293,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
         setLocations(
           Array.isArray(locationsResponse)
             ? [...locationsResponse]
-                .filter(location => location.type === 'warehouse' && (!localOnly || location.isLocal))
+                .filter(location => location.type === 'warehouse' && (!localOnly || location.isLocal !== false))
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
             : []
         );
@@ -905,6 +905,13 @@ export default function ItemsPage({ localOnly = false } = {}) {
           </p>
         </div>
         <div className="inline-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => navigate(localOnly ? '/items' : '/items/local')}
+          >
+            {localOnly ? 'Ver todos los artículos' : 'Ver solo artículos locales'}
+          </button>
           <span className="badge">Total: {total}</span>
           {canWrite && (
             <button type="button" onClick={handleMarkAllForRecount} disabled={markingAllRecount || total === 0}>
