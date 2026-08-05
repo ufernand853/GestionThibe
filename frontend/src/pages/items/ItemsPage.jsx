@@ -166,7 +166,7 @@ function fileToDataUrl(file) {
   });
 }
 
-export default function ItemsPage() {
+export default function ItemsPage({ localOnly = false } = {}) {
   const api = useApi();
   const routeLocation = useLocation();
   const navigate = useNavigate();
@@ -293,7 +293,7 @@ export default function ItemsPage() {
         setLocations(
           Array.isArray(locationsResponse)
             ? [...locationsResponse]
-                .filter(location => location.type === 'warehouse')
+                .filter(location => location.type === 'warehouse' && (!localOnly || location.isLocal))
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
             : []
         );
@@ -305,7 +305,7 @@ export default function ItemsPage() {
     return () => {
       active = false;
     };
-  }, [api, sortGroupsByName]);
+  }, [api, localOnly, sortGroupsByName]);
 
   useEffect(() => {
     let active = true;
@@ -819,9 +819,9 @@ export default function ItemsPage() {
     }
     openedExternalEditRef.current = requestedItem.id;
     handleEdit(requestedItem);
-    navigate('/items', { replace: true, state: null });
+    navigate(localOnly ? '/items/local' : '/items', { replace: true, state: null });
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
-  }, [canWrite, navigate, routeLocation.state]);
+  }, [canWrite, localOnly, navigate, routeLocation.state]);
 
   const handleDelete = async item => {
     if (!item) return;
@@ -897,9 +897,11 @@ export default function ItemsPage() {
     <div>
       <div className="flex-between">
         <div>
-          <h2>Gestión de artículos</h2>
+          <h2>{localOnly ? 'Artículos en locales' : 'Gestión de artículos'}</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-            Administre la taxonomía, atributos y stock distribuido por ubicación para cada artículo.
+            {localOnly
+              ? 'Administre artículos mostrando únicamente el stock cargado en ubicaciones marcadas como Local.'
+              : 'Administre la taxonomía, atributos y stock distribuido por ubicación para cada artículo.'}
           </p>
         </div>
         <div className="inline-actions">
@@ -1274,7 +1276,9 @@ export default function ItemsPage() {
             <div>
               <h2>Consulta de artículos</h2>
               <p style={{ color: '#475569', margin: 0 }}>
-                Tu rol permite buscar datos, revisar cantidades e imágenes, pero no crear, editar ni eliminar artículos.
+                {localOnly
+                  ? 'Tu rol permite consultar artículos y revisar únicamente cantidades de ubicaciones marcadas como Local.'
+                  : 'Tu rol permite buscar datos, revisar cantidades e imágenes, pero no crear, editar ni eliminar artículos.'}
               </p>
             </div>
           </div>
@@ -1283,7 +1287,7 @@ export default function ItemsPage() {
 
       <div className="section-card">
         <div className="flex-between">
-          <h2>Buscar artículos</h2>
+          <h2>{localOnly ? 'Buscar artículos en locales' : 'Buscar artículos'}</h2>
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <div className="input-group">
