@@ -15,6 +15,7 @@ const {
   addMovementLog,
   findItemOrThrow,
   ensureLocationExists,
+  normalizeQuantityForLocalDestination,
   normalizeStoredQuantity
 } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
@@ -460,7 +461,6 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const { quantity, fromLocation, toLocation } = await validateMovementPayload(body);
-    await findItemOrThrow(body.itemId);
 
     const movementType = determineMovementType(fromLocation, toLocation);
 
@@ -596,7 +596,8 @@ router.post(
     const created = [];
     for (const [index, line] of lines.entries()) {
       const item = await findItemOrThrow(line.itemId);
-      const quantity = normalizeQuantityInput(line.quantity, { fieldName: `Cantidad del renglón ${index + 1}` });
+      const inputQuantity = normalizeQuantityInput(line.quantity, { fieldName: `Cantidad del renglón ${index + 1}` });
+      const quantity = normalizeQuantityForLocalDestination(inputQuantity, item, toLocation);
       const movementRequest = new MovementRequest({
         item: item.id,
         type: 'ingress',
