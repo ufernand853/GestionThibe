@@ -75,6 +75,22 @@ function isZeroQuantity(quantity) {
   return quantity.boxes === 0 && quantity.units === 0;
 }
 
+function normalizeQuantityForLocalDestination(quantity, item, toLocation) {
+  if (!toLocation?.isLocal || quantity.boxes === 0) {
+    return quantity;
+  }
+
+  const unitsPerBox = Number(item?.unitsPerBox);
+  if (!Number.isFinite(unitsPerBox) || unitsPerBox <= 0) {
+    throw new HttpError(400, 'Hay que cargar unidades por caja para este artículo antes de enviarlo a una ubicación local');
+  }
+
+  return {
+    boxes: 0,
+    units: quantity.units + (quantity.boxes * unitsPerBox)
+  };
+}
+
 async function findItemOrThrow(itemId) {
   if (!mongoose.Types.ObjectId.isValid(itemId)) {
     throw new HttpError(404, 'Artículo no encontrado');
@@ -204,7 +220,8 @@ async function validateMovementPayload(payload) {
     throw new HttpError(400, 'No es necesario indicar el tipo de movimiento');
   }
 
-  const quantity = normalizeQuantityInput(payload.quantity, { fieldName: 'Cantidad' });
+  const inputQuantity = normalizeQuantityInput(payload.quantity, { fieldName: 'Cantidad' });
+  const item = await findItemOrThrow(payload.itemId);
 
   const fromLocationId = payload.fromLocation || payload.fromDeposit;
   const toLocationId = payload.toLocation || payload.toDeposit;
@@ -230,10 +247,13 @@ async function validateMovementPayload(payload) {
     })
   ]);
 
+  const quantity = normalizeQuantityForLocalDestination(inputQuantity, item, toLocation);
+
   return {
     quantity,
     fromLocation,
-    toLocation
+    toLocation,
+    item
   };
 }
 
@@ -244,5 +264,6 @@ module.exports = {
   findItemOrThrow,
   ensureLocationExists,
   normalizeQuantityInput,
+  normalizeQuantityForLocalDestination,
   normalizeStoredQuantity
 };
