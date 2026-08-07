@@ -272,7 +272,8 @@ export default function MovementRequestsPage() {
     return resolveMovementType({
       explicitType: null,
       fromType: fromLocation?.type,
-      toType: toLocation?.type
+      toType: toLocation?.type,
+      toIsLocal: toLocation?.isLocal
     });
   }, [formValues.fromLocation, formValues.toLocation, locationMap]);
 
@@ -805,7 +806,8 @@ export default function MovementRequestsPage() {
                   const movementType = resolveMovementType({
                     explicitType: request.type,
                     fromType: request.fromLocation?.type,
-                    toType: request.toLocation?.type
+                    toType: request.toLocation?.type,
+                    toIsLocal: request.toLocation?.isLocal
                   });
                   const movementBadgeClass =
                     MOVEMENT_TYPE_BADGE_CLASS[movementType] || MOVEMENT_TYPE_BADGE_CLASS.transfer;

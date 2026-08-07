@@ -156,7 +156,8 @@ export default function ApprovalsPage() {
                   const movementType = resolveMovementType({
                     explicitType: request.type,
                     fromType: request.fromLocation?.type,
-                    toType: request.toLocation?.type
+                    toType: request.toLocation?.type,
+                    toIsLocal: request.toLocation?.isLocal
                   });
                   const movementBadgeClass =
                     MOVEMENT_TYPE_BADGE_CLASS[movementType] || MOVEMENT_TYPE_BADGE_CLASS.transfer;

@@ -152,7 +152,11 @@ export default function BarcodeReceptionPage() {
   const selectedDestination = useMemo(() => locations.find(location => location.id === destinationLocationId), [locations, destinationLocationId]);
   const currentMovementType = useMemo(() => {
     if (!selectedOrigin || !selectedDestination) return null;
-    return resolveMovementType({ fromType: selectedOrigin.type, toType: selectedDestination.type });
+    return resolveMovementType({
+      fromType: selectedOrigin.type,
+      toType: selectedDestination.type,
+      toIsLocal: selectedDestination.isLocal
+    });
   }, [selectedDestination, selectedOrigin]);
 
   useEffect(() => {

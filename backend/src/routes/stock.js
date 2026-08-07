@@ -175,6 +175,7 @@ function serializeLocationSummary(location) {
     name: location.name,
     description: location.description || '',
     type: location.type,
+    isLocal: Boolean(location.isLocal),
     contactInfo: location.contactInfo || ''
   };
 }
@@ -183,7 +184,7 @@ function determineMovementType(fromLocation, toLocation) {
   if (fromLocation && fromLocation.type === 'externalOrigin') {
     return 'ingress';
   }
-  if (toLocation && toLocation.type === 'external') {
+  if (toLocation && (toLocation.type === 'external' || toLocation.isLocal)) {
     return 'egress';
   }
   return 'transfer';

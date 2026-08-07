@@ -164,7 +164,7 @@ function inferMovementType(fromLocation, toLocation) {
   if (fromLocation?.type === 'externalOrigin') {
     return 'ingress';
   }
-  if (toLocation?.type === 'external') {
+  if (toLocation?.type === 'external' || toLocation?.isLocal) {
     return 'egress';
   }
   return 'transfer';
@@ -186,16 +186,17 @@ async function executeMovement(request, actorUserId, metadata = {}) {
   ]);
 
   const movementType = inferMovementType(fromLocation, toLocation);
+  const destinationQuantity = normalizeQuantityForLocalDestination(quantity, item, toLocation);
 
   // Actualizar el tipo almacenado en caso de que se haya guardado incorrectamente
   request.type = movementType;
 
-  if (movementType !== 'ingress') {
+  if (fromLocation.type !== 'externalOrigin') {
     adjustItemStock(item, fromLocationId, negateQuantity(quantity));
   }
 
-  if (movementType !== 'egress') {
-    adjustItemStock(item, toLocationId, quantity);
+  if (toLocation.type !== 'external') {
+    adjustItemStock(item, toLocationId, destinationQuantity);
   }
   await item.save();
 
@@ -247,10 +248,8 @@ async function validateMovementPayload(payload) {
     })
   ]);
 
-  const quantity = normalizeQuantityForLocalDestination(inputQuantity, item, toLocation);
-
   return {
-    quantity,
+    quantity: inputQuantity,
     fromLocation,
     toLocation,
     item
@@ -265,5 +264,6 @@ module.exports = {
   ensureLocationExists,
   normalizeQuantityInput,
   normalizeQuantityForLocalDestination,
-  normalizeStoredQuantity
+  normalizeStoredQuantity,
+  inferMovementType
 };
