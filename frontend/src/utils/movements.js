@@ -10,14 +10,14 @@ export const MOVEMENT_TYPE_BADGE_CLASS = Object.freeze({
   egress: 'movement-egress'
 });
 
-export function resolveMovementType({ explicitType, fromType, toType }) {
+export function resolveMovementType({ explicitType, fromType, toType, toIsLocal = false }) {
   if (explicitType && ['ingress', 'egress'].includes(explicitType)) {
     return explicitType;
   }
   if (fromType === 'externalOrigin') {
     return 'ingress';
   }
-  if (toType === 'external') {
+  if (toType === 'external' || toIsLocal) {
     return 'egress';
   }
   if (explicitType && MOVEMENT_TYPE_LABELS[explicitType]) {
