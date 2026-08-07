@@ -1,6 +1,35 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+usage() {
+  cat <<'USAGE'
+Uso:
+  ./respaldar_antes_de_actualizar.sh
+
+El respaldo incluye el codigo y la configuracion local de la aplicacion,
+uploads, MongoDB y, si existe, el estado de PM2. Por defecto se guarda en una
+carpeta hermana del repositorio llamada GestionThibe_backups.
+
+Variables opcionales:
+  BACKUP_ROOT   Carpeta donde guardar los respaldos
+  APP_DIR       Carpeta de la aplicacion
+  MONGO_URI     Conexion a MongoDB (si no se usa backend/.env)
+  MONGO_DB_NAME Base local usada cuando MONGO_URI no esta configurada
+USAGE
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -gt 0 ]]; then
+  usage >&2
+  echo >&2
+  echo "ERROR: opcion desconocida: $1" >&2
+  exit 2
+fi
+
 APP_DIR="${APP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 BACKUP_ROOT="${BACKUP_ROOT:-${APP_DIR}_backups}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -38,6 +67,15 @@ read_env_value() {
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
+
+backup_complete=false
+cleanup_incomplete_backup() {
+  if [[ "$backup_complete" != "true" ]]; then
+    log "Eliminando respaldo incompleto: $BACKUP_DIR"
+    rm -rf -- "$BACKUP_DIR"
+  fi
+}
+trap cleanup_incomplete_backup EXIT
 
 log "Aplicación: $APP_DIR"
 log "Destino: $BACKUP_DIR"
@@ -96,6 +134,8 @@ fi
 
 sha256sum "${BACKUP_DIR}/${ARCHIVE_NAME}" "${BACKUP_DIR}/${MONGO_ARCHIVE_NAME}" > "${BACKUP_DIR}/SHA256SUMS"
 chmod 600 "${BACKUP_DIR}/SHA256SUMS" "$MANIFEST_FILE"
+
+backup_complete=true
 
 log "Backup terminado correctamente."
 log "Carpeta: $BACKUP_DIR"
