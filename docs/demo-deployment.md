@@ -165,6 +165,26 @@ Si ya tienes una copia, actualízala con `git pull`.
 
 ### Actualizar el frontend en producción
 
+Antes de actualizar, ejecutá desde la raíz del repositorio el respaldo completo:
+
+```bash
+./respaldar_antes_de_actualizar.sh
+```
+
+El comando guarda en `../GestionThibe_backups/<fecha UTC>/` una copia de los
+archivos y configuraciones locales de la aplicación (incluidos los uploads), un
+dump comprimido de MongoDB, las sumas SHA-256 y, cuando está disponible, el
+estado de PM2. Lee `MONGO_URI` desde `backend/.env`; requiere
+`mongodump` (MongoDB Database Tools) y no deja una carpeta parcial si el respaldo
+falla. Para elegir otro disco o carpeta, ejecutá por ejemplo:
+
+```bash
+BACKUP_ROOT=/mnt/backups/gestionthibe ./respaldar_antes_de_actualizar.sh
+```
+
+No continúes con la actualización si el comando no termina con el mensaje
+`Backup terminado correctamente`.
+
 Un `git pull` solo actualiza el código fuente: la interfaz publicada no cambia hasta volver a generar los archivos estáticos. Desde la raíz del repositorio, después de traer el commit, ejecuta:
 
 ```bash
