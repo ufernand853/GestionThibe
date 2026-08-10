@@ -274,7 +274,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
     const normalized = ensureQuantity(quantity);
     return localOnly
       ? { boxes: 0, units: normalized.units }
-      : { boxes: normalized.boxes, units: 0 };
+      : normalized;
   }, [localOnly]);
 
   const formatCatalogQuantity = useCallback((quantity, { compact = false } = {}) => {
@@ -282,7 +282,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
     if (localOnly) {
       return compact ? `${normalized.units}u` : `${normalized.units} unidades`;
     }
-    return compact ? `${normalized.boxes}c` : `${normalized.boxes} cajas`;
+    return formatQuantity(normalized, { compact });
   }, [localOnly]);
 
   const shouldCountPendingRequest = useCallback(
@@ -924,7 +924,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
             {localOnly
               ? 'Artículos con stock interno en unidades dentro de ubicaciones marcadas como Local.'
-              : 'Artículos con stock por caja en depósitos que no están marcados como Local.'}
+              : 'Artículos con stock en cajas y unidades de depósitos que no están marcados como Local.'}
           </p>
         </div>
         <div className="inline-actions">
@@ -1232,7 +1232,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                 <p className="form-section__description">
                   {localOnly
                     ? 'Registra únicamente las unidades internas disponibles en cada local.'
-                    : 'Registra únicamente las cajas disponibles en cada depósito general.'}
+                    : 'Registra las cajas y unidades disponibles en cada depósito general.'}
                 </p>
               </div>
             </div>
@@ -1259,13 +1259,11 @@ export default function ItemsPage({ localOnly = false } = {}) {
                               onChange={event => handleStockByLocationChange(location.id, 'boxes', event.target.value)} />
                           </div>
                         )}
-                        {localOnly && (
-                          <div className="input-group">
-                            <label htmlFor={`stock-${location.id}-units`}>Unidades</label>
-                            <input id={`stock-${location.id}-units`} type="number" min="0" value={entry.units}
-                              onChange={event => handleStockByLocationChange(location.id, 'units', event.target.value)} />
-                          </div>
-                        )}
+                        <div className="input-group">
+                          <label htmlFor={`stock-${location.id}-units`}>Unidades</label>
+                          <input id={`stock-${location.id}-units`} type="number" min="0" value={entry.units}
+                            onChange={event => handleStockByLocationChange(location.id, 'units', event.target.value)} />
+                        </div>
                       </div>
                     </div>
                   );
@@ -1296,7 +1294,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
               <p style={{ color: '#475569', margin: 0 }}>
                 {localOnly
                   ? 'Tu rol permite consultar únicamente unidades internas de ubicaciones marcadas como Local.'
-                  : 'Tu rol permite consultar únicamente cajas de depósitos que no están marcados como Local.'}
+                  : 'Tu rol permite consultar cajas y unidades de depósitos que no están marcados como Local.'}
               </p>
             </div>
           </div>

@@ -506,8 +506,10 @@ function escapeRegex(value) {
 }
 
 
-function buildPositiveStockFilters(locationIds, stockField) {
-  return locationIds.map(locationId => ({ [`stock.${locationId}.${stockField}`]: { $gt: 0 } }));
+function buildPositiveStockFilters(locationIds, stockFields) {
+  return locationIds.flatMap(locationId =>
+    stockFields.map(stockField => ({ [`stock.${locationId}.${stockField}`]: { $gt: 0 } }))
+  );
 }
 
 function appendAndFilter(filter, condition) {
@@ -583,11 +585,11 @@ router.get(
         : (await Location.find(locationCriteria).select('_id').lean()).map(location =>
             String(location._id)
           );
-      // Cada catálogo tiene una única unidad de medida: los depósitos generales
-      // trabajan por caja y los locales mantienen su inventario interno en unidades.
+      // Los locales administran únicamente unidades internas. Los depósitos
+      // generales conservan el detalle tradicional de cajas y unidades.
       const positiveStockFilters = buildPositiveStockFilters(
         scopedLocationIds,
-        shouldFilterLocalOnly ? 'units' : 'boxes'
+        shouldFilterLocalOnly ? ['units'] : ['boxes', 'units']
       );
       if (positiveStockFilters.length === 0) {
         return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
