@@ -282,7 +282,9 @@ export default function ItemsPage({ localOnly = false } = {}) {
     if (localOnly) {
       return compact ? `${normalized.units}u` : `${normalized.units} unidades`;
     }
-    return formatQuantity(normalized, { compact });
+    return compact
+      ? `${normalized.boxes}c / ${normalized.units}u`
+      : `${normalized.boxes} cajas · ${normalized.units} unidades`;
   }, [localOnly]);
 
   const shouldCountPendingRequest = useCallback(
