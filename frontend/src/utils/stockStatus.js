@@ -33,7 +33,7 @@ function extractQuantityByField(quantity, preferredField) {
 
 export function computeTotalStockFromMap(
   stock,
-  { preferredField = 'available', filterLocation } = {}
+  { preferredField = 'available', filterLocation, mapQuantity } = {}
 ) {
   if (!stock || typeof stock !== 'object') {
     return { boxes: 0, units: 0 };
@@ -43,7 +43,11 @@ export function computeTotalStockFromMap(
     if (filterLocation && !filterLocation(locationId, quantity)) {
       return acc;
     }
-    return sumQuantities(acc, ensureQuantity(extractQuantityByField(quantity, preferredField)));
+    const normalizedQuantity = ensureQuantity(extractQuantityByField(quantity, preferredField));
+    return sumQuantities(
+      acc,
+      typeof mapQuantity === 'function' ? ensureQuantity(mapQuantity(normalizedQuantity)) : normalizedQuantity
+    );
   }, { boxes: 0, units: 0 });
 }
 

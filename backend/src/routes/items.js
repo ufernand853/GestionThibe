@@ -506,11 +506,8 @@ function escapeRegex(value) {
 }
 
 
-function buildPositiveStockFilters(locationIds) {
-  return locationIds.flatMap(locationId => [
-    { [`stock.${locationId}.boxes`]: { $gt: 0 } },
-    { [`stock.${locationId}.units`]: { $gt: 0 } }
-  ]);
+function buildPositiveStockFilters(locationIds, stockField) {
+  return locationIds.map(locationId => ({ [`stock.${locationId}.${stockField}`]: { $gt: 0 } }));
 }
 
 function appendAndFilter(filter, condition) {
@@ -547,7 +544,10 @@ router.get(
       await ensureItemSkus();
     }
 
-    const { page = '1', pageSize = '20', groupId, locationId, search, sku, gender, size, color, localOnly } = req.query || {};
+    const {
+      page = '1', pageSize = '20', groupId, locationId, search, sku, gender, size, color,
+      localOnly, catalogScope
+    } = req.query || {};
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 200);
     const filter = { deletedAt: null };
@@ -565,18 +565,30 @@ router.get(
       return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
     }
 
-    const shouldFilterLocalOnly = ['true', '1', 'yes', 'si', 'sí', 's'].includes(
+    const legacyLocalOnly = ['true', '1', 'yes', 'si', 'sí', 's'].includes(
       String(localOnly || '').trim().toLowerCase()
     );
-    if (shouldFilterLocalOnly) {
-      const localLocationIds = normalizedLocationId
-        ? (await Location.exists({ _id: normalizedLocationId, type: 'warehouse', isLocal: true })
+    const normalizedCatalogScope = String(catalogScope || '').trim();
+    const scopedCatalog = normalizedCatalogScope === 'local' || normalizedCatalogScope === 'nonLocal';
+    const shouldFilterLocalOnly = normalizedCatalogScope === 'local' || legacyLocalOnly;
+    if (scopedCatalog || shouldFilterLocalOnly) {
+      const locationCriteria = {
+        type: 'warehouse',
+        isLocal: shouldFilterLocalOnly ? true : { $ne: true }
+      };
+      const scopedLocationIds = normalizedLocationId
+        ? (await Location.exists({ _id: normalizedLocationId, ...locationCriteria })
             ? [normalizedLocationId]
             : [])
-        : (await Location.find({ type: 'warehouse', isLocal: true }).select('_id').lean()).map(location =>
+        : (await Location.find(locationCriteria).select('_id').lean()).map(location =>
             String(location._id)
           );
-      const positiveStockFilters = buildPositiveStockFilters(localLocationIds);
+      // Cada catálogo tiene una única unidad de medida: los depósitos generales
+      // trabajan por caja y los locales mantienen su inventario interno en unidades.
+      const positiveStockFilters = buildPositiveStockFilters(
+        scopedLocationIds,
+        shouldFilterLocalOnly ? 'units' : 'boxes'
+      );
       if (positiveStockFilters.length === 0) {
         return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
       }
