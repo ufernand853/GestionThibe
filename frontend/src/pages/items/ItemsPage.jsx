@@ -4,7 +4,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
+import { ensureQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
