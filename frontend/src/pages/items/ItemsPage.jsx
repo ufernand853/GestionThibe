@@ -4,7 +4,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
+import { ensureQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
@@ -266,9 +266,26 @@ export default function ItemsPage({ localOnly = false } = {}) {
   }, [getLocationId, locations]);
 
   const shouldIncludeLocation = useCallback(locationId => {
-    if (warehouseLocationIds.size === 0) return true;
+    if (warehouseLocationIds.size === 0) return false;
     return warehouseLocationIds.has(normalizeLocationId(locationId));
   }, [normalizeLocationId, warehouseLocationIds]);
+
+  const getCatalogQuantity = useCallback(quantity => {
+    const normalized = ensureQuantity(quantity);
+    return localOnly
+      ? { boxes: 0, units: normalized.units }
+      : normalized;
+  }, [localOnly]);
+
+  const formatCatalogQuantity = useCallback((quantity, { compact = false } = {}) => {
+    const normalized = ensureQuantity(quantity);
+    if (localOnly) {
+      return compact ? `${normalized.units}u` : `${normalized.units} unidades`;
+    }
+    return compact
+      ? `${normalized.boxes}c / ${normalized.units}u`
+      : `${normalized.boxes} cajas · ${normalized.units} unidades`;
+  }, [localOnly]);
 
   const shouldCountPendingRequest = useCallback(
     request => {
@@ -293,7 +310,9 @@ export default function ItemsPage({ localOnly = false } = {}) {
         setLocations(
           Array.isArray(locationsResponse)
             ? [...locationsResponse]
-                .filter(location => location.type === 'warehouse' && (!localOnly || location.isLocal === true))
+                .filter(location =>
+                  location.type === 'warehouse' && (localOnly ? location.isLocal === true : location.isLocal !== true)
+                )
                 .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
             : []
         );
@@ -349,7 +368,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
           gender: filters.gender,
           size: filters.size,
           color: filters.color,
-          localOnly: localOnly ? 'true' : undefined
+          catalogScope: localOnly ? 'local' : 'nonLocal'
         };
         const response = await api.get('/items', { query });
         if (!active) return;
@@ -379,6 +398,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
     filters.locationId,
     filters.search,
     filters.size,
+    localOnly,
     page,
     pageSize,
     updateAttributeOptionsFromItems
@@ -411,12 +431,13 @@ export default function ItemsPage({ localOnly = false } = {}) {
       map.set(
         item.id,
         computeTotalStockFromMap(stockByLocation, {
-          filterLocation: locationId => shouldIncludeLocation(locationId)
+          filterLocation: locationId => shouldIncludeLocation(locationId),
+          mapQuantity: getCatalogQuantity
         })
       );
     });
     return map;
-  }, [items, shouldIncludeLocation]);
+  }, [getCatalogQuantity, items, shouldIncludeLocation]);
 
   const itemPendingByStock = useMemo(() => {
     const map = new Map();
@@ -426,12 +447,13 @@ export default function ItemsPage({ localOnly = false } = {}) {
         item.id,
         computeTotalStockFromMap(stockByLocation, {
           preferredField: 'pending',
-          filterLocation: locationId => shouldIncludeLocation(locationId)
+          filterLocation: locationId => shouldIncludeLocation(locationId),
+          mapQuantity: getCatalogQuantity
         })
       );
     });
     return map;
-  }, [items, shouldIncludeLocation]);
+  }, [getCatalogQuantity, items, shouldIncludeLocation]);
 
   const itemStatusMap = useMemo(() => {
     const map = new Map();
@@ -903,8 +925,8 @@ export default function ItemsPage({ localOnly = false } = {}) {
           <h2>{localOnly ? 'Artículos en locales' : 'Gestión de artículos'}</h2>
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
             {localOnly
-              ? 'Administre artículos mostrando únicamente el stock cargado en ubicaciones marcadas como Local.'
-              : 'Administre la taxonomía, atributos y stock distribuido por ubicación para cada artículo.'}
+              ? 'Artículos con stock interno en unidades dentro de ubicaciones marcadas como Local.'
+              : 'Artículos con stock en cajas y unidades de depósitos que no están marcados como Local.'}
           </p>
         </div>
         <div className="inline-actions">
@@ -1208,10 +1230,11 @@ export default function ItemsPage({ localOnly = false } = {}) {
           <section className="form-section">
             <div className="form-section__header">
               <div>
-                <h3>Stock por ubicación</h3>
+                <h3>{localOnly ? 'Stock interno por local' : 'Stock por depósito'}</h3>
                 <p className="form-section__description">
-                  Registra las cantidades disponibles en cada depósito interno (opcional). También podés dejar todo en cero y
-                  cargar los movimientos desde la bandeja de transferencias.
+                  {localOnly
+                    ? 'Registra únicamente las unidades internas disponibles en cada local.'
+                    : 'Registra las cajas y unidades disponibles en cada depósito general.'}
                 </p>
               </div>
             </div>
@@ -1231,25 +1254,17 @@ export default function ItemsPage({ localOnly = false } = {}) {
                         {location.description && <p>{location.description}</p>}
                       </div>
                       <div className="form-grid form-grid--dense">
-                        <div className="input-group">
-                          <label htmlFor={`stock-${location.id}-boxes`}>Cajas</label>
-                          <input
-                            id={`stock-${location.id}-boxes`}
-                            type="number"
-                            min="0"
-                            value={entry.boxes}
-                            onChange={event => handleStockByLocationChange(location.id, 'boxes', event.target.value)}
-                          />
-                        </div>
+                        {!localOnly && (
+                          <div className="input-group">
+                            <label htmlFor={`stock-${location.id}-boxes`}>Cajas</label>
+                            <input id={`stock-${location.id}-boxes`} type="number" min="0" value={entry.boxes}
+                              onChange={event => handleStockByLocationChange(location.id, 'boxes', event.target.value)} />
+                          </div>
+                        )}
                         <div className="input-group">
                           <label htmlFor={`stock-${location.id}-units`}>Unidades</label>
-                          <input
-                            id={`stock-${location.id}-units`}
-                            type="number"
-                            min="0"
-                            value={entry.units}
-                            onChange={event => handleStockByLocationChange(location.id, 'units', event.target.value)}
-                          />
+                          <input id={`stock-${location.id}-units`} type="number" min="0" value={entry.units}
+                            onChange={event => handleStockByLocationChange(location.id, 'units', event.target.value)} />
                         </div>
                       </div>
                     </div>
@@ -1280,8 +1295,8 @@ export default function ItemsPage({ localOnly = false } = {}) {
               <h2>Consulta de artículos</h2>
               <p style={{ color: '#475569', margin: 0 }}>
                 {localOnly
-                  ? 'Tu rol permite consultar artículos y revisar únicamente cantidades de ubicaciones marcadas como Local.'
-                  : 'Tu rol permite buscar datos, revisar cantidades e imágenes, pero no crear, editar ni eliminar artículos.'}
+                  ? 'Tu rol permite consultar únicamente unidades internas de ubicaciones marcadas como Local.'
+                  : 'Tu rol permite consultar cajas y unidades de depósitos que no están marcados como Local.'}
               </p>
             </div>
           </div>
@@ -1487,7 +1502,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                           }
 
                           return stockEntries.map(([locationId, quantity]) => {
-                            const availableQuantity = resolveLocationQuantity(quantity);
+                            const availableQuantity = getCatalogQuantity(resolveLocationQuantity(quantity));
                             const normalizedId = normalizeLocationId(locationId);
                             const locationName =
                               locations.find(location => getLocationId(location) === normalizedId)?.name ||
@@ -1495,14 +1510,14 @@ export default function ItemsPage({ localOnly = false } = {}) {
                             return (
                               <span key={locationId} className="badge">
                                 {locationName} ·
-                                {formatQuantity(availableQuantity, { compact: true })}
+                                {formatCatalogQuantity(availableQuantity, { compact: true })}
                               </span>
                             );
                           });
                         })()}
                       </div>
                       </td>
-                      <td>{formatQuantity(totalQuantity)}</td>
+                      <td>{formatCatalogQuantity(totalQuantity)}</td>
                       <td>
                         {item.needsRecount ? (
                           <span className="badge" style={{ backgroundColor: '#f97316', color: '#fff' }}>
