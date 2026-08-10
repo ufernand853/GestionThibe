@@ -4,7 +4,7 @@ import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
-import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
+import { ensureQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
@@ -275,6 +275,14 @@ export default function ItemsPage({ localOnly = false } = {}) {
     return localOnly
       ? { boxes: 0, units: normalized.units }
       : { boxes: normalized.boxes, units: 0 };
+  }, [localOnly]);
+
+  const formatCatalogQuantity = useCallback((quantity, { compact = false } = {}) => {
+    const normalized = ensureQuantity(quantity);
+    if (localOnly) {
+      return compact ? `${normalized.units}u` : `${normalized.units} unidades`;
+    }
+    return compact ? `${normalized.boxes}c` : `${normalized.boxes} cajas`;
   }, [localOnly]);
 
   const shouldCountPendingRequest = useCallback(
@@ -1502,14 +1510,14 @@ export default function ItemsPage({ localOnly = false } = {}) {
                             return (
                               <span key={locationId} className="badge">
                                 {locationName} ·
-                                {formatQuantity(availableQuantity, { compact: true })}
+                                {formatCatalogQuantity(availableQuantity, { compact: true })}
                               </span>
                             );
                           });
                         })()}
                       </div>
                       </td>
-                      <td>{formatQuantity(totalQuantity)}</td>
+                      <td>{formatCatalogQuantity(totalQuantity)}</td>
                       <td>
                         {item.needsRecount ? (
                           <span className="badge" style={{ backgroundColor: '#f97316', color: '#fff' }}>
