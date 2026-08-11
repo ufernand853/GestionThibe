@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "node -e \"console.log('No hay pruebas automatizadas definidas')\"",
+    "test": "node --test",
     "seed:sample": "node scripts/import-sample-dataset.js",
     "sku:sync": "node scripts/sync-item-skus.js",
     "sku:status": "node scripts/sku-status.js",

@@ -14,6 +14,10 @@ const { recordAuditEvent } = require('../services/auditService');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
 const { assignSkuToNewItemData, ensureItemSkus } = require('../services/skuService');
 const { permanentlyDeleteItem } = require('../services/itemTrashService');
+const {
+  buildNonLocalCatalogStockCondition,
+  buildPositiveStockFilters
+} = require('../services/itemCatalogService');
 
 const { promises: fsPromises } = fs;
 
@@ -506,12 +510,6 @@ function escapeRegex(value) {
 }
 
 
-function buildPositiveStockFilters(locationIds, stockFields) {
-  return locationIds.flatMap(locationId =>
-    stockFields.map(stockField => ({ [`stock.${locationId}.${stockField}`]: { $gt: 0 } }))
-  );
-}
-
 function appendAndFilter(filter, condition) {
   if (!condition) {
     return;
@@ -578,23 +576,33 @@ router.get(
         type: 'warehouse',
         isLocal: shouldFilterLocalOnly ? true : { $ne: true }
       };
-      const scopedLocationIds = normalizedLocationId
+      const scopedLocations = normalizedLocationId
         ? (await Location.exists({ _id: normalizedLocationId, ...locationCriteria })
-            ? [normalizedLocationId]
+            ? [{ _id: normalizedLocationId }]
             : [])
-        : (await Location.find(locationCriteria).select('_id').lean()).map(location =>
-            String(location._id)
-          );
+        : await Location.find(locationCriteria).select('_id').lean();
+      const scopedLocationIds = scopedLocations.map(location => String(location._id));
       // Los locales administran únicamente unidades internas. Los depósitos
       // generales conservan el detalle tradicional de cajas y unidades.
-      const positiveStockFilters = buildPositiveStockFilters(
-        scopedLocationIds,
-        shouldFilterLocalOnly ? ['units'] : ['boxes', 'units']
-      );
-      if (positiveStockFilters.length === 0) {
+      if (scopedLocationIds.length === 0 && (shouldFilterLocalOnly || normalizedLocationId)) {
         return res.json({ total: 0, page: pageNumber, pageSize: limit, items: [] });
       }
-      appendAndFilter(filter, { $or: positiveStockFilters });
+      if (shouldFilterLocalOnly || normalizedLocationId) {
+        appendAndFilter(filter, {
+          $or: buildPositiveStockFilters(
+            scopedLocationIds,
+            shouldFilterLocalOnly ? ['units'] : ['boxes', 'units']
+          )
+        });
+      } else {
+        const allWarehouseLocationIds = (
+          await Location.find({ type: 'warehouse' }).select('_id').lean()
+        ).map(location => String(location._id));
+        appendAndFilter(filter, buildNonLocalCatalogStockCondition({
+          nonLocalLocationIds: scopedLocationIds,
+          allWarehouseLocationIds
+        }));
+      }
     } else if (normalizedLocationId) {
       filter[`stock.${normalizedLocationId}`] = { $exists: true };
     }

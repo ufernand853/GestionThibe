@@ -926,7 +926,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
           <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
             {localOnly
               ? 'Artículos con stock interno en unidades dentro de ubicaciones marcadas como Local.'
-              : 'Artículos con stock en cajas y unidades de depósitos que no están marcados como Local.'}
+              : 'Catálogo general de artículos de depósitos no locales, incluidos los que están agotados.'}
           </p>
         </div>
         <div className="inline-actions">
@@ -1296,7 +1296,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
               <p style={{ color: '#475569', margin: 0 }}>
                 {localOnly
                   ? 'Tu rol permite consultar únicamente unidades internas de ubicaciones marcadas como Local.'
-                  : 'Tu rol permite consultar cajas y unidades de depósitos que no están marcados como Local.'}
+                  : 'Tu rol permite consultar el catálogo de depósitos no locales, incluidos los artículos agotados.'}
               </p>
             </div>
           </div>
