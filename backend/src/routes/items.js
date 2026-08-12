@@ -14,10 +14,7 @@ const { recordAuditEvent } = require('../services/auditService');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
 const { assignSkuToNewItemData, ensureItemSkus } = require('../services/skuService');
 const { permanentlyDeleteItem } = require('../services/itemTrashService');
-const {
-  buildNonLocalCatalogStockCondition,
-  buildPositiveStockFilters
-} = require('../services/itemCatalogService');
+const { buildPositiveStockFilters } = require('../services/itemCatalogService');
 
 const { promises: fsPromises } = fs;
 
@@ -594,15 +591,10 @@ router.get(
             shouldFilterLocalOnly ? ['units'] : ['boxes', 'units']
           )
         });
-      } else {
-        const allWarehouseLocationIds = (
-          await Location.find({ type: 'warehouse' }).select('_id').lean()
-        ).map(location => String(location._id));
-        appendAndFilter(filter, buildNonLocalCatalogStockCondition({
-          nonLocalLocationIds: scopedLocationIds,
-          allWarehouseLocationIds
-        }));
       }
+      // Sin una ubicación puntual, el catálogo general no se filtra por stock:
+      // un artículo trasladado por completo a un local debe seguir apareciendo
+      // con total cero en depósitos no locales y estado "Agotado".
     } else if (normalizedLocationId) {
       filter[`stock.${normalizedLocationId}`] = { $exists: true };
     }
