@@ -7,6 +7,10 @@ import ErrorMessage from '../components/ErrorMessage.jsx';
 import { formatQuantity } from '../utils/quantity.js';
 import { computeTotalStockFromMap } from '../utils/stockStatus.js';
 import { computeInventoryAlerts, RECOUNT_THRESHOLD_DAYS } from '../utils/inventoryAlerts.js';
+import {
+  computeSeasonalWithdrawalAlerts,
+  WITHDRAWAL_ALERT_DAYS
+} from '../utils/seasonalWithdrawalAlerts.js';
 
 const formatUpdatedAt = value => {
   if (!value) {
@@ -60,7 +64,9 @@ const buildItemSummaries = items =>
     stock: item.stock || {},
     lastCountedAt: item.lastCountedAt || null,
     lastCountedBy: item.lastCountedBy || null,
-    total: computeTotalStockFromMap(item.stock)
+    total: computeTotalStockFromMap(item.stock),
+    season: item.attributes?.season || '',
+    createdAt: item.createdAt
   }));
 
 export default function InventoryAlertsPage() {
@@ -70,6 +76,7 @@ export default function InventoryAlertsPage() {
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canViewCatalog = permissions.includes('items.read');
   const canWrite = permissions.includes('items.write');
+  const canManageRequests = permissions.includes('stock.request') || permissions.includes('stock.approve');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -78,6 +85,7 @@ export default function InventoryAlertsPage() {
   const [recountSearch, setRecountSearch] = useState('');
   const [outOfStockSearch, setOutOfStockSearch] = useState('');
   const [locations, setLocations] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [editingRecount, setEditingRecount] = useState(null);
   const [recountStock, setRecountStock] = useState({});
   const [savingRecount, setSavingRecount] = useState(false);
@@ -129,6 +137,10 @@ export default function InventoryAlertsPage() {
           pageNumber += 1;
         }
         setItemsSnapshot(collectedItems);
+        if (canManageRequests) {
+          const requestsResponse = await api.get('/stock/requests');
+          setRequests(Array.isArray(requestsResponse) ? requestsResponse : []);
+        }
         if (canWrite) {
           const locationsResponse = await api.get('/locations');
           setLocations(Array.isArray(locationsResponse) ? locationsResponse : locationsResponse?.items || []);
@@ -148,7 +160,7 @@ export default function InventoryAlertsPage() {
     return () => {
       active = false;
     };
-  }, [api, canViewCatalog, canWrite]);
+  }, [api, canManageRequests, canViewCatalog, canWrite]);
 
   const locationId = location => String(location?.id || location?._id || '');
   const beginRecountEdit = item => {
@@ -192,12 +204,12 @@ export default function InventoryAlertsPage() {
       return;
     }
     const hash = location.hash?.replace('#', '');
-    if (hash === 'recount' || hash === 'out-of-stock') {
+    if (hash === 'recount' || hash === 'out-of-stock' || (hash === 'withdrawal' && canManageRequests)) {
       setActiveSection(hash);
     } else {
       setActiveSection('all');
     }
-  }, [location.hash, loading]);
+  }, [canManageRequests, location.hash, loading]);
 
   useEffect(() => {
     if (loading) {
@@ -220,6 +232,10 @@ export default function InventoryAlertsPage() {
   const { recount: recountItems, outOfStock: outOfStockItems } = useMemo(
     () => computeInventoryAlerts(itemSummaries, { thresholdDays: recountThresholdDays }),
     [itemSummaries, recountThresholdDays]
+  );
+  const seasonalWithdrawalAlerts = useMemo(
+    () => computeSeasonalWithdrawalAlerts(itemSummaries, requests),
+    [itemSummaries, requests]
   );
 
   const filteredRecountItems = useMemo(() => {
@@ -459,6 +475,51 @@ export default function InventoryAlertsPage() {
                     </div>
                   )}
                 </>
+              )}
+            </section>
+          )}
+
+          {canManageRequests && (activeSection === 'all' || activeSection === 'withdrawal') && (
+            <section className="section-card" id="withdrawal" tabIndex={-1}>
+              <div className="flex-between" style={{ alignItems: 'flex-start', gap: '1rem' }}>
+                <div>
+                  <h3>Artículos sin retiros recientes</h3>
+                  <p style={{ color: '#475569', marginTop: '-0.5rem' }}>
+                    Temporada actual: {seasonalWithdrawalAlerts.activeSeason} y artículos sin temporada ·{' '}
+                    {WITHDRAWAL_ALERT_DAYS}+ días sin retiros.
+                  </p>
+                </div>
+                <span className="badge">Total: {seasonalWithdrawalAlerts.alerts.length}</span>
+              </div>
+              {seasonalWithdrawalAlerts.alerts.length === 0 ? (
+                <p style={{ color: '#64748b', fontSize: '0.9rem', marginTop: '1rem' }}>
+                  No hay artículos de la temporada actual sin retirar durante los últimos {WITHDRAWAL_ALERT_DAYS} días.
+                </p>
+              ) : (
+                <div className="table-wrapper" style={{ marginTop: '1rem' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Código</th>
+                        <th>Descripción</th>
+                        <th>Temporada</th>
+                        <th>Último retiro</th>
+                        <th>Días sin retirar</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {seasonalWithdrawalAlerts.alerts.map(item => (
+                        <tr key={item.id}>
+                          <td>{item.code}</td>
+                          <td>{item.description}</td>
+                          <td>{item.season}</td>
+                          <td>{item.lastWithdrawalAt ? formatUpdatedAt(item.lastWithdrawalAt) : 'Nunca retirado'}</td>
+                          <td>{item.daysWithoutWithdrawal}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </section>
           )}
