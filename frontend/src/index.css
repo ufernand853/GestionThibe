@@ -703,6 +703,12 @@ th {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+button.alert-card {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+}
+
 .alert-card--interactive:hover,
 .alert-card--interactive:focus-visible {
   transform: translateY(-2px);
@@ -729,6 +735,19 @@ th {
   color: #b91c1c;
 }
 
+.alert-card--info {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.alert-card--info h3 {
+  color: #1d4ed8;
+}
+
+.alert-card--info.alert-card--interactive:focus-visible {
+  outline-color: #60a5fa;
+}
+
 .alert-card p {
   margin: 0;
   font-size: 0.85rem;
@@ -744,6 +763,27 @@ th {
 
 .alert-card li + li {
   margin-top: 0.35rem;
+}
+
+.withdrawal-alerts-modal {
+  width: min(980px, 100%);
+}
+
+.withdrawal-alerts-modal__header {
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.withdrawal-alerts-modal__header h2,
+.withdrawal-alerts-modal__header p {
+  margin: 0;
+}
+
+.withdrawal-alerts-modal__header p,
+.withdrawal-alerts-modal__empty {
+  margin-top: 0.4rem;
+  color: #64748b;
+  font-size: 0.85rem;
 }
 
 .origin-legend {

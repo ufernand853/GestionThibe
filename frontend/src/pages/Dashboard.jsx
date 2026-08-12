@@ -100,6 +100,20 @@ export default function DashboardPage() {
     endOfMonth.setHours(0, 0, 0, 0);
     return formatDateForInput(endOfMonth);
   });
+  const [showWithdrawalAlerts, setShowWithdrawalAlerts] = useState(false);
+
+  useEffect(() => {
+    if (!showWithdrawalAlerts) {
+      return undefined;
+    }
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') {
+        setShowWithdrawalAlerts(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showWithdrawalAlerts]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setCurrentDate(new Date()), 60 * 60 * 1000);
@@ -638,44 +652,79 @@ export default function DashboardPage() {
               </ul>
             )}
           </Link>
+          {canManageRequests && (
+            <button
+              type="button"
+              className="alert-card alert-card--info alert-card--interactive"
+              onClick={() => setShowWithdrawalAlerts(true)}
+              aria-haspopup="dialog"
+            >
+              <h3>Artículos sin retiros recientes</h3>
+              <p>
+                {seasonalWithdrawalAlerts.alerts.length === 0
+                  ? `No hay artículos sin retiros durante los últimos ${WITHDRAWAL_ALERT_DAYS} días.`
+                  : `${seasonalWithdrawalAlerts.alerts.length} artículos sin retiros durante ${WITHDRAWAL_ALERT_DAYS}+ días.`}
+              </p>
+              {seasonalWithdrawalAlerts.alerts.length > 0 && (
+                <ul>
+                  {seasonalWithdrawalAlerts.alerts.slice(0, 5).map(item => (
+                    <li key={item.id}>
+                      {item.code} · {item.daysWithoutWithdrawal} días sin retirar
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </button>
+          )}
         </div>
       )}
 
-      {canViewCatalog && canManageRequests && (
-        <div className="section-card">
-          <div className="flex-between" style={{ gap: '1rem', flexWrap: 'wrap' }}>
-            <div>
-              <h2>Artículos sin retiros recientes</h2>
-              <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
-                Temporada actual: {seasonalWithdrawalAlerts.activeSeason} y artículos sin temporada
-              </span>
+      {showWithdrawalAlerts && (
+        <div className="modal-overlay" role="presentation" onMouseDown={() => setShowWithdrawalAlerts(false)}>
+          <section
+            className="modal-card withdrawal-alerts-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="withdrawal-alerts-title"
+            onMouseDown={event => event.stopPropagation()}
+          >
+            <div className="flex-between withdrawal-alerts-modal__header">
+              <div>
+                <h2 id="withdrawal-alerts-title">Artículos sin retiros recientes</h2>
+                <p>
+                  Temporada actual: {seasonalWithdrawalAlerts.activeSeason} y artículos sin temporada ·{' '}
+                  {WITHDRAWAL_ALERT_DAYS}+ días
+                </p>
+              </div>
+              <button type="button" className="secondary" onClick={() => setShowWithdrawalAlerts(false)}>
+                Cerrar
+              </button>
             </div>
-            <span className="badge pending">{WITHDRAWAL_ALERT_DAYS}+ días</span>
-          </div>
-          {seasonalWithdrawalAlerts.alerts.length === 0 ? (
-            <p style={{ color: '#64748b', marginTop: '1rem' }}>
-              No hay artículos de la temporada actual sin retirar durante los últimos {WITHDRAWAL_ALERT_DAYS} días.
-            </p>
-          ) : (
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Código</th><th>Descripción</th><th>Temporada</th><th>Último retiro</th><th>Días sin retirar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {seasonalWithdrawalAlerts.alerts.map(item => (
-                    <tr key={item.id}>
-                      <td>{item.code}</td><td>{item.description}</td><td>{item.season}</td>
-                      <td>{item.lastWithdrawalAt ? new Date(item.lastWithdrawalAt).toLocaleString('es-AR') : 'Nunca retirado'}</td>
-                      <td>{item.daysWithoutWithdrawal}</td>
+            {seasonalWithdrawalAlerts.alerts.length === 0 ? (
+              <p className="withdrawal-alerts-modal__empty">
+                No hay artículos de la temporada actual sin retirar durante los últimos {WITHDRAWAL_ALERT_DAYS} días.
+              </p>
+            ) : (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código</th><th>Descripción</th><th>Temporada</th><th>Último retiro</th><th>Días sin retirar</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </thead>
+                  <tbody>
+                    {seasonalWithdrawalAlerts.alerts.map(item => (
+                      <tr key={item.id}>
+                        <td>{item.code}</td><td>{item.description}</td><td>{item.season}</td>
+                        <td>{item.lastWithdrawalAt ? new Date(item.lastWithdrawalAt).toLocaleString('es-AR') : 'Nunca retirado'}</td>
+                        <td>{item.daysWithoutWithdrawal}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       )}
 
