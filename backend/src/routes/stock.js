@@ -646,7 +646,12 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     ensureStockAccess(req);
-    const { status, type, from, to, itemId, itemCode, requestedBy, profile } = req.query || {};
+    const { status, type, from, to, itemId, itemCode, requestedBy, profile, page: rawPage, limit: rawLimit } = req.query || {};
+    const paginationRequested = rawPage !== undefined || rawLimit !== undefined;
+    const page = Math.max(parseInt(rawPage, 10) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 25, 1), 100);
+    const emptyResponse = () =>
+      res.json(paginationRequested ? { requests: [], page, limit, total: 0, totalPages: 1 } : []);
     const filter = {};
     const normalizedType = typeof type === 'string' ? type.trim() : '';
     if (status) {
@@ -659,16 +664,16 @@ router.get(
       const resolvedFromCode = normalizedItemCode ? await resolveItemIdentifier(normalizedItemCode) : null;
 
       if (normalizedItemId && !resolvedFromId) {
-        return res.json([]);
+        return emptyResponse();
       }
 
       if (normalizedItemCode && !resolvedFromCode) {
-        return res.json([]);
+        return emptyResponse();
       }
 
       let effectiveItem = resolvedFromId || resolvedFromCode;
       if (resolvedFromId && resolvedFromCode && String(resolvedFromId) !== String(resolvedFromCode)) {
-        return res.json([]);
+        return emptyResponse();
       }
 
       if (effectiveItem) {
@@ -711,7 +716,7 @@ router.get(
           .select('_id')
           .lean();
         if (!requesterDoc) {
-          return res.json([]);
+          return emptyResponse();
         }
         requesterFilter = requesterDoc._id;
       }
@@ -729,7 +734,7 @@ router.get(
       }
 
       if (!roleId) {
-        return res.json([]);
+        return emptyResponse();
       }
 
       const roleUserIds = await User.find({ role: roleId })
@@ -739,12 +744,12 @@ router.get(
 
       if (requesterFilter) {
         if (!allowedIds.has(String(requesterFilter))) {
-          return res.json([]);
+          return emptyResponse();
         }
         filter.requestedBy = requesterFilter;
       } else {
         if (allowedIds.size === 0) {
-          return res.json([]);
+          return emptyResponse();
         }
         filter.requestedBy = { $in: Array.from(allowedIds) };
       }
@@ -752,7 +757,11 @@ router.get(
       filter.requestedBy = requesterFilter;
     }
 
-    const requests = await MovementRequest.find(filter)
+    const mustFilterLegacyTypes = normalizedType && ['transfer', 'ingress', 'egress'].includes(normalizedType);
+    let total = paginationRequested && !mustFilterLegacyTypes
+      ? await MovementRequest.countDocuments(filter)
+      : 0;
+    const requestQuery = MovementRequest.find(filter)
       .populate([
         'item',
         { path: 'requestedBy', populate: 'role' },
@@ -761,11 +770,28 @@ router.get(
         'toLocation'
       ])
       .sort({ requestedAt: -1 });
+    if (paginationRequested && !mustFilterLegacyTypes) {
+      requestQuery.skip((page - 1) * limit).limit(limit);
+    }
+    const requests = await requestQuery;
     const serialized = requests.map(serializeMovementRequest);
-    const filteredByType =
-      normalizedType && ['transfer', 'ingress', 'egress'].includes(normalizedType)
+    let filteredByType =
+      mustFilterLegacyTypes
         ? serialized.filter(request => request.type === normalizedType)
         : serialized;
+    if (paginationRequested) {
+      if (mustFilterLegacyTypes) {
+        total = filteredByType.length;
+        filteredByType = filteredByType.slice((page - 1) * limit, page * limit);
+      }
+      return res.json({
+        requests: filteredByType,
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit))
+      });
+    }
     res.json(filteredByType);
   })
 );

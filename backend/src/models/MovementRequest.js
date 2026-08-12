@@ -25,6 +25,9 @@ const movementRequestSchema = new Schema(
 );
 
 movementRequestSchema.index({ status: 1, requestedAt: -1 });
+movementRequestSchema.index({ requestedAt: -1 });
+movementRequestSchema.index({ requestedBy: 1, requestedAt: -1 });
+movementRequestSchema.index({ item: 1, requestedAt: -1 });
 
 movementRequestSchema.pre('validate', function ensureQuantity(next) {
   this.quantity = coerceQuantity(this.quantity);
