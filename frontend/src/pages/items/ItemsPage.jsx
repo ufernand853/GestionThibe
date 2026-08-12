@@ -8,6 +8,7 @@ import { ensureQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
+import { normalizeSeason } from '../../utils/seasonalWithdrawalAlerts.js';
 
 const ATTRIBUTE_FIELDS = [
   {
@@ -43,10 +44,9 @@ const ATTRIBUTE_FIELDS = [
     type: 'select',
     placeholder: 'Selecciona la temporada',
     options: [
-      { value: 'Primavera', label: 'Primavera' },
-      { value: 'Verano', label: 'Verano' },
-      { value: 'Invierno', label: 'Invierno' },
-      { value: 'Otoño', label: 'Otoño' }
+      { value: 'Otoño/Invierno', label: 'Otoño/Invierno' },
+      { value: 'Primavera/Verano', label: 'Primavera/Verano' },
+      { value: 'Sin temporada', label: 'Sin temporada' }
     ]
   },
   // otros atributos adicionales pueden configurarse agregando nuevas entradas aquí
@@ -832,7 +832,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
       size: item.attributes?.size || '',
       color: item.attributes?.color || '',
       material: item.attributes?.material || '',
-      season: item.attributes?.season || '',
+      season: normalizeSeason(item.attributes?.season),
       stockByLocation
     });
   };

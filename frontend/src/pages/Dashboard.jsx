@@ -7,6 +7,10 @@ import ErrorMessage from '../components/ErrorMessage.jsx';
 import { formatQuantity, ensureQuantity, sumQuantities } from '../utils/quantity.js';
 import { computeTotalStockFromMap } from '../utils/stockStatus.js';
 import { computeInventoryAlerts, RECOUNT_THRESHOLD_DAYS } from '../utils/inventoryAlerts.js';
+import {
+  computeSeasonalWithdrawalAlerts,
+  WITHDRAWAL_ALERT_DAYS
+} from '../utils/seasonalWithdrawalAlerts.js';
 
 const ATTENTION_MANUAL_LIMIT = 5;
 
@@ -63,6 +67,7 @@ export default function DashboardPage() {
   const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [itemsSnapshot, setItemsSnapshot] = useState([]);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
   const [topStartDate, setTopStartDate] = useState(() => {
     const startOfMonth = new Date();
     startOfMonth.setHours(0, 0, 0, 0);
@@ -95,6 +100,11 @@ export default function DashboardPage() {
     endOfMonth.setHours(0, 0, 0, 0);
     return formatDateForInput(endOfMonth);
   });
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentDate(new Date()), 60 * 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -222,9 +232,16 @@ export default function DashboardPage() {
       total: computeTotalStockFromMap(item.stock),
       updatedAt: item.updatedAt,
       group: item.group || null,
-      needsRecount: Boolean(item.needsRecount)
+      needsRecount: Boolean(item.needsRecount),
+      season: item.attributes?.season || '',
+      createdAt: item.createdAt
     }));
   }, [itemsSnapshot]);
+
+  const seasonalWithdrawalAlerts = useMemo(
+    () => computeSeasonalWithdrawalAlerts(itemSummaries, requests, { now: currentDate }),
+    [currentDate, itemSummaries, requests]
+  );
 
   const itemsById = useMemo(() => {
     const map = new Map();
@@ -621,6 +638,44 @@ export default function DashboardPage() {
               </ul>
             )}
           </Link>
+        </div>
+      )}
+
+      {canViewCatalog && canManageRequests && (
+        <div className="section-card">
+          <div className="flex-between" style={{ gap: '1rem', flexWrap: 'wrap' }}>
+            <div>
+              <h2>Artículos sin retiros recientes</h2>
+              <span style={{ color: '#64748b', fontSize: '0.85rem' }}>
+                Temporada actual: {seasonalWithdrawalAlerts.activeSeason} y artículos sin temporada
+              </span>
+            </div>
+            <span className="badge pending">{WITHDRAWAL_ALERT_DAYS}+ días</span>
+          </div>
+          {seasonalWithdrawalAlerts.alerts.length === 0 ? (
+            <p style={{ color: '#64748b', marginTop: '1rem' }}>
+              No hay artículos de la temporada actual sin retirar durante los últimos {WITHDRAWAL_ALERT_DAYS} días.
+            </p>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Código</th><th>Descripción</th><th>Temporada</th><th>Último retiro</th><th>Días sin retirar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {seasonalWithdrawalAlerts.alerts.map(item => (
+                    <tr key={item.id}>
+                      <td>{item.code}</td><td>{item.description}</td><td>{item.season}</td>
+                      <td>{item.lastWithdrawalAt ? new Date(item.lastWithdrawalAt).toLocaleString('es-AR') : 'Nunca retirado'}</td>
+                      <td>{item.daysWithoutWithdrawal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
