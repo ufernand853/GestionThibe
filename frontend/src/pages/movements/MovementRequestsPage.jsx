@@ -32,6 +32,8 @@ const MOVEMENT_TYPE_OPTIONS = [
   { value: 'egress', label: 'Salidas' }
 ];
 
+const REQUESTS_PAGE_SIZE = 25;
+
 export default function MovementRequestsPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -48,6 +50,8 @@ export default function MovementRequestsPage() {
   const [allLocations, setAllLocations] = useState([]);
   const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [itemFilter, setItemFilter] = useState('');
@@ -70,8 +74,8 @@ export default function MovementRequestsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const refreshRequests = useCallback(async () => {
-    const query = {};
+  const refreshRequests = useCallback(async (requestedPage = page) => {
+    const query = { page: requestedPage, limit: REQUESTS_PAGE_SIZE };
     if (statusFilter) {
       query.status = statusFilter;
     }
@@ -96,7 +100,15 @@ export default function MovementRequestsPage() {
     const response = await api.get('/stock/requests', {
       query: Object.keys(query).length > 0 ? query : undefined
     });
-    return Array.isArray(response) ? response : [];
+    if (Array.isArray(response)) {
+      return { requests: response, page: 1, total: response.length, totalPages: 1 };
+    }
+    return {
+      requests: Array.isArray(response?.requests) ? response.requests : [],
+      page: Number(response?.page) || requestedPage,
+      total: Number(response?.total) || 0,
+      totalPages: Math.max(1, Number(response?.totalPages) || 1)
+    };
   }, [
     api,
     dateFilters.from,
@@ -104,9 +116,14 @@ export default function MovementRequestsPage() {
     itemFilter,
     profileFilter,
     requesterFilter,
+    page,
     statusFilter,
     typeFilter
   ]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, typeFilter, itemFilter, profileFilter, requesterFilter, dateFilters.from, dateFilters.to]);
 
   const refreshPendingSnapshot = useCallback(async () => {
     if (!canRequest) {
@@ -124,6 +141,10 @@ export default function MovementRequestsPage() {
       return [];
     }
   }, [api, canRequest]);
+
+  useEffect(() => {
+    refreshPendingSnapshot();
+  }, [refreshPendingSnapshot]);
 
   useEffect(() => {
     let active = true;
@@ -356,16 +377,11 @@ export default function MovementRequestsPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await refreshRequests();
+        const result = await refreshRequests();
         if (!active) return;
-        setRequests(data);
-        if (canRequest) {
-          if (statusFilter === 'pending') {
-            setPendingSnapshot(data);
-          } else {
-            await refreshPendingSnapshot();
-          }
-        }
+        setRequests(result.requests);
+        setPagination({ total: result.total, totalPages: result.totalPages });
+        if (result.page !== page) setPage(result.page);
       } catch (err) {
         if (!active) return;
         setError(err);
@@ -381,7 +397,7 @@ export default function MovementRequestsPage() {
     return () => {
       active = false;
     };
-  }, [canRequest, refreshPendingSnapshot, refreshRequests, statusFilter]);
+  }, [canRequest, page, refreshRequests]);
 
   const handleFormChange = event => {
     const { name, value } = event.target;
@@ -469,13 +485,11 @@ export default function MovementRequestsPage() {
         quantityBoxes: '',
         quantityUnits: ''
       }));
-      const refreshed = await refreshRequests();
-      setRequests(refreshed);
-      if (statusFilter === 'pending') {
-        setPendingSnapshot(refreshed);
-      } else {
-        await refreshPendingSnapshot();
-      }
+      setPage(1);
+      const refreshed = await refreshRequests(1);
+      setRequests(refreshed.requests);
+      setPagination({ total: refreshed.total, totalPages: refreshed.totalPages });
+      await refreshPendingSnapshot();
     } catch (err) {
       setError(err);
     } finally {
@@ -492,12 +506,9 @@ export default function MovementRequestsPage() {
       await api.post(`/stock/request/${request.id}/resubmit`);
       setSuccessMessage('Solicitud reenviada correctamente.');
       const refreshed = await refreshRequests();
-      setRequests(refreshed);
-      if (statusFilter === 'pending') {
-        setPendingSnapshot(refreshed);
-      } else {
-        await refreshPendingSnapshot();
-      }
+      setRequests(refreshed.requests);
+      setPagination({ total: refreshed.total, totalPages: refreshed.totalPages });
+      await refreshPendingSnapshot();
     } catch (err) {
       setError(err);
     } finally {
@@ -517,6 +528,11 @@ export default function MovementRequestsPage() {
       await api.delete(`/stock/request/${request.id}`);
       setRequests(prev => prev.filter(item => item.id !== request.id));
       setPendingSnapshot(prev => prev.filter(item => item.id !== request.id));
+      setPagination(prev => ({
+        total: Math.max(0, prev.total - 1),
+        totalPages: Math.max(1, Math.ceil(Math.max(0, prev.total - 1) / REQUESTS_PAGE_SIZE))
+      }));
+      if (requests.length === 1 && page > 1) setPage(current => current - 1);
     } catch (err) {
       setError(err);
     } finally {
@@ -783,6 +799,7 @@ export default function MovementRequestsPage() {
         ) : requests.length === 0 ? (
           <p style={{ color: '#64748b' }}>No hay solicitudes registradas con el filtro seleccionado.</p>
         ) : (
+          <>
           <div className="table-wrapper table-wrapper--compact" style={{ marginTop: '1rem' }}>
             <table>
               <thead>
@@ -885,6 +902,28 @@ export default function MovementRequestsPage() {
               </tbody>
             </table>
           </div>
+          <div className="pagination-controls" aria-label="Paginación de solicitudes">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage(current => Math.max(1, current - 1))}
+            >
+              Anterior
+            </button>
+            <span>
+              Página {page} de {pagination.totalPages} · {pagination.total} solicitudes
+            </span>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={page >= pagination.totalPages || loading}
+              onClick={() => setPage(current => Math.min(pagination.totalPages, current + 1))}
+            >
+              Siguiente
+            </button>
+          </div>
+          </>
         )}
       </div>
     </div>
