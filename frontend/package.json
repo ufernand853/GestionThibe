@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "node --test",
     "build": "npm run check:items-location-filter && node scripts/build.mjs",
     "check:items-location-filter": "node scripts/check-items-location-filter.mjs",
     "clean": "node scripts/clean-dist.mjs",
