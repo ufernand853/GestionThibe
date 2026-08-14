@@ -47,7 +47,7 @@ const formatRecountReasons = item => {
   return parts.join(' · ');
 };
 
-const buildItemSummaries = items =>
+const buildItemSummaries = (items, { stockLocationIds = null, boxesOnly = false } = {}) =>
   (Array.isArray(items) ? items : []).map(item => ({
     id: item.id,
     code: item.code,
@@ -64,7 +64,14 @@ const buildItemSummaries = items =>
     stock: item.stock || {},
     lastCountedAt: item.lastCountedAt || null,
     lastCountedBy: item.lastCountedBy || null,
-    total: computeTotalStockFromMap(item.stock),
+    total: computeTotalStockFromMap(item.stock, {
+      filterLocation: stockLocationIds
+        ? locationId => stockLocationIds.has(String(locationId))
+        : undefined,
+      mapQuantity: boxesOnly
+        ? quantity => ({ boxes: quantity.boxes, units: 0 })
+        : undefined
+    }),
     season: item.attributes?.season || '',
     createdAt: item.createdAt
   }));
@@ -105,46 +112,44 @@ export default function InventoryAlertsPage() {
       setLoading(true);
       setError(null);
       try {
-        const collectedItems = [];
-        const seenIds = new Set();
-        let pageNumber = 1;
-        const pageSize = 200;
-        let totalItems = null;
-        while (true) {
-          const response = await api.get('/items', { query: { page: pageNumber, pageSize } });
-          if (!active) {
-            return;
-          }
-          const pageItems = Array.isArray(response?.items) ? response.items : [];
-          pageItems.forEach(item => {
-            const id = item?.id;
-            if (id && !seenIds.has(id)) {
-              seenIds.add(id);
-              collectedItems.push(item);
+        const loadAllItems = async (query = {}) => {
+          const collectedItems = [];
+          const seenIds = new Set();
+          let pageNumber = 1;
+          const pageSize = 200;
+          let totalItems = null;
+          while (true) {
+            const response = await api.get('/items', { query: { ...query, page: pageNumber, pageSize } });
+            if (!active) return [];
+            const pageItems = Array.isArray(response?.items) ? response.items : [];
+            pageItems.forEach(item => {
+              const id = item?.id;
+              if (id && !seenIds.has(id)) {
+                seenIds.add(id);
+                collectedItems.push(item);
+              }
+            });
+            const responseTotal = Number(response?.total);
+            if (Number.isFinite(responseTotal) && responseTotal >= 0) {
+              totalItems = responseTotal;
             }
-          });
-          const responseTotal = Number(response?.total);
-          if (Number.isFinite(responseTotal) && responseTotal >= 0) {
-            totalItems = responseTotal;
+            const effectivePageSize = Number(response?.pageSize) || pageSize;
+            if (pageItems.length < effectivePageSize || (totalItems !== null && collectedItems.length >= totalItems)) {
+              break;
+            }
+            pageNumber += 1;
           }
-          const effectivePageSize = Number(response?.pageSize) || pageSize;
-          if (pageItems.length < effectivePageSize) {
-            break;
-          }
-          if (totalItems !== null && collectedItems.length >= totalItems) {
-            break;
-          }
-          pageNumber += 1;
-        }
+          return collectedItems;
+        };
+        const collectedItems = await loadAllItems();
+        if (!active) return;
         setItemsSnapshot(collectedItems);
         if (canManageRequests) {
           const requestsResponse = await api.get('/stock/requests');
           setRequests(Array.isArray(requestsResponse) ? requestsResponse : []);
         }
-        if (canWrite) {
-          const locationsResponse = await api.get('/locations');
-          setLocations(Array.isArray(locationsResponse) ? locationsResponse : locationsResponse?.items || []);
-        }
+        const locationsResponse = await api.get('/locations');
+        setLocations(Array.isArray(locationsResponse) ? locationsResponse : locationsResponse?.items || []);
       } catch (err) {
         if (!active) {
           return;
@@ -229,13 +234,22 @@ export default function InventoryAlertsPage() {
   }, [activeSection, location.hash, loading]);
 
   const itemSummaries = useMemo(() => buildItemSummaries(itemsSnapshot), [itemsSnapshot]);
+  const nonLocalWarehouseIds = useMemo(() => new Set(
+    locations
+      .filter(location => location.type === 'warehouse' && location.isLocal !== true)
+      .map(location => String(location.id || location._id))
+  ), [locations]);
+  const boxedItemSummaries = useMemo(
+    () => buildItemSummaries(itemsSnapshot, { stockLocationIds: nonLocalWarehouseIds, boxesOnly: true }),
+    [itemsSnapshot, nonLocalWarehouseIds]
+  );
   const { recount: recountItems, outOfStock: outOfStockItems } = useMemo(
     () => computeInventoryAlerts(itemSummaries, { thresholdDays: recountThresholdDays }),
     [itemSummaries, recountThresholdDays]
   );
   const seasonalWithdrawalAlerts = useMemo(
-    () => computeSeasonalWithdrawalAlerts(itemSummaries, requests),
-    [itemSummaries, requests]
+    () => computeSeasonalWithdrawalAlerts(boxedItemSummaries, requests),
+    [boxedItemSummaries, requests]
   );
 
   const filteredRecountItems = useMemo(() => {
@@ -485,8 +499,8 @@ export default function InventoryAlertsPage() {
                 <div>
                   <h3>Artículos sin retiros recientes</h3>
                   <p style={{ color: '#475569', marginTop: '-0.5rem' }}>
-                    Temporada actual: {seasonalWithdrawalAlerts.activeSeason} y artículos sin temporada ·{' '}
-                    {WITHDRAWAL_ALERT_DAYS}+ días sin retiros.
+                    Artículos con stock actual en cajas, sin incluir locales ni agotados · temporada{' '}
+                    {seasonalWithdrawalAlerts.activeSeason} y sin temporada · {WITHDRAWAL_ALERT_DAYS}+ días sin retiros.
                   </p>
                 </div>
                 <span className="badge">Total: {seasonalWithdrawalAlerts.alerts.length}</span>
