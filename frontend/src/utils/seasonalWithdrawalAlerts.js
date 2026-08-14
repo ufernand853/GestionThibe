@@ -40,7 +40,8 @@ export function computeSeasonalWithdrawalAlerts(
   const alerts = (Array.isArray(items) ? items : [])
     .filter(item => {
       const season = normalizeSeason(item.season || item.attributes?.season);
-      return season === activeSeason || season === 'Sin temporada';
+      const boxes = Number(item.total?.boxes) || 0;
+      return boxes > 0 && (season === activeSeason || season === 'Sin temporada');
     })
     .map(item => {
       const lastWithdrawal = lastWithdrawalByItem.get(item.id);
