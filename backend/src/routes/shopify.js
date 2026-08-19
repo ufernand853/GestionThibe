@@ -198,12 +198,13 @@ router.get(
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
     const filter = { deletedAt: null };
-    const [localLocations, locations] = await Promise.all([
-      Location.find({ type: 'warehouse', isLocal: true }).select('_id').lean(),
-      Location.find().sort({ name: 1 })
-    ]);
+    // Cargamos las ubicaciones una sola vez: las locales se usan únicamente
+    // para decidir qué artículos listar, pero todas se conservan para mostrar
+    // el nombre y el stock completo de cada artículo.
+    const locations = await Location.find().sort({ name: 1 });
+    const localLocations = locations.filter(location => location.type === 'warehouse' && location.isLocal === true);
     const localStockFilters = buildPositiveStockFilters(
-      localLocations.map(location => String(location._id)),
+      localLocations.map(location => String(location.id)),
       ['units']
     );
     if (localStockFilters.length === 0) {
