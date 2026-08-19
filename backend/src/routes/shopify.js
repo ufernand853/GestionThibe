@@ -8,6 +8,7 @@ const Location = require('../models/Location');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus, getAdminAccessToken } = require('../services/shopifyAuthService');
 const { syncShopifyProduct, archiveShopifyProduct } = require('../services/shopifyProductService');
+const { sumStock } = require('../services/shopifyPayloadService');
 const { buildPositiveStockFilters } = require('../services/itemCatalogService');
 const config = require('../config');
 
@@ -16,16 +17,6 @@ const MAX_BULK_ITEMS = 100;
 
 function escapeRegex(value) {
   return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-}
-
-function sumStock(stock) {
-  const total = { boxes: 0, units: 0 };
-  const entries = stock instanceof Map ? Array.from(stock.values()) : Object.values(stock || {});
-  entries.forEach(quantity => {
-    total.boxes += Number(quantity?.boxes) || 0;
-    total.units += Number(quantity?.units) || 0;
-  });
-  return total;
 }
 
 function getShopifyStatus(item) {
@@ -106,7 +97,7 @@ function buildShopifyPayload(item, locations = []) {
     status: getShopifyStatus(item),
     price: item.pDecimal ?? null,
     tags: Object.values(plainAttributes(item.attributes)).filter(Boolean),
-    inventory: localInventory,
+    inventory: sumStock(item.stock),
     stockByLocation,
     images: Array.isArray(item.images) ? item.images : [],
     media: buildShopifyMedia(item)
