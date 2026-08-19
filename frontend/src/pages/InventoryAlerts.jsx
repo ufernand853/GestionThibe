@@ -12,6 +12,39 @@ import {
   WITHDRAWAL_ALERT_DAYS
 } from '../utils/seasonalWithdrawalAlerts.js';
 
+const ALERTS_PAGE_SIZE = 20;
+
+const PaginationControls = ({ page, totalItems, onPageChange, label }) => {
+  const totalPages = Math.max(1, Math.ceil(totalItems / ALERTS_PAGE_SIZE));
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <div className="pagination-controls" aria-label={`Paginación de ${label}`}>
+      <button
+        type="button"
+        className="secondary-button"
+        disabled={page <= 1}
+        onClick={() => onPageChange(page - 1)}
+      >
+        Anterior
+      </button>
+      <span>
+        Página {page} de {totalPages} · {totalItems} artículos
+      </span>
+      <button
+        type="button"
+        className="secondary-button"
+        disabled={page >= totalPages}
+        onClick={() => onPageChange(page + 1)}
+      >
+        Siguiente
+      </button>
+    </div>
+  );
+};
+
 const formatUpdatedAt = value => {
   if (!value) {
     return 'Sin registro';
@@ -91,6 +124,8 @@ export default function InventoryAlertsPage() {
   const [activeSection, setActiveSection] = useState('all');
   const [recountSearch, setRecountSearch] = useState('');
   const [outOfStockSearch, setOutOfStockSearch] = useState('');
+  const [outOfStockPage, setOutOfStockPage] = useState(1);
+  const [withdrawalPage, setWithdrawalPage] = useState(1);
   const [locations, setLocations] = useState([]);
   const [requests, setRequests] = useState([]);
   const [editingRecount, setEditingRecount] = useState(null);
@@ -274,6 +309,28 @@ export default function InventoryAlertsPage() {
     });
   }, [outOfStockItems, outOfStockSearch]);
 
+  const outOfStockTotalPages = Math.max(1, Math.ceil(filteredOutOfStockItems.length / ALERTS_PAGE_SIZE));
+  const withdrawalTotalPages = Math.max(
+    1,
+    Math.ceil(seasonalWithdrawalAlerts.alerts.length / ALERTS_PAGE_SIZE)
+  );
+  const paginatedOutOfStockItems = filteredOutOfStockItems.slice(
+    (outOfStockPage - 1) * ALERTS_PAGE_SIZE,
+    outOfStockPage * ALERTS_PAGE_SIZE
+  );
+  const paginatedWithdrawalItems = seasonalWithdrawalAlerts.alerts.slice(
+    (withdrawalPage - 1) * ALERTS_PAGE_SIZE,
+    withdrawalPage * ALERTS_PAGE_SIZE
+  );
+
+  useEffect(() => {
+    setOutOfStockPage(current => Math.min(current, outOfStockTotalPages));
+  }, [outOfStockTotalPages]);
+
+  useEffect(() => {
+    setWithdrawalPage(current => Math.min(current, withdrawalTotalPages));
+  }, [withdrawalTotalPages]);
+
   const recountHelperText =
     recountThresholdDays > 0
       ? `Incluye artículos marcados manualmente o sin actualización en ${recountThresholdDays}+ días.`
@@ -448,7 +505,10 @@ export default function InventoryAlertsPage() {
                       type="search"
                       placeholder="Buscar por código, descripción o grupo"
                       value={outOfStockSearch}
-                      onChange={event => setOutOfStockSearch(event.target.value)}
+                      onChange={event => {
+                        setOutOfStockSearch(event.target.value);
+                        setOutOfStockPage(1);
+                      }}
                       style={{
                         flex: '1 1 220px',
                         minWidth: '200px',
@@ -475,7 +535,7 @@ export default function InventoryAlertsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredOutOfStockItems.map(item => (
+                          {paginatedOutOfStockItems.map(item => (
                             <tr key={item.id}>
                               <td>{item.code}</td>
                               <td>{item.description}</td>
@@ -486,6 +546,12 @@ export default function InventoryAlertsPage() {
                           ))}
                         </tbody>
                       </table>
+                      <PaginationControls
+                        page={outOfStockPage}
+                        totalItems={filteredOutOfStockItems.length}
+                        onPageChange={setOutOfStockPage}
+                        label="artículos agotados"
+                      />
                     </div>
                   )}
                 </>
@@ -522,7 +588,7 @@ export default function InventoryAlertsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {seasonalWithdrawalAlerts.alerts.map(item => (
+                      {paginatedWithdrawalItems.map(item => (
                         <tr key={item.id}>
                           <td>{item.code}</td>
                           <td>{item.description}</td>
@@ -533,6 +599,12 @@ export default function InventoryAlertsPage() {
                       ))}
                     </tbody>
                   </table>
+                  <PaginationControls
+                    page={withdrawalPage}
+                    totalItems={seasonalWithdrawalAlerts.alerts.length}
+                    onPageChange={setWithdrawalPage}
+                    label="artículos sin retiros recientes"
+                  />
                 </div>
               )}
             </section>
