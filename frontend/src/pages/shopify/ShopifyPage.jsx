@@ -138,7 +138,7 @@ export default function ShopifyPage() {
         <div className="page-header-row">
           <div>
             <h2>Shopify</h2>
-            <p className="muted-text">ABM de productos Shopify usando los artículos del sistema. Podés enviar uno o varios artículos a la vez.</p>
+            <p className="muted-text">Productos Shopify disponibles a partir de los artículos con stock en locales. Podés enviar uno o varios artículos a la vez.</p>
             {shopifyConfig && (
               <p className="muted-text">
                 Configuración: {shopifyConfig.shopDomain || 'sin dominio'} · API {shopifyConfig.apiVersion} ·{' '}
@@ -247,7 +247,7 @@ export default function ShopifyPage() {
                     </tr>
                   );
                 })}
-                {items.length === 0 && <tr><td colSpan="10">No hay artículos para mostrar.</td></tr>}
+                {items.length === 0 && <tr><td colSpan="10">No hay artículos con stock en locales para mostrar.</td></tr>}
               </tbody>
             </table>
           </div>

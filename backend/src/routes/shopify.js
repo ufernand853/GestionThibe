@@ -8,6 +8,7 @@ const Location = require('../models/Location');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus, getAdminAccessToken } = require('../services/shopifyAuthService');
 const { syncShopifyProduct, archiveShopifyProduct } = require('../services/shopifyProductService');
+const { buildPositiveStockFilters } = require('../services/itemCatalogService');
 const config = require('../config');
 
 const router = express.Router();
@@ -23,16 +24,6 @@ function getShopifyStatus(item) {
     return status;
   }
   return item.shopify?.productId ? 'active' : 'draft';
-}
-
-function sumStock(stock) {
-  const total = { boxes: 0, units: 0 };
-  const entries = stock instanceof Map ? Array.from(stock.values()) : Object.values(stock || {});
-  entries.forEach(quantity => {
-    total.boxes += Number(quantity?.boxes) || 0;
-    total.units += Number(quantity?.units) || 0;
-  });
-  return total;
 }
 
 function plainAttributes(attributes) {
@@ -97,6 +88,10 @@ function buildShopifyPayload(item, locations = []) {
       units
     });
   });
+  const localInventory = stockByLocation.reduce((total, location) => ({
+    boxes: total.boxes + location.boxes,
+    units: total.units + location.units
+  }), { boxes: 0, units: 0 });
 
   return {
     title: item.description,
@@ -106,7 +101,7 @@ function buildShopifyPayload(item, locations = []) {
     status: getShopifyStatus(item),
     price: item.pDecimal ?? null,
     tags: Object.values(plainAttributes(item.attributes)).filter(Boolean),
-    inventory: sumStock(item.stock),
+    inventory: localInventory,
     stockByLocation,
     images: Array.isArray(item.images) ? item.images : [],
     media: buildShopifyMedia(item)
@@ -198,6 +193,21 @@ router.get(
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
     const filter = { deletedAt: null };
+    const locations = await Location.find({ type: 'warehouse', isLocal: true }).sort({ name: 1 });
+    const localStockFilters = buildPositiveStockFilters(
+      locations.map(location => String(location.id)),
+      ['units']
+    );
+    if (localStockFilters.length === 0) {
+      return res.json({
+        config: getShopifyAuthStatus(),
+        total: 0,
+        page: pageNumber,
+        pageSize: limit,
+        items: []
+      });
+    }
+    filter.$and = [{ $or: localStockFilters }];
     if (typeof search === 'string' && search.trim()) {
       const matcher = new RegExp(escapeRegex(search.trim()), 'i');
       filter.$or = [{ code: matcher }, { sku: matcher }, { description: matcher }];
@@ -213,10 +223,9 @@ router.get(
         filter['shopify.status'] = normalizedStatus;
       }
     }
-    const [total, items, locations] = await Promise.all([
+    const [total, items] = await Promise.all([
       Item.countDocuments(filter),
-      Item.find(filter).populate('group').sort({ updatedAt: -1 }).skip((pageNumber - 1) * limit).limit(limit),
-      Location.find().sort({ name: 1 })
+      Item.find(filter).populate('group').sort({ updatedAt: -1 }).skip((pageNumber - 1) * limit).limit(limit)
     ]);
     res.json({
       config: getShopifyAuthStatus(),
@@ -240,7 +249,7 @@ router.post(
     }
     const now = new Date();
     const results = [];
-    const locations = await Location.find().sort({ name: 1 });
+    const locations = await Location.find({ type: 'warehouse', isLocal: true }).sort({ name: 1 });
     for (const item of items) {
       const nextStatus = payload.status === 'active' ? 'active' : 'draft';
       const productPayload = buildShopifyPayload(item, locations);
@@ -295,7 +304,7 @@ router.post(
     }
     const now = new Date();
     const results = [];
-    const locations = await Location.find().sort({ name: 1 });
+    const locations = await Location.find({ type: 'warehouse', isLocal: true }).sort({ name: 1 });
     for (const item of items) {
       const persistedProductId = getPersistedShopifyProductId(item);
       const archivedProduct = shopifyConfig.configured && persistedProductId
