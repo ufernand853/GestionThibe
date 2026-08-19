@@ -106,7 +106,7 @@ function buildShopifyPayload(item, locations = []) {
     status: getShopifyStatus(item),
     price: item.pDecimal ?? null,
     tags: Object.values(plainAttributes(item.attributes)).filter(Boolean),
-    inventory: sumStock(item.stock),
+    inventory: localInventory,
     stockByLocation,
     images: Array.isArray(item.images) ? item.images : [],
     media: buildShopifyMedia(item)
@@ -258,7 +258,7 @@ router.post(
     }
     const now = new Date();
     const results = [];
-    const locations = await Location.find().sort({ name: 1 });
+    const locations = await Location.find({ type: 'warehouse', isLocal: true }).sort({ name: 1 });
     for (const item of items) {
       const nextStatus = payload.status === 'active' ? 'active' : 'draft';
       const productPayload = buildShopifyPayload(item, locations);
@@ -313,7 +313,7 @@ router.post(
     }
     const now = new Date();
     const results = [];
-    const locations = await Location.find().sort({ name: 1 });
+    const locations = await Location.find({ type: 'warehouse', isLocal: true }).sort({ name: 1 });
     for (const item of items) {
       const persistedProductId = getPersistedShopifyProductId(item);
       const archivedProduct = shopifyConfig.configured && persistedProductId
