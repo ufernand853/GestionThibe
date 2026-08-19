@@ -18,6 +18,16 @@ function escapeRegex(value) {
   return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 }
 
+function sumStock(stock) {
+  const total = { boxes: 0, units: 0 };
+  const entries = stock instanceof Map ? Array.from(stock.values()) : Object.values(stock || {});
+  entries.forEach(quantity => {
+    total.boxes += Number(quantity?.boxes) || 0;
+    total.units += Number(quantity?.units) || 0;
+  });
+  return total;
+}
+
 function getShopifyStatus(item) {
   const status = item.shopify?.status;
   if (['draft', 'active', 'archived', 'deleted'].includes(status)) {
@@ -88,11 +98,6 @@ function buildShopifyPayload(item, locations = []) {
       units
     });
   });
-  const localInventory = stockByLocation.reduce((total, location) => ({
-    boxes: total.boxes + location.boxes,
-    units: total.units + location.units
-  }), { boxes: 0, units: 0 });
-
   return {
     title: item.description,
     sku: item.sku || item.code,
@@ -193,9 +198,12 @@ router.get(
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
     const filter = { deletedAt: null };
-    const locations = await Location.find({ type: 'warehouse', isLocal: true }).sort({ name: 1 });
+    const [localLocations, locations] = await Promise.all([
+      Location.find({ type: 'warehouse', isLocal: true }).select('_id').lean(),
+      Location.find().sort({ name: 1 })
+    ]);
     const localStockFilters = buildPositiveStockFilters(
-      locations.map(location => String(location.id)),
+      localLocations.map(location => String(location._id)),
       ['units']
     );
     if (localStockFilters.length === 0) {
