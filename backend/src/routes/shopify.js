@@ -8,6 +8,7 @@ const Location = require('../models/Location');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus, getAdminAccessToken } = require('../services/shopifyAuthService');
 const { syncShopifyProduct, archiveShopifyProduct } = require('../services/shopifyProductService');
+const { buildPositiveStockFilters } = require('../services/itemCatalogService');
 const config = require('../config');
 
 const router = express.Router();
@@ -15,14 +16,6 @@ const MAX_BULK_ITEMS = 100;
 
 function escapeRegex(value) {
   return value.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-}
-
-function getShopifyStatus(item) {
-  const status = item.shopify?.status;
-  if (['draft', 'active', 'archived', 'deleted'].includes(status)) {
-    return status;
-  }
-  return item.shopify?.productId ? 'active' : 'draft';
 }
 
 function sumStock(stock) {
@@ -33,6 +26,14 @@ function sumStock(stock) {
     total.units += Number(quantity?.units) || 0;
   });
   return total;
+}
+
+function getShopifyStatus(item) {
+  const status = item.shopify?.status;
+  if (['draft', 'active', 'archived', 'deleted'].includes(status)) {
+    return status;
+  }
+  return item.shopify?.productId ? 'active' : 'draft';
 }
 
 function plainAttributes(attributes) {
@@ -97,7 +98,6 @@ function buildShopifyPayload(item, locations = []) {
       units
     });
   });
-
   return {
     title: item.description,
     sku: item.sku || item.code,
@@ -198,6 +198,24 @@ router.get(
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
     const filter = { deletedAt: null };
+    const [localLocations, locations] = await Promise.all([
+      Location.find({ type: 'warehouse', isLocal: true }).select('_id').lean(),
+      Location.find().sort({ name: 1 })
+    ]);
+    const localStockFilters = buildPositiveStockFilters(
+      localLocations.map(location => String(location._id)),
+      ['units']
+    );
+    if (localStockFilters.length === 0) {
+      return res.json({
+        config: getShopifyAuthStatus(),
+        total: 0,
+        page: pageNumber,
+        pageSize: limit,
+        items: []
+      });
+    }
+    filter.$and = [{ $or: localStockFilters }];
     if (typeof search === 'string' && search.trim()) {
       const matcher = new RegExp(escapeRegex(search.trim()), 'i');
       filter.$or = [{ code: matcher }, { sku: matcher }, { description: matcher }];
@@ -213,10 +231,9 @@ router.get(
         filter['shopify.status'] = normalizedStatus;
       }
     }
-    const [total, items, locations] = await Promise.all([
+    const [total, items] = await Promise.all([
       Item.countDocuments(filter),
-      Item.find(filter).populate('group').sort({ updatedAt: -1 }).skip((pageNumber - 1) * limit).limit(limit),
-      Location.find().sort({ name: 1 })
+      Item.find(filter).populate('group').sort({ updatedAt: -1 }).skip((pageNumber - 1) * limit).limit(limit)
     ]);
     res.json({
       config: getShopifyAuthStatus(),

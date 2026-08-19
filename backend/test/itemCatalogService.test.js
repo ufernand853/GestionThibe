@@ -8,3 +8,10 @@ test('crea filtros positivos para los campos de stock indicados', () => {
     { 'stock.deposito.units': { $gt: 0 } }
   ]);
 });
+
+test('permite filtrar artículos con unidades disponibles en locales', () => {
+  assert.deepEqual(buildPositiveStockFilters(['local-centro', 'local-norte'], ['units']), [
+    { 'stock.local-centro.units': { $gt: 0 } },
+    { 'stock.local-norte.units': { $gt: 0 } }
+  ]);
+});
