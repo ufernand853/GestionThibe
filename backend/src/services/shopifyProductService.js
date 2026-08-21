@@ -53,12 +53,18 @@ function assertNoUserErrors(operation, userErrors = []) {
 
 function buildVariantInput(variantId, payload) {
   if (!variantId) return null;
-  const variant = { id: variantId };
+  const variant = {
+    id: variantId,
+    // Shopify only creates inventory levels for inventory items that have
+    // tracking enabled. A product can otherwise exist in the catalog while
+    // remaining absent from the stock shown at each mapped location.
+    inventoryItem: { tracked: true }
+  };
   if (payload.price !== null && payload.price !== undefined) {
     variant.price = String(payload.price);
   }
   if (payload.sku) {
-    variant.inventoryItem = { sku: payload.sku };
+    variant.inventoryItem.sku = payload.sku;
   }
   return variant;
 }
@@ -333,5 +339,7 @@ async function archiveShopifyProduct(productId, payload = {}) {
 
 module.exports = {
   syncShopifyProduct,
-  archiveShopifyProduct
+  archiveShopifyProduct,
+  getMappedInventoryQuantities,
+  buildVariantInput
 };
