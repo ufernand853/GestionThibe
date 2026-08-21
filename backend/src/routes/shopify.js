@@ -249,7 +249,10 @@ router.post(
     }
     const now = new Date();
     const results = [];
-    const locations = await Location.find({ type: 'warehouse', isLocal: true }).sort({ name: 1 });
+    // Shopify locations can be mapped to both stores (`isLocal: true`) and
+    // warehouses (`isLocal: false`). Restricting this query to stores caused
+    // warehouse stock to lose its Shopify location id and be skipped below.
+    const locations = await Location.find({ type: 'warehouse' }).sort({ name: 1 });
     for (const item of items) {
       const nextStatus = payload.status === 'active' ? 'active' : 'draft';
       const productPayload = buildShopifyPayload(item, locations);
@@ -304,7 +307,7 @@ router.post(
     }
     const now = new Date();
     const results = [];
-    const locations = await Location.find({ type: 'warehouse', isLocal: true }).sort({ name: 1 });
+    const locations = await Location.find({ type: 'warehouse' }).sort({ name: 1 });
     for (const item of items) {
       const persistedProductId = getPersistedShopifyProductId(item);
       const archivedProduct = shopifyConfig.configured && persistedProductId
