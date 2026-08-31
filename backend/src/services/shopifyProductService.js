@@ -32,9 +32,23 @@ function normalizeTags(values = []) {
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
 }
 
-function buildProductInput(payload, status = 'active') {
+function normalizeOptions(options = []) {
+  const seen = new Set();
+  const optionList = Array.isArray(options) ? options : [];
+  return optionList.reduce((result, option) => {
+    const name = String(option?.name || '').trim();
+    const value = String(option?.value || '').trim();
+    const key = name.toLocaleLowerCase();
+    if (!name || !value || seen.has(key)) return result;
+    seen.add(key);
+    result.push({ name, value });
+    return result;
+  }, []);
+}
+
+function buildProductInput(payload, status = 'active', includeOptions = true) {
   const productStatus = status === 'archived' ? 'ARCHIVED' : status === 'draft' ? 'DRAFT' : 'ACTIVE';
-  return {
+  const product = {
     title: payload.title,
     descriptionHtml: payload.title,
     vendor: payload.vendor || 'GestionThibe',
@@ -42,6 +56,11 @@ function buildProductInput(payload, status = 'active') {
     status: productStatus,
     tags: normalizeTags([payload.sku, payload.productType, ...(payload.tags || [])])
   };
+  const options = normalizeOptions(payload.options);
+  if (includeOptions && options.length > 0) {
+    product.productOptions = options.map(option => ({ name: option.name, values: [{ name: option.value }] }));
+  }
+  return product;
 }
 
 function assertNoUserErrors(operation, userErrors = []) {
@@ -51,7 +70,7 @@ function assertNoUserErrors(operation, userErrors = []) {
   }
 }
 
-function buildVariantInput(variantId, payload) {
+function buildVariantInput(variantId, payload, includeOptions = true) {
   if (!variantId) return null;
   const variant = {
     id: variantId,
@@ -65,6 +84,10 @@ function buildVariantInput(variantId, payload) {
   }
   if (payload.sku) {
     variant.inventoryItem.sku = payload.sku;
+  }
+  const options = normalizeOptions(payload.options);
+  if (includeOptions && options.length > 0) {
+    variant.optionValues = options.map(option => ({ optionName: option.name, name: option.value }));
   }
   return variant;
 }
@@ -195,8 +218,8 @@ async function syncInventoryLevels(inventoryItemId, payload) {
   return { updated: quantities.length, skipped: false };
 }
 
-async function updateDefaultVariant(productId, variantId, payload) {
-  const variant = buildVariantInput(variantId, payload);
+async function updateDefaultVariant(productId, variantId, payload, includeOptions = true) {
+  const variant = buildVariantInput(variantId, payload, includeOptions);
   if (!variant || (!variant.price && !variant.inventoryItem)) {
     return null;
   }
@@ -244,7 +267,7 @@ async function createShopifyProduct(payload, status) {
   }
   const variantNode = product.variants?.nodes?.[0] || null;
   const variantId = variantNode?.id || null;
-  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload);
+  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload, true);
   return {
     productId: product.id,
     variantId: updatedVariant?.id || variantId,
@@ -300,7 +323,7 @@ async function updateShopifyProduct(productId, payload, status) {
       }
     }
   `;
-  const data = await shopifyGraphql(query, { product: { id: productId, ...buildProductInput(payload, status) } });
+  const data = await shopifyGraphql(query, { product: { id: productId, ...buildProductInput(payload, status, false) } });
   const result = data.productUpdate;
   assertNoUserErrors('la actualización del producto', result?.userErrors);
   const product = result?.product;
@@ -309,7 +332,7 @@ async function updateShopifyProduct(productId, payload, status) {
   }
   const variantNode = product.variants?.nodes?.[0] || null;
   const variantId = variantNode?.id || null;
-  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload);
+  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload, false);
   await appendProductMediaIfEmpty(product.id, payload.media);
   return {
     productId: product.id,
@@ -341,5 +364,7 @@ module.exports = {
   syncShopifyProduct,
   archiveShopifyProduct,
   getMappedInventoryQuantities,
-  buildVariantInput
+  buildVariantInput,
+  buildProductInput,
+  normalizeOptions
 };

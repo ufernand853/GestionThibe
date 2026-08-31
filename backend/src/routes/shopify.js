@@ -33,6 +33,17 @@ function plainAttributes(attributes) {
   return attributes;
 }
 
+function buildShopifyOptions(attributes) {
+  const values = plainAttributes(attributes);
+  return [
+    { key: 'size', name: 'Talle' },
+    { key: 'color', name: 'Color' },
+    { key: 'gender', name: 'Género' }
+  ]
+    .map(option => ({ name: option.name, value: String(values[option.key] || '').trim() }))
+    .filter(option => option.value);
+}
+
 function resolvePublicImageUrl(value) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -97,6 +108,7 @@ function buildShopifyPayload(item, locations = []) {
     status: getShopifyStatus(item),
     price: item.pDecimal ?? null,
     tags: Object.values(plainAttributes(item.attributes)).filter(Boolean),
+    options: buildShopifyOptions(item.attributes),
     inventory: sumStock(item.stock),
     stockByLocation,
     images: Array.isArray(item.images) ? item.images : [],
