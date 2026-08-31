@@ -85,3 +85,16 @@ https://TU_BACKEND_PUBLICO/api/shopify/webhooks/inventory-levels-update
 ```
 
 El backend valida la firma `X-Shopify-Hmac-Sha256` con `SHOPIFY_CLIENT_SECRET`. Cuando llega el webhook, busca el artículo por `inventory_item_id`, busca la ubicación por `location_id` y reemplaza el stock de esa ubicación con el `available` recibido desde Shopify. Si Shopify informa `0`, la ubicación se elimina del mapa de stock del artículo.
+
+## 6. Categoría, talle, color y género
+
+- El **grupo** del artículo se envía como tipo de producto (`productType`) en Shopify. Si no tiene grupo, se usa `General`.
+- El atributo interno `size` se envía como la opción Shopify **Talle**.
+- El atributo interno `color` se envía como la opción Shopify **Color**.
+- El atributo interno `gender` se envía como la opción Shopify **Género**.
+- Los demás atributos siguen enviándose como etiquetas para facilitar búsquedas y colecciones automáticas.
+- Todos estos atributos son opcionales: si un artículo no tiene Talle, Color o Género, esas opciones se omiten y el producto se sincroniza con la variante predeterminada, igual que antes.
+
+Antes de sincronizar, completar Grupo, Talle, Color y Género al crear o editar el artículo. Los productos creados en Shopify antes de incorporar estas opciones deben recrearse para obtener la estructura nueva: archivarlos o eliminarlos en Shopify, limpiar sus identificadores Shopify en la base y volver a enviarlos desde la pantalla **Shopify**.
+
+Actualmente cada artículo/SKU local sigue representando un producto Shopify. Por lo tanto, el producto tendrá opciones con un único valor. Para reunir varios SKU bajo un solo producto con múltiples combinaciones de Talle/Color/Género primero será necesario incorporar un identificador de modelo o familia que indique inequívocamente qué artículos deben agruparse.
