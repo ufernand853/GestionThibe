@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: '/items', label: 'Artículos', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/items/local', label: 'Artículos Locales', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/items/barcode-reception', label: 'Escaneo de Productos', permissionsAny: ['stock.approve', 'stock.request'] },
+  { to: '/venta-local', label: 'Venta desde Local' },
   { to: '/overstock', label: 'Sobrestock', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/items/trash', label: 'Papelera', permission: 'items.write', hiddenForRoles: ['Operador'] },
   { to: '/items/download', label: 'PDF e Impresión', permission: 'items.read', hiddenForRoles: ['Operador', 'Supervisor'] },
