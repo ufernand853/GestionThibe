@@ -218,6 +218,22 @@ async function syncInventoryLevels(inventoryItemId, payload) {
   return { updated: quantities.length, skipped: false };
 }
 
+async function syncLocalSaleInventory(item, location) {
+  if (!item.shopify?.inventoryItemId) return { status: 'not_linked' };
+  if (!location.shopifyLocationId) return { status: 'location_not_mapped' };
+  if (config.shopify.dryRun) return { status: 'synced', dryRun: true };
+
+  const stock = item.stock instanceof Map ? item.stock.get(String(location.id)) : item.stock?.[String(location.id)];
+  const quantity = getLocationAvailableQuantity(stock);
+  const inventoryItemId = shopifyGid('InventoryItem', item.shopify.inventoryItemId);
+  const locationId = shopifyGid('Location', location.shopifyLocationId);
+  const inventoryQuantity = { inventoryItemId, locationId, quantity };
+  await activateInventoryLocation(inventoryQuantity);
+  const [withCurrent] = await withCurrentInventoryQuantities([inventoryQuantity]);
+  await setInventoryQuantities([withCurrent], `gestionthibe://local-sale/${encodeURIComponent(item.code)}`);
+  return { status: 'synced' };
+}
+
 async function updateDefaultVariant(productId, variantId, payload, includeOptions = true) {
   const variant = buildVariantInput(variantId, payload, includeOptions);
   if (!variant || (!variant.price && !variant.inventoryItem)) {
@@ -366,5 +382,6 @@ module.exports = {
   getMappedInventoryQuantities,
   buildVariantInput,
   buildProductInput,
-  normalizeOptions
+  normalizeOptions,
+  syncLocalSaleInventory
 };
