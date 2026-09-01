@@ -119,6 +119,9 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const quantities = new Map();
   rawLines.forEach(line => {
     const itemId = String(line.itemId || '');
+    if (line.quantity === '' || line.quantity === null || line.quantity === undefined) {
+      throw new HttpError(400, 'Ningún artículo puede tener la cantidad vacía');
+    }
     const quantity = Number(line.quantity);
     if (!itemId || !Number.isInteger(quantity) || quantity <= 0) throw new HttpError(400, 'Las cantidades deben ser unidades enteras mayores a cero');
     quantities.set(itemId, (quantities.get(itemId) || 0) + quantity);

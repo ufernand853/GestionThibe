@@ -14,6 +14,11 @@ export default function LocalSalePage() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const hasInvalidQuantities = lines.some(line => {
+    const quantity = Number(line.quantity);
+    return line.quantity === '' || !Number.isInteger(quantity) || quantity < 1 || quantity > line.availableUnits;
+  });
+
   const authorize = async event => {
     event.preventDefault(); setBusy(true); setError(null);
     try {
@@ -39,8 +44,16 @@ export default function LocalSalePage() {
       setLines(current => {
         const existing = current.find(line => line.itemId === item.id);
         return existing
-          ? current.map(line => line.itemId === item.id ? { ...line, quantity: line.quantity + 1, availableUnits: item.availableUnits } : line)
-          : [...current, { itemId: item.id, code: item.code, description: item.description, availableUnits: item.availableUnits, quantity: 1 }];
+          ? current.map(line => {
+              if (line.itemId !== item.id) return line;
+              const currentQuantity = Number(line.quantity);
+              return {
+                ...line,
+                quantity: Number.isInteger(currentQuantity) && currentQuantity >= 1 ? currentQuantity + 1 : '',
+                availableUnits: item.availableUnits
+              };
+            })
+          : [...current, { itemId: item.id, code: item.code, description: item.description, availableUnits: item.availableUnits, quantity: '' }];
       });
       setSearch('');
     } catch (err) { setError(err); } finally { setBusy(false); searchRef.current?.focus(); }
@@ -48,6 +61,10 @@ export default function LocalSalePage() {
 
   const confirmSale = async () => {
     if (!lines.length) return;
+    if (hasInvalidQuantities) {
+      setError(new Error('Todas las cantidades son obligatorias y deben ser números enteros mayores a cero, sin superar el stock disponible.'));
+      return;
+    }
     setBusy(true); setError(null); setMessage('');
     try {
       const result = await api.post('/local-sales', { saleToken: authorization.saleToken, locationId: selectedLocationId, lines: lines.map(({ itemId, quantity }) => ({ itemId, quantity })) });
@@ -100,8 +117,8 @@ export default function LocalSalePage() {
       </form>
     </div>
     <div className="section-card"><h3>Artículos de la venta</h3><div className="table-wrapper"><table><thead><tr><th>Código</th><th>Artículo</th><th>Disponible</th><th>Cantidad</th><th></th></tr></thead><tbody>
-      {lines.map(line => <tr key={line.itemId}><td>{line.code}</td><td>{line.description}</td><td>{line.availableUnits}</td><td><input className="quantity-input" type="number" min="1" max={line.availableUnits} value={line.quantity} onChange={event => setLines(current => current.map(value => value.itemId === line.itemId ? { ...value, quantity: Number(event.target.value) } : value))} /></td><td><button className="danger-button" onClick={() => setLines(current => current.filter(value => value.itemId !== line.itemId))}>Quitar</button></td></tr>)}
+      {lines.map(line => <tr key={line.itemId}><td>{line.code}</td><td>{line.description}</td><td>{line.availableUnits}</td><td><input className="quantity-input" type="number" min="1" max={line.availableUnits} step="1" required value={line.quantity} placeholder="Cantidad" onChange={event => { const nextQuantity = event.target.value; setLines(current => current.map(value => value.itemId === line.itemId ? { ...value, quantity: nextQuantity === '' ? '' : Number(nextQuantity) } : value)); }} /></td><td><button className="danger-button" onClick={() => setLines(current => current.filter(value => value.itemId !== line.itemId))}>Quitar</button></td></tr>)}
       {!lines.length && <tr><td colSpan="5" style={{ textAlign: 'center' }}>Todavía no agregaste artículos.</td></tr>}
-    </tbody></table></div><div className="local-sale-confirm"><button disabled={busy || !lines.length || lines.some(line => line.quantity < 1 || line.quantity > line.availableUnits)} onClick={confirmSale}>{busy ? 'Procesando...' : 'Confirmar venta'}</button></div></div>
+    </tbody></table></div><div className="local-sale-confirm"><button disabled={busy || !lines.length || hasInvalidQuantities} onClick={confirmSale}>{busy ? 'Procesando...' : 'Confirmar venta'}</button></div></div>
   </div>;
 }
