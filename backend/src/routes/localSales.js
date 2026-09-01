@@ -49,13 +49,17 @@ async function authorizeSale(req) {
   }
   if (payload.purpose !== 'local-sale') throw new HttpError(401, 'Autorización de venta inválida');
   const user = await User.findById(payload.sub).populate('localSaleLocation');
-  if (!user || user.status !== 'active' || !user.localSaleEnabled || !user.localSaleLocation) {
+  if (!user || user.status !== 'active' || !user.localSaleEnabled) {
     throw new HttpError(403, 'El usuario ya no está habilitado para Venta desde Local');
   }
-  if (String(user.localSaleLocation.id) !== String(payload.locationId) || user.localSaleLocation.status !== 'active') {
+  const requestedLocationId = req.get('X-Local-Sale-Location') || req.body?.locationId || req.query?.locationId;
+  const locationId = user.localSaleAllLocations ? requestedLocationId : user.localSaleLocation?.id;
+  if (!locationId || (!user.localSaleAllLocations && String(locationId) !== String(payload.locationId))) {
     throw new HttpError(403, 'El local autorizado no está disponible');
   }
-  return user;
+  const location = await Location.findOne({ _id: locationId, type: 'warehouse', isLocal: true, status: 'active' });
+  if (!location) throw new HttpError(403, 'El local autorizado no está disponible');
+  return { user, location };
 }
 
 function serializeItem(item, locationId) {
@@ -75,19 +79,28 @@ router.post('/authorize', requireAuth, asyncHandler(async (req, res) => {
   if (!username || !password) throw new HttpError(400, 'Debe indicar usuario y contraseña');
   const user = await User.findOne({ $or: [{ username }, { email: username.toLowerCase() }] }).populate('localSaleLocation');
   const valid = user && user.status === 'active' && user.localSaleEnabled && await bcrypt.compare(password, user.passwordHash);
-  if (!valid || !user.localSaleLocation || user.localSaleLocation.status !== 'active') {
+  if (!valid || (!user.localSaleAllLocations && (!user.localSaleLocation || user.localSaleLocation.status !== 'active'))) {
     throw new HttpError(401, 'Credenciales de Venta desde Local inválidas');
   }
   const saleToken = jwt.sign(
-    { sub: user.id, purpose: 'local-sale', locationId: user.localSaleLocation.id },
+    { sub: user.id, purpose: 'local-sale', locationId: user.localSaleLocation?.id || null, allLocations: Boolean(user.localSaleAllLocations) },
     config.jwtSecret,
     { expiresIn: TOKEN_TTL }
   );
-  res.json({ saleToken, user: { id: user.id, username: user.username }, location: { id: user.localSaleLocation.id, name: user.localSaleLocation.name } });
+  const locations = user.localSaleAllLocations
+    ? await Location.find({ type: 'warehouse', isLocal: true, status: 'active' }).sort({ name: 1 })
+    : [user.localSaleLocation];
+  res.json({
+    saleToken,
+    user: { id: user.id, username: user.username },
+    allLocations: Boolean(user.localSaleAllLocations),
+    locations: locations.map(location => ({ id: location.id, name: location.name })),
+    location: user.localSaleAllLocations ? null : { id: user.localSaleLocation.id, name: user.localSaleLocation.name }
+  });
 }));
 
 router.get('/items', requireAuth, asyncHandler(async (req, res) => {
-  const saleUser = await authorizeSale(req);
+  const { location } = await authorizeSale(req);
   const search = String(req.query?.search || '').trim();
   if (!search) return res.json([]);
   const matcher = new RegExp(`^${escapeRegex(search)}$`, 'i');
@@ -95,11 +108,11 @@ router.get('/items', requireAuth, asyncHandler(async (req, res) => {
   const alternatives = [{ code: matcher }, { sku: matcher }];
   if (internalSku) alternatives.push({ sku: new RegExp(`^0*${escapeRegex(internalSku)}$`, 'i') });
   const items = await Item.find({ deletedAt: null, $or: alternatives }).limit(10);
-  res.json(items.map(item => serializeItem(item, saleUser.localSaleLocation.id)));
+  res.json(items.map(item => serializeItem(item, location.id)));
 }));
 
 router.post('/', requireAuth, asyncHandler(async (req, res) => {
-  const saleUser = await authorizeSale(req);
+  const { user: saleUser, location: saleLocation } = await authorizeSale(req);
   const rawLines = Array.isArray(req.body?.lines) ? req.body.lines : [];
   if (!rawLines.length || rawLines.length > 100) throw new HttpError(400, 'La venta debe tener entre 1 y 100 artículos');
 
@@ -113,7 +126,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   const items = await Item.find({ _id: { $in: [...quantities.keys()] }, deletedAt: null });
   if (items.length !== quantities.size) throw new HttpError(404, 'Uno o más artículos no están disponibles');
   items.forEach(item => {
-    const available = serializeItem(item, saleUser.localSaleLocation.id).availableUnits;
+    const available = serializeItem(item, saleLocation.id).availableUnits;
     if (available < quantities.get(item.id)) throw new HttpError(400, `Stock insuficiente para ${item.code}. Disponible: ${available}`);
   });
 
@@ -124,7 +137,7 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
   for (const item of items) {
     const quantity = quantities.get(item.id);
     const movement = await MovementRequest.create({
-      item: item.id, type: 'egress', fromLocation: saleUser.localSaleLocation.id, toLocation: destination.id,
+      item: item.id, type: 'egress', fromLocation: saleLocation.id, toLocation: destination.id,
       quantity: { boxes: 0, units: quantity }, reason: 'Venta desde Local', requestedBy: saleUser.id,
       status: 'approved', approvedBy: saleUser.id, approvedAt: new Date()
     });
@@ -133,16 +146,16 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     let shopifyStatus = 'pending';
     let shopifyError = null;
     try {
-      ({ status: shopifyStatus } = await syncLocalSaleInventory(updatedItem, saleUser.localSaleLocation));
+      ({ status: shopifyStatus } = await syncLocalSaleInventory(updatedItem, saleLocation));
     } catch (error) {
       shopifyError = String(error.message || 'Error desconocido').slice(0, 500);
     }
     completedLines.push({ item: item.id, code: item.code, description: item.description, quantity, movementRequest: movement.id, shopifyStatus, shopifyError });
   }
 
-  const sale = await LocalSale.create({ location: saleUser.localSaleLocation.id, authorizedBy: saleUser.id, operatedBy: req.user.id, lines: completedLines });
-  await recordAuditEvent({ action: 'Venta desde Local', request: `${saleUser.localSaleLocation.name}: ${completedLines.length} artículo(s)`, user: req.user.username, details: { saleId: sale.id, authorizedBy: saleUser.username } });
-  res.status(201).json({ id: sale.id, location: { id: saleUser.localSaleLocation.id, name: saleUser.localSaleLocation.name }, lines: completedLines });
+  const sale = await LocalSale.create({ location: saleLocation.id, authorizedBy: saleUser.id, operatedBy: req.user.id, lines: completedLines });
+  await recordAuditEvent({ action: 'Venta desde Local', request: `${saleLocation.name}: ${completedLines.length} artículo(s)`, user: req.user.username, details: { saleId: sale.id, authorizedBy: saleUser.username } });
+  res.status(201).json({ id: sale.id, location: { id: saleLocation.id, name: saleLocation.name }, lines: completedLines });
 }));
 
 module.exports = router;

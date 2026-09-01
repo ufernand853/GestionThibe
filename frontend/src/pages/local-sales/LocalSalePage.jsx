@@ -7,6 +7,7 @@ export default function LocalSalePage() {
   const searchRef = useRef(null);
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [authorization, setAuthorization] = useState(null);
+  const [selectedLocationId, setSelectedLocationId] = useState('');
   const [search, setSearch] = useState('');
   const [lines, setLines] = useState([]);
   const [error, setError] = useState(null);
@@ -17,7 +18,9 @@ export default function LocalSalePage() {
     event.preventDefault(); setBusy(true); setError(null);
     try {
       const response = await api.post('/local-sales/authorize', credentials);
-      setAuthorization(response); setCredentials({ username: '', password: '' });
+      setAuthorization(response);
+      setSelectedLocationId(response.location?.id || '');
+      setCredentials({ username: '', password: '' });
       setTimeout(() => searchRef.current?.focus(), 0);
     } catch (err) { setError(err); } finally { setBusy(false); }
   };
@@ -27,7 +30,10 @@ export default function LocalSalePage() {
     const value = search.trim(); if (!value) return;
     setBusy(true); setError(null); setMessage('');
     try {
-      const items = await api.get('/local-sales/items', { query: { search: value }, headers: { 'X-Local-Sale-Token': authorization.saleToken } });
+      const items = await api.get('/local-sales/items', {
+        query: { search: value, locationId: selectedLocationId },
+        headers: { 'X-Local-Sale-Token': authorization.saleToken, 'X-Local-Sale-Location': selectedLocationId }
+      });
       if (!items?.length) throw new Error('No se encontró un artículo con ese código o SKU.');
       const item = items[0];
       setLines(current => {
@@ -44,7 +50,7 @@ export default function LocalSalePage() {
     if (!lines.length) return;
     setBusy(true); setError(null); setMessage('');
     try {
-      const result = await api.post('/local-sales', { saleToken: authorization.saleToken, lines: lines.map(({ itemId, quantity }) => ({ itemId, quantity })) });
+      const result = await api.post('/local-sales', { saleToken: authorization.saleToken, locationId: selectedLocationId, lines: lines.map(({ itemId, quantity }) => ({ itemId, quantity })) });
       const skipped = result.lines.filter(line => line.shopifyStatus !== 'synced').length;
       setMessage(skipped ? `Venta registrada. Stock interno actualizado; ${skipped} artículo(s) no se sincronizaron con Shopify.` : 'Venta registrada y sincronizada con Shopify.');
       setLines([]);
@@ -67,8 +73,25 @@ export default function LocalSalePage() {
     </div>
   );
 
+  if (!selectedLocationId) return (
+    <div className="section-card local-sale-login">
+      <h2>Seleccionar local</h2>
+      <p>Esta credencial puede registrar ventas en todos los locales. Elegí desde cuál vas a operar.</p>
+      <div className="input-group">
+        <label htmlFor="sale-location">Local</label>
+        <select id="sale-location" value={selectedLocationId} onChange={event => setSelectedLocationId(event.target.value)} autoFocus>
+          <option value="">Seleccione local</option>
+          {authorization.locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+        </select>
+      </div>
+      <div className="inline-actions"><button className="secondary-button" onClick={() => setAuthorization(null)}>Volver</button></div>
+    </div>
+  );
+
+  const selectedLocation = authorization.locations.find(location => location.id === selectedLocationId);
+
   return <div>
-    <div className="page-title-row"><div><h2>Venta desde Local</h2><p><strong>{authorization.location.name}</strong> · {authorization.user.username}</p></div><button className="secondary-button" onClick={() => { setAuthorization(null); setLines([]); }}>Cambiar usuario</button></div>
+    <div className="page-title-row"><div><h2>Venta desde Local</h2><p><strong>{selectedLocation?.name}</strong> · {authorization.user.username}</p></div><div className="inline-actions">{authorization.allLocations && <button className="secondary-button" onClick={() => { setSelectedLocationId(''); setLines([]); }}>Cambiar local</button>}<button className="secondary-button" onClick={() => { setAuthorization(null); setSelectedLocationId(''); setLines([]); }}>Cambiar usuario</button></div></div>
     {error && <ErrorMessage error={error} />}{message && <div className="success-message">{message}</div>}
     <div className="section-card">
       <form className="inline-actions" onSubmit={addItem}>

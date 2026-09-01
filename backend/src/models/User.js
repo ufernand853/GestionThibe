@@ -21,6 +21,7 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true },
     role: { type: Types.ObjectId, ref: 'Role', required: true },
     localSaleEnabled: { type: Boolean, default: false },
+    localSaleAllLocations: { type: Boolean, default: false },
     localSaleLocation: { type: Types.ObjectId, ref: 'Location', default: null },
     status: { type: String, enum: ['active', 'disabled'], default: 'active' },
     lastLoginAt: { type: Date, default: null },

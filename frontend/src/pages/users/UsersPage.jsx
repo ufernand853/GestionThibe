@@ -26,6 +26,7 @@ export default function UsersPage() {
     roleId: '',
     status: 'active',
     localSaleEnabled: false,
+    localSaleAllLocations: false,
     localSaleLocationId: ''
   });
   const [saving, setSaving] = useState(false);
@@ -79,13 +80,14 @@ export default function UsersPage() {
       roleId: userToEdit.roleId || '',
       status: userToEdit.status || 'active',
       localSaleEnabled: Boolean(userToEdit.localSaleEnabled),
+      localSaleAllLocations: Boolean(userToEdit.localSaleAllLocations),
       localSaleLocationId: userToEdit.localSaleLocation?.id || ''
     });
   };
 
   const resetForm = () => {
     setSelectedUser(null);
-    setFormValues({ username: '', email: '', password: '', roleId: '', status: 'active', localSaleEnabled: false, localSaleLocationId: '' });
+    setFormValues({ username: '', email: '', password: '', roleId: '', status: 'active', localSaleEnabled: false, localSaleAllLocations: false, localSaleLocationId: '' });
   };
 
   const handleSubmit = async event => {
@@ -101,7 +103,8 @@ export default function UsersPage() {
           roleId: formValues.roleId,
           status: formValues.status,
           localSaleEnabled: formValues.localSaleEnabled,
-          localSaleLocationId: formValues.localSaleEnabled ? formValues.localSaleLocationId : null
+          localSaleAllLocations: formValues.localSaleEnabled && formValues.localSaleAllLocations,
+          localSaleLocationId: formValues.localSaleEnabled && !formValues.localSaleAllLocations ? formValues.localSaleLocationId : null
         };
         if (formValues.password) {
           payload.password = formValues.password;
@@ -205,7 +208,7 @@ export default function UsersPage() {
                       ))}
                     </div>
                   </td>
-                  <td>{current.localSaleEnabled ? current.localSaleLocation?.name || 'Habilitado' : '-'}</td>
+                  <td>{current.localSaleEnabled ? current.localSaleAllLocations ? 'Todos los locales' : current.localSaleLocation?.name || 'Habilitado' : '-'}</td>
                   <td>
                     <span className={`badge ${current.status === 'active' ? 'approved' : 'rejected'}`}>
                       {current.status}
@@ -271,6 +274,15 @@ export default function UsersPage() {
               </label>
             </div>
             {formValues.localSaleEnabled && (
+              <div className="input-group">
+                <label htmlFor="localSaleAllLocations">Alcance</label>
+                <label className="checkbox-label">
+                  <input id="localSaleAllLocations" name="localSaleAllLocations" type="checkbox" checked={formValues.localSaleAllLocations} onChange={handleFormChange} />
+                  Permitir operar en todos los locales
+                </label>
+              </div>
+            )}
+            {formValues.localSaleEnabled && !formValues.localSaleAllLocations && (
               <div className="input-group">
                 <label htmlFor="localSaleLocationId">Local asignado *</label>
                 <select id="localSaleLocationId" name="localSaleLocationId" value={formValues.localSaleLocationId} onChange={handleFormChange} required>
