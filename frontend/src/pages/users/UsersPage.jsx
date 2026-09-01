@@ -17,13 +17,17 @@ export default function UsersPage() {
   const [error, setError] = useState(null);
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [formValues, setFormValues] = useState({
     username: '',
     email: '',
     password: '',
     roleId: '',
-    status: 'active'
+    status: 'active',
+    localSaleEnabled: false,
+    localSaleAllLocations: false,
+    localSaleLocationId: ''
   });
   const [saving, setSaving] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -34,13 +38,15 @@ export default function UsersPage() {
       setLoading(true);
       setError(null);
       try {
-        const [usersResponse, rolesResponse] = await Promise.all([
+        const [usersResponse, rolesResponse, locationsResponse] = await Promise.all([
           api.get('/users'),
-          api.get('/roles')
+          api.get('/roles'),
+          api.get('/locations', { query: { type: 'warehouse', status: 'active' } })
         ]);
         if (!active) return;
         setUsers(Array.isArray(usersResponse) ? usersResponse : []);
         setRoles(Array.isArray(rolesResponse) ? rolesResponse : []);
+        setLocations((Array.isArray(locationsResponse) ? locationsResponse : []).filter(location => location.isLocal));
       } catch (err) {
         if (!active) return;
         setError(err);
@@ -61,8 +67,8 @@ export default function UsersPage() {
   }, [api, canRead]);
 
   const handleFormChange = event => {
-    const { name, value } = event.target;
-    setFormValues(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = event.target;
+    setFormValues(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleEdit = userToEdit => {
@@ -72,13 +78,16 @@ export default function UsersPage() {
       email: userToEdit.email,
       password: '',
       roleId: userToEdit.roleId || '',
-      status: userToEdit.status || 'active'
+      status: userToEdit.status || 'active',
+      localSaleEnabled: Boolean(userToEdit.localSaleEnabled),
+      localSaleAllLocations: Boolean(userToEdit.localSaleAllLocations),
+      localSaleLocationId: userToEdit.localSaleLocation?.id || ''
     });
   };
 
   const resetForm = () => {
     setSelectedUser(null);
-    setFormValues({ username: '', email: '', password: '', roleId: '', status: 'active' });
+    setFormValues({ username: '', email: '', password: '', roleId: '', status: 'active', localSaleEnabled: false, localSaleAllLocations: false, localSaleLocationId: '' });
   };
 
   const handleSubmit = async event => {
@@ -92,7 +101,10 @@ export default function UsersPage() {
           username: formValues.username,
           email: formValues.email,
           roleId: formValues.roleId,
-          status: formValues.status
+          status: formValues.status,
+          localSaleEnabled: formValues.localSaleEnabled,
+          localSaleAllLocations: formValues.localSaleEnabled && formValues.localSaleAllLocations,
+          localSaleLocationId: formValues.localSaleEnabled && !formValues.localSaleAllLocations ? formValues.localSaleLocationId : null
         };
         if (formValues.password) {
           payload.password = formValues.password;
@@ -176,6 +188,7 @@ export default function UsersPage() {
                 <th>Rol</th>
                 <th>Permisos</th>
                 <th>Estado</th>
+                <th>Venta local</th>
                 <th>Último acceso</th>
                 {canWrite && <th>Acciones</th>}
               </tr>
@@ -195,6 +208,7 @@ export default function UsersPage() {
                       ))}
                     </div>
                   </td>
+                  <td>{current.localSaleEnabled ? current.localSaleAllLocations ? 'Todos los locales' : current.localSaleLocation?.name || 'Habilitado' : '-'}</td>
                   <td>
                     <span className={`badge ${current.status === 'active' ? 'approved' : 'rejected'}`}>
                       {current.status}
@@ -228,7 +242,7 @@ export default function UsersPage() {
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 7 : 6} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <td colSpan={canWrite ? 8 : 7} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay usuarios registrados.
                   </td>
                 </tr>
@@ -252,6 +266,31 @@ export default function UsersPage() {
                 required
               />
             </div>
+            <div className="input-group">
+              <label htmlFor="localSaleEnabled">Venta desde Local</label>
+              <label className="checkbox-label">
+                <input id="localSaleEnabled" name="localSaleEnabled" type="checkbox" checked={formValues.localSaleEnabled} onChange={handleFormChange} />
+                Habilitar esta credencial
+              </label>
+            </div>
+            {formValues.localSaleEnabled && (
+              <div className="input-group">
+                <label htmlFor="localSaleAllLocations">Alcance</label>
+                <label className="checkbox-label">
+                  <input id="localSaleAllLocations" name="localSaleAllLocations" type="checkbox" checked={formValues.localSaleAllLocations} onChange={handleFormChange} />
+                  Permitir operar en todos los locales
+                </label>
+              </div>
+            )}
+            {formValues.localSaleEnabled && !formValues.localSaleAllLocations && (
+              <div className="input-group">
+                <label htmlFor="localSaleLocationId">Local asignado *</label>
+                <select id="localSaleLocationId" name="localSaleLocationId" value={formValues.localSaleLocationId} onChange={handleFormChange} required>
+                  <option value="">Seleccione local</option>
+                  {locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="input-group">
               <label htmlFor="email">Email *</label>
               <input
