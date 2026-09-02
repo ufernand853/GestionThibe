@@ -49,11 +49,11 @@ export default function LocalSalePage() {
               const currentQuantity = Number(line.quantity);
               return {
                 ...line,
-                quantity: Number.isInteger(currentQuantity) && currentQuantity >= 1 ? currentQuantity + 1 : '',
+                quantity: Number.isInteger(currentQuantity) && currentQuantity >= 1 ? currentQuantity + 1 : 1,
                 availableUnits: item.availableUnits
               };
             })
-          : [...current, { itemId: item.id, code: item.code, description: item.description, availableUnits: item.availableUnits, quantity: '' }];
+          : [...current, { itemId: item.id, code: item.code, description: item.description, availableUnits: item.availableUnits, quantity: 1 }];
       });
       setSearch('');
     } catch (err) { setError(err); } finally { setBusy(false); searchRef.current?.focus(); }
