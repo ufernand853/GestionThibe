@@ -19,8 +19,8 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/', { replace: true });
+      const authenticatedUser = await login(email, password);
+      navigate(authenticatedUser.role === 'Vendedor' ? '/venta-local' : '/', { replace: true });
     } catch (err) {
       setError(err.message || 'No se pudo iniciar sesión.');
     } finally {

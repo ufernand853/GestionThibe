@@ -76,9 +76,13 @@ function serializeItem(item, locationId) {
 router.post('/authorize', requireAuth, asyncHandler(async (req, res) => {
   const username = String(req.body?.username || '').trim();
   const password = String(req.body?.password || '');
-  if (!username || !password) throw new HttpError(400, 'Debe indicar usuario y contraseña');
-  const user = await User.findOne({ $or: [{ username }, { email: username.toLowerCase() }] }).populate('localSaleLocation');
-  const valid = user && user.status === 'active' && user.localSaleEnabled && await bcrypt.compare(password, user.passwordHash);
+  const isSellerSession = req.user.role === 'Vendedor';
+  if (!isSellerSession && (!username || !password)) throw new HttpError(400, 'Debe indicar usuario y contraseña');
+  const user = isSellerSession
+    ? await User.findById(req.user.id).populate('localSaleLocation')
+    : await User.findOne({ $or: [{ username }, { email: username.toLowerCase() }] }).populate('localSaleLocation');
+  const valid = user && user.status === 'active' && user.localSaleEnabled
+    && (isSellerSession || await bcrypt.compare(password, user.passwordHash));
   if (!valid || (!user.localSaleAllLocations && (!user.localSaleLocation || user.localSaleLocation.status !== 'active'))) {
     throw new HttpError(401, 'Credenciales de Venta desde Local inválidas');
   }

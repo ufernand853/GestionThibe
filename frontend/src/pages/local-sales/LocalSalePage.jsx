@@ -1,9 +1,11 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 
 export default function LocalSalePage() {
   const api = useApi();
+  const { user } = useAuth();
   const searchRef = useRef(null);
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [authorization, setAuthorization] = useState(null);
@@ -13,6 +15,22 @@ export default function LocalSalePage() {
   const [error, setError] = useState(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (user?.role !== 'Vendedor' || authorization) return;
+    let active = true;
+    setBusy(true);
+    setError(null);
+    api.post('/local-sales/authorize', {})
+      .then(response => {
+        if (!active) return;
+        setAuthorization(response);
+        setSelectedLocationId(response.location?.id || '');
+      })
+      .catch(err => { if (active) setError(err); })
+      .finally(() => { if (active) setBusy(false); });
+    return () => { active = false; };
+  }, [api, authorization, user?.role]);
 
   const hasInvalidQuantities = lines.some(line => {
     const quantity = Number(line.quantity);
@@ -77,16 +95,20 @@ export default function LocalSalePage() {
     } finally { setBusy(false); }
   };
 
+  if (!authorization && user?.role === 'Vendedor' && busy) return (
+    <div className="page-loading">Preparando Venta desde Local...</div>
+  );
+
   if (!authorization) return (
     <div className="section-card local-sale-login">
       <h2>Venta desde Local</h2>
-      <p>Ingresá la credencial habilitada para identificar el local.</p>
+      <p>{user?.role === 'Vendedor' ? 'Tu usuario debe estar habilitado y tener un local asignado.' : 'Ingresá la credencial habilitada para identificar el local.'}</p>
       {error && <ErrorMessage error={error} />}
-      <form className="form-grid" onSubmit={authorize}>
+      {user?.role !== 'Vendedor' && <form className="form-grid" onSubmit={authorize}>
         <div className="input-group"><label htmlFor="sale-user">Usuario</label><input id="sale-user" value={credentials.username} onChange={event => setCredentials(value => ({ ...value, username: event.target.value }))} required autoFocus /></div>
         <div className="input-group"><label htmlFor="sale-password">Contraseña</label><input id="sale-password" type="password" value={credentials.password} onChange={event => setCredentials(value => ({ ...value, password: event.target.value }))} required /></div>
         <div><button disabled={busy}>{busy ? 'Validando...' : 'Ingresar'}</button></div>
-      </form>
+      </form>}
     </div>
   );
 
