@@ -24,12 +24,15 @@ export default function Sidebar() {
   const { user } = useAuth();
   const permissions = user?.permissions || [];
   const role = user?.role || null;
+  const visibleItems = role === 'Vendedor'
+    ? NAV_ITEMS.filter(item => item.to === '/venta-local')
+    : NAV_ITEMS;
 
   return (
     <aside className="sidebar">
       <div className="sidebar-header">Stock</div>
       <nav className="sidebar-nav">
-        {NAV_ITEMS.filter(item => {
+        {visibleItems.filter(item => {
           if (item.hiddenForRoles && role && item.hiddenForRoles.includes(role)) {
             return false;
           }

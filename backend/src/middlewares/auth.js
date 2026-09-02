@@ -54,8 +54,17 @@ function requirePermission(permission) {
   };
 }
 
+function restrictSellerAccess(req, res, next) {
+  const sellerRouteAllowed = /^\/api\/(auth|local-sales)(?:\/|$)/.test(req.path);
+  if (req.user?.role === 'Vendedor' && !sellerRouteAllowed) {
+    throw new HttpError(403, 'El perfil Vendedor solo puede acceder a Venta desde Local');
+  }
+  next();
+}
+
 module.exports = {
   authenticate,
   requireAuth,
-  requirePermission
+  requirePermission,
+  restrictSellerAccess
 };

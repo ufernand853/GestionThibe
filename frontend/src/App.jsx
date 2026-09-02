@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AppLayout from './components/AppLayout.jsx';
 import LoginPage from './pages/Login.jsx';
@@ -18,6 +18,17 @@ import AuditLogsPage from './pages/audit/AuditLogsPage.jsx';
 import UsersPage from './pages/users/UsersPage.jsx';
 import ShopifyPage from './pages/shopify/ShopifyPage.jsx';
 import LocalSalePage from './pages/local-sales/LocalSalePage.jsx';
+import { useAuth } from './context/AuthContext.jsx';
+
+function StartPage() {
+  const { user } = useAuth();
+  return user?.role === 'Vendedor' ? <Navigate to="/venta-local" replace /> : <DashboardPage />;
+}
+
+function NonSellerRoutes() {
+  const { user } = useAuth();
+  return user?.role === 'Vendedor' ? <Navigate to="/venta-local" replace /> : <Outlet />;
+}
 
 export default function App() {
   return (
@@ -31,23 +42,25 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardPage />} />
-        <Route path="inventory/alerts" element={<InventoryAlertsPage />} />
-        <Route path="items" element={<ItemsPage key="items-all" />} />
-        <Route path="items/local" element={<ItemsPage key="items-local" localOnly />} />
-        <Route path="overstock" element={<OverstockPage />} />
-        <Route path="items/barcode-reception" element={<BarcodeReceptionPage />} />
-        <Route path="items/download" element={<ItemsDownloadPage />} />
-        <Route path="items/trash" element={<ItemsTrashPage />} />
-        <Route path="groups" element={<GroupsPage />} />
-        <Route path="requests" element={<MovementRequestsPage />} />
-        <Route path="approvals" element={<ApprovalsPage />} />
-        <Route path="locations" element={<LocationsPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="shopify" element={<ShopifyPage />} />
+        <Route index element={<StartPage />} />
         <Route path="venta-local" element={<LocalSalePage />} />
-        <Route path="audit" element={<AuditLogsPage />} />
-        <Route path="users" element={<UsersPage />} />
+        <Route element={<NonSellerRoutes />}>
+          <Route path="inventory/alerts" element={<InventoryAlertsPage />} />
+          <Route path="items" element={<ItemsPage key="items-all" />} />
+          <Route path="items/local" element={<ItemsPage key="items-local" localOnly />} />
+          <Route path="overstock" element={<OverstockPage />} />
+          <Route path="items/barcode-reception" element={<BarcodeReceptionPage />} />
+          <Route path="items/download" element={<ItemsDownloadPage />} />
+          <Route path="items/trash" element={<ItemsTrashPage />} />
+          <Route path="groups" element={<GroupsPage />} />
+          <Route path="requests" element={<MovementRequestsPage />} />
+          <Route path="approvals" element={<ApprovalsPage />} />
+          <Route path="locations" element={<LocationsPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="shopify" element={<ShopifyPage />} />
+          <Route path="audit" element={<AuditLogsPage />} />
+          <Route path="users" element={<UsersPage />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

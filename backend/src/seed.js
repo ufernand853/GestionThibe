@@ -30,6 +30,10 @@ const defaultRoles = [
   {
     name: 'Consulta',
     permissions: ['items.read', 'reports.read']
+  },
+  {
+    name: 'Vendedor',
+    permissions: ['local-sales.write']
   }
 ];
 

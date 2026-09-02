@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const morgan = require('morgan');
-const { authenticate } = require('./middlewares/auth');
+const { authenticate, restrictSellerAccess } = require('./middlewares/auth');
 const errorHandler = require('./middlewares/errorHandler');
 const { HttpError } = require('./utils/errors');
 
@@ -45,6 +45,7 @@ app.use(express.json({ limit: '75mb', strict: false }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 app.use(authenticate);
+app.use(restrictSellerAccess);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
