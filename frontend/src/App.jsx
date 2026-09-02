@@ -17,6 +17,7 @@ import ReportsPage from './pages/reports/ReportsPage.jsx';
 import AuditLogsPage from './pages/audit/AuditLogsPage.jsx';
 import UsersPage from './pages/users/UsersPage.jsx';
 import ShopifyPage from './pages/shopify/ShopifyPage.jsx';
+import LocalSalePage from './pages/local-sales/LocalSalePage.jsx';
 
 export default function App() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="locations" element={<LocationsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="shopify" element={<ShopifyPage />} />
+        <Route path="venta-local" element={<LocalSalePage />} />
         <Route path="audit" element={<AuditLogsPage />} />
         <Route path="users" element={<UsersPage />} />
       </Route>

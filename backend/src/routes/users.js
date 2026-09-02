@@ -5,6 +5,7 @@ const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const User = require('../models/User');
 const Role = require('../models/Role');
+const Location = require('../models/Location');
 
 function serializeUser(userDoc) {
   const role = userDoc.role;
@@ -20,7 +21,12 @@ function serializeUser(userDoc) {
     createdAt: userDoc.createdAt,
     updatedAt: userDoc.updatedAt,
     lastLoginAt: userDoc.lastLoginAt,
-    preferences: preferences && typeof preferences.toObject === 'function' ? preferences.toObject() : preferences || {}
+    preferences: preferences && typeof preferences.toObject === 'function' ? preferences.toObject() : preferences || {},
+    localSaleEnabled: Boolean(userDoc.localSaleEnabled),
+    localSaleAllLocations: Boolean(userDoc.localSaleAllLocations),
+    localSaleLocation: userDoc.localSaleLocation
+      ? { id: userDoc.localSaleLocation.id, name: userDoc.localSaleLocation.name }
+      : null
   };
 }
 
@@ -30,7 +36,7 @@ router.get(
   '/',
   requirePermission('users.read'),
   asyncHandler(async (req, res) => {
-    const users = await User.find().populate('role');
+    const users = await User.find().populate('role').populate('localSaleLocation');
     res.json(users.map(serializeUser));
   })
 );
@@ -39,7 +45,7 @@ router.post(
   '/',
   requirePermission('users.write'),
   asyncHandler(async (req, res) => {
-    const { username, email, password, roleId, status } = req.body || {};
+    const { username, email, password, roleId, status, localSaleEnabled, localSaleAllLocations, localSaleLocationId } = req.body || {};
     if (!username || !email || !password || !roleId) {
       throw new HttpError(400, 'username, email, password y roleId son obligatorios');
     }
@@ -54,14 +60,22 @@ router.post(
       throw new HttpError(400, 'Rol inválido');
     }
     const passwordHash = await bcrypt.hash(password, 12);
+    const allLocations = Boolean(localSaleEnabled && localSaleAllLocations);
+    const saleLocation = localSaleEnabled && !allLocations ? await Location.findById(localSaleLocationId) : null;
+    if (localSaleEnabled && !allLocations && (!saleLocation || !saleLocation.isLocal || saleLocation.status !== 'active')) {
+      throw new HttpError(400, 'Debe seleccionar un local activo para habilitar Venta desde Local');
+    }
     const user = await User.create({
       username,
       email,
       passwordHash,
       role: role.id,
-      status: status || 'active'
+      status: status || 'active',
+      localSaleEnabled: Boolean(localSaleEnabled),
+      localSaleAllLocations: allLocations,
+      localSaleLocation: saleLocation?.id || null
     });
-    const created = await user.populate('role');
+    const created = await user.populate(['role', 'localSaleLocation']);
     res.status(201).json(serializeUser(created));
   })
 );
@@ -75,7 +89,7 @@ router.put(
     if (!user) {
       throw new HttpError(404, 'Usuario no encontrado');
     }
-    const { username, email, password, roleId, status } = req.body || {};
+    const { username, email, password, roleId, status, localSaleEnabled, localSaleAllLocations, localSaleLocationId } = req.body || {};
     if (username && username !== user.username) {
       const existing = await User.findOne({ username });
       if (existing && existing.id !== user.id) {
@@ -106,8 +120,20 @@ router.put(
       }
       user.status = status;
     }
+    if (localSaleEnabled !== undefined || localSaleAllLocations !== undefined || localSaleLocationId !== undefined) {
+      const enabled = localSaleEnabled === undefined ? user.localSaleEnabled : Boolean(localSaleEnabled);
+      const allLocations = enabled && (localSaleAllLocations === undefined ? user.localSaleAllLocations : Boolean(localSaleAllLocations));
+      const locationId = localSaleLocationId === undefined ? user.localSaleLocation : localSaleLocationId;
+      const saleLocation = enabled && !allLocations ? await Location.findById(locationId) : null;
+      if (enabled && !allLocations && (!saleLocation || !saleLocation.isLocal || saleLocation.status !== 'active')) {
+        throw new HttpError(400, 'Debe seleccionar un local activo para habilitar Venta desde Local');
+      }
+      user.localSaleEnabled = enabled;
+      user.localSaleAllLocations = allLocations;
+      user.localSaleLocation = saleLocation?.id || null;
+    }
     await user.save();
-    const populated = await user.populate('role');
+    const populated = await user.populate(['role', 'localSaleLocation']);
     res.json(serializeUser(populated));
   })
 );

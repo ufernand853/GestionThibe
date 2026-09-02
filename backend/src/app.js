@@ -17,6 +17,7 @@ const reportsRoutes = require('./routes/reports');
 const rolesRoutes = require('./routes/roles');
 const preferencesRoutes = require('./routes/preferences');
 const shopifyRoutes = require('./routes/shopify');
+const localSalesRoutes = require('./routes/localSales');
 const { verifyShopifyWebhook, parseWebhookBody, applyInventoryLevelUpdate } = require('./services/shopifyWebhookService');
 
 const app = express();
@@ -56,6 +57,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/preferences', preferencesRoutes);
 app.use('/api/shopify', shopifyRoutes);
+app.use('/api/local-sales', localSalesRoutes);
 
 app.use((req, res, next) => {
   next(new HttpError(404, 'Ruta no encontrada'));

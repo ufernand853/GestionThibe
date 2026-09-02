@@ -338,6 +338,12 @@ th {
   flex-wrap: wrap;
 }
 
+.local-sale-login { max-width: 680px; margin: 2rem auto; }
+.page-title-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.local-sale-search { flex: 1 1 420px; }
+.quantity-input { width: 90px; }
+.local-sale-confirm { display: flex; justify-content: flex-end; margin-top: 1rem; }
+
 .toggle-button {
   background-color: transparent;
   color: #2563eb;
