@@ -70,6 +70,16 @@ function assertNoUserErrors(operation, userErrors = []) {
   }
 }
 
+function isShopifyProductNotFoundError(error) {
+  const messages = [error?.message];
+  if (Array.isArray(error?.details)) {
+    messages.push(...error.details.map(detail => detail?.message));
+  }
+  const normalizedMessage = messages.filter(Boolean).join(' ').toLowerCase();
+  return normalizedMessage.includes('product does not exist')
+    || normalizedMessage.includes('product not found');
+}
+
 function buildVariantInput(variantId, payload, includeOptions = true) {
   if (!variantId) return null;
   const variant = {
@@ -360,9 +370,20 @@ async function updateShopifyProduct(productId, payload, status) {
 }
 
 async function syncShopifyProduct({ existingProductId, payload, status }) {
-  const product = existingProductId
-    ? await updateShopifyProduct(existingProductId, payload, status)
-    : await createShopifyProduct(payload, status);
+  let product;
+  if (existingProductId) {
+    try {
+      product = await updateShopifyProduct(existingProductId, payload, status);
+    } catch (error) {
+      // The product may have been deleted directly in Shopify while its old ID
+      // remains stored locally. Recreate only for Shopify's explicit not-found
+      // response; authentication, validation and network errors must still fail.
+      if (!isShopifyProductNotFoundError(error)) throw error;
+      product = await createShopifyProduct(payload, status);
+    }
+  } else {
+    product = await createShopifyProduct(payload, status);
+  }
   return {
     ...product,
     inventorySync: await syncInventoryLevels(product.inventoryItemId, payload)
@@ -383,5 +404,6 @@ module.exports = {
   buildVariantInput,
   buildProductInput,
   normalizeOptions,
+  isShopifyProductNotFoundError,
   syncLocalSaleInventory
 };
