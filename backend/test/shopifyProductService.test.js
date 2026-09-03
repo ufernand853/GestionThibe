@@ -4,6 +4,7 @@ const {
   buildProductInput,
   buildVariantInput,
   getMappedInventoryQuantities,
+  isShopifyProductNotFoundError,
   normalizeOptions
 } = require('../src/services/shopifyProductService');
 
@@ -122,4 +123,17 @@ test('skips stock whose warehouse has no Shopify mapping', () => {
   });
 
   assert.deepEqual(quantities, []);
+});
+
+test('recognizes a stale Shopify product id from mutation user errors', () => {
+  const error = new Error('Shopify rechazó la actualización del producto');
+  error.details = [{ field: ['product', 'id'], message: 'Product does not exist' }];
+
+  assert.equal(isShopifyProductNotFoundError(error), true);
+});
+
+test('does not treat unrelated Shopify failures as a missing product', () => {
+  const error = new Error('Shopify respondió con error HTTP 401');
+
+  assert.equal(isShopifyProductNotFoundError(error), false);
 });
