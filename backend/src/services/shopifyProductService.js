@@ -3,6 +3,26 @@ const crypto = require('crypto');
 const { HttpError } = require('../utils/errors');
 const { getAdminAccessToken, normalizeShopDomain } = require('./shopifyAuthService');
 
+const SHOPIFY_CATEGORY_MAP = Object.freeze({
+  'ROPA DAMA': 'MUJER',
+  'CAMISETA DAMA': 'MUJER',
+  'CAMPERAS DE DAMA': 'MUJER',
+  'JEAN DAMA': 'MUJER',
+  'ROPA HOMBRE': 'HOMBRE',
+  'BERMUDAS & SHORTS': 'HOMBRE',
+  'CAMISETA HOMBRE': 'HOMBRE',
+  'CAMPERAS Y CHALECOS DE HOMBRE': 'HOMBRE',
+  'JEAN HOMBRE': 'HOMBRE',
+  'ROPA NIÑO/A': 'NIÑOS',
+  'JEAN NIÑO/A': 'NIÑOS',
+  JUGUETES: 'NIÑOS',
+  CALZADO: 'CALZADO',
+  BAZAR: 'BAZAR',
+  ELECTRONICOS: 'ELECTRONICA',
+  BLANCOS: 'HOGAR',
+  SABANAS: 'HOGAR'
+});
+
 async function shopifyGraphql(query, variables = {}) {
   const shopDomain = normalizeShopDomain(config.shopify.shopDomain);
   if (!shopDomain) {
@@ -32,6 +52,11 @@ function normalizeTags(values = []) {
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
 }
 
+function getShopifyCollectionTag(category) {
+  const normalizedCategory = String(category || '').trim().toLocaleUpperCase('es');
+  return SHOPIFY_CATEGORY_MAP[normalizedCategory] || null;
+}
+
 function normalizeOptions(options = []) {
   const seen = new Set();
   const optionList = Array.isArray(options) ? options : [];
@@ -48,13 +73,14 @@ function normalizeOptions(options = []) {
 
 function buildProductInput(payload, status = 'active', includeOptions = true) {
   const productStatus = status === 'archived' ? 'ARCHIVED' : status === 'draft' ? 'DRAFT' : 'ACTIVE';
+  const collectionTag = getShopifyCollectionTag(payload.productType);
   const product = {
     title: payload.title,
     descriptionHtml: payload.title,
     vendor: payload.vendor || 'GestionThibe',
     productType: payload.productType || 'General',
     status: productStatus,
-    tags: normalizeTags([payload.sku, payload.productType, ...(payload.tags || [])])
+    tags: normalizeTags([payload.sku, payload.productType, collectionTag, ...(payload.tags || [])])
   };
   const options = normalizeOptions(payload.options);
   if (includeOptions && options.length > 0) {
@@ -398,11 +424,13 @@ async function archiveShopifyProduct(productId, payload = {}) {
 }
 
 module.exports = {
+  SHOPIFY_CATEGORY_MAP,
   syncShopifyProduct,
   archiveShopifyProduct,
   getMappedInventoryQuantities,
   buildVariantInput,
   buildProductInput,
+  getShopifyCollectionTag,
   normalizeOptions,
   isShopifyProductNotFoundError,
   syncLocalSaleInventory
