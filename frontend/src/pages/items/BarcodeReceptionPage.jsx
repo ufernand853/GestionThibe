@@ -437,7 +437,7 @@ export default function BarcodeReceptionPage() {
               onChange={event => setScanValue(event.target.value)}
               onKeyDown={handleScannerKeyDown}
               autoComplete="off"
-              inputMode="none"
+              inputMode="text"
               placeholder="Escaneá o ingresá el código"
               disabled={scanning || saving}
               style={{ marginBottom: '0.5rem' }}
