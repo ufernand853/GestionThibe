@@ -3,10 +3,46 @@ const assert = require('node:assert/strict');
 const {
   buildProductInput,
   buildVariantInput,
+  getShopifyCollectionTag,
   getMappedInventoryQuantities,
   isShopifyProductNotFoundError,
   normalizeOptions
 } = require('../src/services/shopifyProductService');
+
+test('maps internal categories to Shopify collection tags', () => {
+  const cases = {
+    'ROPA DAMA': 'MUJER',
+    'CAMISETA HOMBRE': 'HOMBRE',
+    'JEAN NIÑO/A': 'NIÑOS',
+    CALZADO: 'CALZADO',
+    BAZAR: 'BAZAR',
+    ELECTRONICOS: 'ELECTRONICA',
+    SABANAS: 'HOGAR'
+  };
+
+  Object.entries(cases).forEach(([category, collection]) => {
+    assert.equal(getShopifyCollectionTag(category), collection);
+  });
+});
+
+test('normalizes category casing and leaves unmapped categories without a collection tag', () => {
+  assert.equal(getShopifyCollectionTag('  ropa dama  '), 'MUJER');
+  assert.equal(getShopifyCollectionTag('ACCESORIOS'), null);
+  assert.equal(getShopifyCollectionTag('NOVEDADES'), null);
+  assert.equal(getShopifyCollectionTag(null), null);
+});
+
+test('adds the mapped collection tag without replacing product type or existing tags', () => {
+  const input = buildProductInput({
+    title: 'Remera',
+    sku: 'REM-002',
+    productType: 'CAMISETA DAMA',
+    tags: ['Negro', 'MUJER']
+  }, 'active');
+
+  assert.equal(input.productType, 'CAMISETA DAMA');
+  assert.deepEqual(input.tags, ['REM-002', 'CAMISETA DAMA', 'MUJER', 'Negro']);
+});
 
 test('enables Shopify inventory tracking when synchronizing the product variant', () => {
   assert.deepEqual(buildVariantInput('gid://shopify/ProductVariant/1', {

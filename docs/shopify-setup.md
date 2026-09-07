@@ -89,6 +89,8 @@ El backend valida la firma `X-Shopify-Hmac-Sha256` con `SHOPIFY_CLIENT_SECRET`. 
 ## 6. Categoría, talle, color y género
 
 - El **grupo** del artículo se envía como tipo de producto (`productType`) en Shopify. Si no tiene grupo, se usa `General`.
+- Al crear o actualizar explícitamente un producto, las categorías internas configuradas agregan además un tag de colección principal: `MUJER`, `HOMBRE`, `NIÑOS`, `CALZADO`, `BAZAR`, `ELECTRONICA` o `HOGAR`. Las categorías no configuradas (incluida `NOVEDADES`) no agregan ningún tag de colección.
+- En Shopify, cada colección principal debe ser una **colección automática** cuya condición sea «tag del producto es igual a» su nombre. Esta integración no crea colecciones, no modifica la navegación y no ejecuta reclasificaciones masivas.
 - El atributo interno `size` se envía como la opción Shopify **Talle**.
 - El atributo interno `color` se envía como la opción Shopify **Color**.
 - El atributo interno `gender` se envía como la opción Shopify **Género**.
