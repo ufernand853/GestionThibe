@@ -54,7 +54,7 @@ const ATTRIBUTE_FIELDS = [
 
 const ATTRIBUTE_KEYS = ATTRIBUTE_FIELDS.map(field => field.key);
 
-const MAX_IMAGES = 5;
+const MAX_IMAGES = 10;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
 const GENDER_FILTER_OPTIONS = ['Caballero', 'Dama', 'Niños', 'Unisex'];

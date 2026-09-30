@@ -12,6 +12,9 @@ function errorHandler(err, req, res, next) {
     status = err.statusCode;
     message = err.message;
     details = err.details;
+  } else if (err.type === 'entity.too.large') {
+    status = 413;
+    message = 'La solicitud es demasiado grande. Puedes subir hasta 10 imágenes de 5 MB cada una.';
   } else if (err.name === 'ValidationError') {
     status = 400;
     message = err.message;

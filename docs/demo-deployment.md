@@ -246,6 +246,10 @@ PUBLIC_BACKEND_URL=https://api.tu-dominio.com
        listen 80;
        server_name api.tu-dominio.com;
 
+       # Diez imágenes de 5 MB se envían codificadas en base64, lo que
+       # aumenta el tamaño total de la solicitud.
+       client_max_body_size 75m;
+
        location / {
            proxy_pass http://127.0.0.1:3000;
            proxy_http_version 1.1;
