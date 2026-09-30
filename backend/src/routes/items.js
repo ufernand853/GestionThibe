@@ -18,7 +18,7 @@ const { buildPositiveStockFilters } = require('../services/itemCatalogService');
 
 const { promises: fsPromises } = fs;
 
-const MAX_IMAGES = 5;
+const MAX_IMAGES = 10;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const TRASH_RETENTION_DAYS = 30;
 const projectRoot = path.join(__dirname, '..', '..');
