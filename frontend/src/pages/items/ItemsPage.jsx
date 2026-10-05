@@ -173,7 +173,9 @@ export default function ItemsPage({ localOnly = false } = {}) {
   const openedExternalEditRef = useRef(null);
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canWrite = permissions.includes('items.write');
+  const canManageItems = permissions.includes('items.write');
+  const canWrite = canManageItems || Boolean(user?.canEditItems);
+  const canModifyQuantities = user?.canModifyQuantities !== false;
   const canViewRequests = permissions.includes('stock.request') || permissions.includes('stock.approve');
 
   const [loading, setLoading] = useState(true);
@@ -608,10 +610,10 @@ export default function ItemsPage({ localOnly = false } = {}) {
     const payload = {
       description: formValues.description,
       groupId: formValues.groupId || null,
-      needsRecount: Boolean(formValues.needsRecount),
+      ...(canManageItems ? { needsRecount: Boolean(formValues.needsRecount) } : {}),
       ...(unitsPerBoxPayload !== undefined ? { unitsPerBox: unitsPerBoxPayload } : {}),
       attributes: Object.keys(attributes).length ? attributes : undefined,
-      stock,
+      ...(canModifyQuantities ? { stock } : {}),
       images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
     };
     payload.priceTiers = (formValues.priceTiers || [])
@@ -931,7 +933,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
         </div>
         <div className="inline-actions">
           <span className="badge">Total: {total}</span>
-          {canWrite && (
+          {canManageItems && (
             <button type="button" onClick={handleMarkAllForRecount} disabled={markingAllRecount || total === 0}>
               {markingAllRecount ? 'Marcando…' : 'Marcar todos para reconteo'}
             </button>
@@ -1094,7 +1096,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                   ))}
                 </div>
               </div>
-              <div className="input-group">
+              {canManageItems && <div className="input-group">
                 <label htmlFor="needsRecount">Recuento manual</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <input
@@ -1110,7 +1112,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                 <p className="input-helper">
                   Los artículos marcados aparecerán priorizados en el tablero hasta que se actualice su stock.
                 </p>
-              </div>
+              </div>}
               <div className="input-group">
                 <label htmlFor="unitsPerBox">Unidades por caja</label>
                 <input
@@ -1227,7 +1229,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
             )}
           </section>
 
-          <section className="form-section">
+          {canModifyQuantities && <section className="form-section">
             <div className="form-section__header">
               <div>
                 <h3>{localOnly ? 'Stock interno por local' : 'Stock por depósito'}</h3>
@@ -1272,7 +1274,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                 })}
               </div>
             )}
-          </section>
+          </section>}
 
           <div className="form-section form-section--actions">
             <div className="inline-actions">
@@ -1549,14 +1551,16 @@ export default function ItemsPage({ localOnly = false } = {}) {
                             <button type="button" className="secondary-button" onClick={() => handleEdit(item)}>
                               Editar
                             </button>
-                            <button
-                              type="button"
-                              className="danger-button"
-                              onClick={() => handleDelete(item)}
-                              disabled={deletingId === item.id}
-                            >
-                              {deletingId === item.id ? 'Eliminando…' : 'Eliminar'}
-                            </button>
+                            {canManageItems && (
+                              <button
+                                type="button"
+                                className="danger-button"
+                                onClick={() => handleDelete(item)}
+                                disabled={deletingId === item.id}
+                              >
+                                {deletingId === item.id ? 'Eliminando…' : 'Eliminar'}
+                              </button>
+                            )}
                           </div>
                         </td>
                       )}

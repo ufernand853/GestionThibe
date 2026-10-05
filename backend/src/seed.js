@@ -64,6 +64,17 @@ async function seedRoles() {
     const existing = await Role.findOne({ name: role.name });
     if (!existing) {
       await Role.create(role);
+      continue;
+    }
+
+    // Los roles pueden existir desde una versión anterior de la aplicación.
+    // Mantenerlos sincronizados evita que, por ejemplo, un Supervisor antiguo
+    // conserve una lista sin stock.request aunque el perfil actual sí lo incluya.
+    const currentPermissions = [...(existing.permissions || [])].sort();
+    const expectedPermissions = [...role.permissions].sort();
+    if (JSON.stringify(currentPermissions) !== JSON.stringify(expectedPermissions)) {
+      existing.permissions = role.permissions;
+      await existing.save();
     }
   }
 }

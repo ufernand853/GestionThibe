@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { Types } = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
-const { requirePermission } = require('../middlewares/auth');
+const { requirePermission, requireQuantityModification, requireItemEditing } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
 const Location = require('../models/Location');
@@ -726,6 +726,7 @@ router.post(
 router.patch(
   '/:id/recount',
   requirePermission('items.write'),
+  requireQuantityModification,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!Types.ObjectId.isValid(id)) throw new HttpError(400, 'Artículo inválido');
@@ -793,9 +794,12 @@ router.delete(
 
 router.post(
   '/',
-  requirePermission('items.write'),
+  requireItemEditing,
   asyncHandler(async (req, res) => {
     const payload = parseItemPayload(req);
+    if (Object.prototype.hasOwnProperty.call(payload, 'stock') && req.user?.canModifyQuantities === false) {
+      throw new HttpError(403, 'Este usuario no tiene permiso para modificar cantidades de stock');
+    }
     const {
       code,
       description,
@@ -886,7 +890,7 @@ router.post(
 
 router.put(
   '/:id',
-  requirePermission('items.write'),
+  requireItemEditing,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!Types.ObjectId.isValid(id)) {
@@ -898,6 +902,9 @@ router.put(
     }
     const beforeAuditSnapshot = await buildItemAuditSnapshot(item);
     const payload = parseItemPayload(req);
+    if (Object.prototype.hasOwnProperty.call(payload, 'stock') && req.user?.canModifyQuantities === false) {
+      throw new HttpError(403, 'Este usuario no tiene permiso para modificar cantidades de stock');
+    }
     const {
       description,
       groupId,

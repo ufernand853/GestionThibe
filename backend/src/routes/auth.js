@@ -19,6 +19,8 @@ function serializeUser(userDoc) {
     roleId: role ? role.id : userDoc.role,
     role: role ? role.name : null,
     permissions: role ? role.permissions : [],
+    canEditItems: Boolean(userDoc.canEditItems),
+    canModifyQuantities: userDoc.canModifyQuantities !== false,
     status: userDoc.status,
     createdAt: userDoc.createdAt,
     updatedAt: userDoc.updatedAt,
