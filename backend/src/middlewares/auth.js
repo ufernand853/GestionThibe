@@ -23,6 +23,7 @@ const authenticate = asyncHandler(async (req, res, next) => {
       role: user.role ? user.role.name : null,
       roleId: user.role ? user.role.id : null,
       permissions: user.role ? user.role.permissions : [],
+      canModifyQuantities: user.canModifyQuantities !== false,
       lastLoginAt: user.lastLoginAt,
       preferences:
         user.preferences && typeof user.preferences.toObject === 'function'
@@ -54,6 +55,15 @@ function requirePermission(permission) {
   };
 }
 
+function requireQuantityModification(req, res, next) {
+  requireAuth(req, res, () => {
+    if (req.user?.canModifyQuantities === false) {
+      throw new HttpError(403, 'Este usuario no tiene permiso para modificar cantidades de stock');
+    }
+    next();
+  });
+}
+
 function restrictSellerAccess(req, res, next) {
   const sellerRouteAllowed = /^\/api\/(auth|local-sales)(?:\/|$)/.test(req.path);
   if (req.user?.role === 'Vendedor' && !sellerRouteAllowed) {
@@ -66,5 +76,6 @@ module.exports = {
   authenticate,
   requireAuth,
   requirePermission,
+  requireQuantityModification,
   restrictSellerAccess
 };

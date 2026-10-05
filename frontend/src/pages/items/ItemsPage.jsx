@@ -174,6 +174,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const canWrite = permissions.includes('items.write');
+  const canModifyQuantities = user?.canModifyQuantities !== false;
   const canViewRequests = permissions.includes('stock.request') || permissions.includes('stock.approve');
 
   const [loading, setLoading] = useState(true);
@@ -611,7 +612,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
       needsRecount: Boolean(formValues.needsRecount),
       ...(unitsPerBoxPayload !== undefined ? { unitsPerBox: unitsPerBoxPayload } : {}),
       attributes: Object.keys(attributes).length ? attributes : undefined,
-      stock,
+      ...(canModifyQuantities ? { stock } : {}),
       images: [...existingImages, ...imageFiles.map(image => image.dataUrl)].filter(Boolean)
     };
     payload.priceTiers = (formValues.priceTiers || [])
@@ -1227,7 +1228,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
             )}
           </section>
 
-          <section className="form-section">
+          {canModifyQuantities && <section className="form-section">
             <div className="form-section__header">
               <div>
                 <h3>{localOnly ? 'Stock interno por local' : 'Stock por depósito'}</h3>
@@ -1272,7 +1273,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                 })}
               </div>
             )}
-          </section>
+          </section>}
 
           <div className="form-section form-section--actions">
             <div className="inline-actions">

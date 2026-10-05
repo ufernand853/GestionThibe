@@ -112,7 +112,7 @@ export default function BarcodeReceptionPage() {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canRequest = permissions.includes('stock.request');
+  const canRequest = permissions.includes('stock.request') && user?.canModifyQuantities !== false;
   const hasRestrictedRequesterRole = ['Operador', 'Supervisor'].includes(user?.role);
   const hasRequesterRestrictions = hasRestrictedRequesterRole && canRequest;
 
