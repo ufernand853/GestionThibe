@@ -20,6 +20,7 @@ const userSchema = new Schema(
     email: { type: String, required: true, trim: true, lowercase: true, unique: true },
     passwordHash: { type: String, required: true },
     role: { type: Types.ObjectId, ref: 'Role', required: true },
+    canModifyQuantities: { type: Boolean, default: true },
     localSaleEnabled: { type: Boolean, default: false },
     localSaleAllLocations: { type: Boolean, default: false },
     localSaleLocation: { type: Types.ObjectId, ref: 'Location', default: null },
