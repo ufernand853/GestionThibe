@@ -1,7 +1,7 @@
 const express = require('express');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
-const { requirePermission, requireAuth } = require('../middlewares/auth');
+const { requirePermission, requireAuth, requireQuantityModification } = require('../middlewares/auth');
 const { Types } = require('mongoose');
 const MovementRequest = require('../models/MovementRequest');
 const MovementLog = require('../models/MovementLog');
@@ -459,6 +459,7 @@ router.delete(
 router.post(
   '/request',
   requirePermission('stock.request'),
+  requireQuantityModification,
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const { quantity, fromLocation, toLocation } = await validateMovementPayload(body);
@@ -500,6 +501,7 @@ router.post(
 router.post(
   '/approve/:id',
   requirePermission('stock.approve'),
+  requireQuantityModification,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const request = await MovementRequest.findById(id);
@@ -571,6 +573,7 @@ router.post(
 router.post(
   '/barcode-reception',
   requirePermission('stock.approve'),
+  requireQuantityModification,
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const lines = Array.isArray(body.lines) ? body.lines : [];
@@ -799,6 +802,7 @@ router.get(
 router.post(
   '/request/:id/resubmit',
   requirePermission('stock.request'),
+  requireQuantityModification,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const request = await MovementRequest.findById(id);

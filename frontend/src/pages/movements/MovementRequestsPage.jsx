@@ -41,7 +41,7 @@ export default function MovementRequestsPage() {
   const isAdmin = user?.role === 'Administrador';
   const hasRestrictedRequesterRole = ['Operador', 'Supervisor'].includes(user?.role);
   const hasRequestPermission = permissions.includes('stock.request');
-  const canRequest = hasRequestPermission;
+  const canRequest = hasRequestPermission && user?.canModifyQuantities !== false;
   const hasRequesterRestrictions = hasRestrictedRequesterRole && hasRequestPermission;
 
   const [loading, setLoading] = useState(true);
