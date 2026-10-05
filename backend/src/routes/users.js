@@ -17,6 +17,7 @@ function serializeUser(userDoc) {
     roleId: role ? role.id : userDoc.role,
     role: role ? role.name : null,
     permissions: role ? role.permissions : [],
+    canEditItems: Boolean(userDoc.canEditItems),
     canModifyQuantities: userDoc.canModifyQuantities !== false,
     status: userDoc.status,
     createdAt: userDoc.createdAt,
@@ -46,12 +47,12 @@ router.post(
   '/',
   requirePermission('users.write'),
   asyncHandler(async (req, res) => {
-    const { username, email, password, roleId, status, canModifyQuantities, localSaleEnabled, localSaleAllLocations, localSaleLocationId } = req.body || {};
+    const { username, email, password, roleId, status, canEditItems, canModifyQuantities, localSaleEnabled, localSaleAllLocations, localSaleLocationId } = req.body || {};
     if (!username || !email || !password || !roleId) {
       throw new HttpError(400, 'username, email, password y roleId son obligatorios');
     }
-    if (canModifyQuantities !== undefined && req.user?.role !== 'Administrador') {
-      throw new HttpError(403, 'Solo un administrador puede configurar la modificación de cantidades');
+    if ((canEditItems !== undefined || canModifyQuantities !== undefined) && req.user?.role !== 'Administrador') {
+      throw new HttpError(403, 'Solo un administrador puede configurar los permisos especiales del usuario');
     }
     const existing = await User.findOne({
       $or: [{ email: email.toLowerCase() }, { username }]
@@ -75,6 +76,7 @@ router.post(
       passwordHash,
       role: role.id,
       status: status || 'active',
+      canEditItems: Boolean(canEditItems),
       canModifyQuantities: canModifyQuantities === undefined ? true : Boolean(canModifyQuantities),
       localSaleEnabled: Boolean(localSaleEnabled),
       localSaleAllLocations: allLocations,
@@ -94,7 +96,7 @@ router.put(
     if (!user) {
       throw new HttpError(404, 'Usuario no encontrado');
     }
-    const { username, email, password, roleId, status, canModifyQuantities, localSaleEnabled, localSaleAllLocations, localSaleLocationId } = req.body || {};
+    const { username, email, password, roleId, status, canEditItems, canModifyQuantities, localSaleEnabled, localSaleAllLocations, localSaleLocationId } = req.body || {};
     if (username && username !== user.username) {
       const existing = await User.findOne({ username });
       if (existing && existing.id !== user.id) {
@@ -125,11 +127,12 @@ router.put(
       }
       user.status = status;
     }
-    if (canModifyQuantities !== undefined) {
+    if (canEditItems !== undefined || canModifyQuantities !== undefined) {
       if (req.user?.role !== 'Administrador') {
-        throw new HttpError(403, 'Solo un administrador puede configurar la modificación de cantidades');
+        throw new HttpError(403, 'Solo un administrador puede configurar los permisos especiales del usuario');
       }
-      user.canModifyQuantities = Boolean(canModifyQuantities);
+      if (canEditItems !== undefined) user.canEditItems = Boolean(canEditItems);
+      if (canModifyQuantities !== undefined) user.canModifyQuantities = Boolean(canModifyQuantities);
     }
     if (localSaleEnabled !== undefined || localSaleAllLocations !== undefined || localSaleLocationId !== undefined) {
       const enabled = localSaleEnabled === undefined ? user.localSaleEnabled : Boolean(localSaleEnabled);

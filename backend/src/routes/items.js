@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { Types } = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
-const { requirePermission, requireQuantityModification } = require('../middlewares/auth');
+const { requirePermission, requireQuantityModification, requireItemEditing } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
 const Location = require('../models/Location');
@@ -794,7 +794,7 @@ router.delete(
 
 router.post(
   '/',
-  requirePermission('items.write'),
+  requireItemEditing,
   asyncHandler(async (req, res) => {
     const payload = parseItemPayload(req);
     if (Object.prototype.hasOwnProperty.call(payload, 'stock') && req.user?.canModifyQuantities === false) {
@@ -890,7 +890,7 @@ router.post(
 
 router.put(
   '/:id',
-  requirePermission('items.write'),
+  requireItemEditing,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!Types.ObjectId.isValid(id)) {

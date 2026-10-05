@@ -23,6 +23,7 @@ const authenticate = asyncHandler(async (req, res, next) => {
       role: user.role ? user.role.name : null,
       roleId: user.role ? user.role.id : null,
       permissions: user.role ? user.role.permissions : [],
+      canEditItems: Boolean(user.canEditItems),
       canModifyQuantities: user.canModifyQuantities !== false,
       lastLoginAt: user.lastLoginAt,
       preferences:
@@ -64,6 +65,16 @@ function requireQuantityModification(req, res, next) {
   });
 }
 
+function requireItemEditing(req, res, next) {
+  requireAuth(req, res, () => {
+    const permissions = req.user?.permissions || [];
+    if (!permissions.includes('items.write') && !req.user?.canEditItems) {
+      throw new HttpError(403, 'Este usuario no tiene permiso para editar artículos');
+    }
+    next();
+  });
+}
+
 function restrictSellerAccess(req, res, next) {
   const sellerRouteAllowed = /^\/api\/(auth|local-sales)(?:\/|$)/.test(req.path);
   if (req.user?.role === 'Vendedor' && !sellerRouteAllowed) {
@@ -77,5 +88,6 @@ module.exports = {
   requireAuth,
   requirePermission,
   requireQuantityModification,
+  requireItemEditing,
   restrictSellerAccess
 };

@@ -25,6 +25,7 @@ export default function UsersPage() {
     password: '',
     roleId: '',
     status: 'active',
+    canEditItems: false,
     canModifyQuantities: true,
     localSaleEnabled: false,
     localSaleAllLocations: false,
@@ -80,6 +81,7 @@ export default function UsersPage() {
       password: '',
       roleId: userToEdit.roleId || '',
       status: userToEdit.status || 'active',
+      canEditItems: Boolean(userToEdit.canEditItems),
       canModifyQuantities: userToEdit.canModifyQuantities !== false,
       localSaleEnabled: Boolean(userToEdit.localSaleEnabled),
       localSaleAllLocations: Boolean(userToEdit.localSaleAllLocations),
@@ -89,7 +91,7 @@ export default function UsersPage() {
 
   const resetForm = () => {
     setSelectedUser(null);
-    setFormValues({ username: '', email: '', password: '', roleId: '', status: 'active', canModifyQuantities: true, localSaleEnabled: false, localSaleAllLocations: false, localSaleLocationId: '' });
+    setFormValues({ username: '', email: '', password: '', roleId: '', status: 'active', canEditItems: false, canModifyQuantities: true, localSaleEnabled: false, localSaleAllLocations: false, localSaleLocationId: '' });
   };
 
   const handleSubmit = async event => {
@@ -104,7 +106,7 @@ export default function UsersPage() {
           email: formValues.email,
           roleId: formValues.roleId,
           status: formValues.status,
-          ...(isAdmin ? { canModifyQuantities: formValues.canModifyQuantities } : {}),
+          ...(isAdmin ? { canEditItems: formValues.canEditItems, canModifyQuantities: formValues.canModifyQuantities } : {}),
           localSaleEnabled: formValues.localSaleEnabled,
           localSaleAllLocations: formValues.localSaleEnabled && formValues.localSaleAllLocations,
           localSaleLocationId: formValues.localSaleEnabled && !formValues.localSaleAllLocations ? formValues.localSaleLocationId : null
@@ -117,7 +119,7 @@ export default function UsersPage() {
         setSuccessMessage(`Usuario ${updated.username} actualizado.`);
       } else {
         const created = await api.post('/users', isAdmin ? formValues : (() => {
-          const { canModifyQuantities, ...payload } = formValues;
+          const { canEditItems, canModifyQuantities, ...payload } = formValues;
           return payload;
         })());
         setUsers(prev => [created, ...prev]);
@@ -195,6 +197,7 @@ export default function UsersPage() {
                 <th>Permisos</th>
                 <th>Venta local</th>
                 <th>Estado</th>
+                <th>Edita artículos</th>
                 <th>Modifica cantidades</th>
                 <th>Último acceso</th>
                 {canWrite && <th>Acciones</th>}
@@ -221,6 +224,7 @@ export default function UsersPage() {
                       {current.status}
                     </span>
                   </td>
+                  <td>{current.canEditItems || current.permissions?.includes('items.write') ? 'Sí' : 'No'}</td>
                   <td>{current.canModifyQuantities === false ? 'No' : 'Sí'}</td>
                   <td>{current.lastLoginAt ? new Date(current.lastLoginAt).toLocaleString('es-AR') : '-'}</td>
                   {canWrite && (
@@ -250,7 +254,7 @@ export default function UsersPage() {
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={canWrite ? 9 : 8} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                  <td colSpan={canWrite ? 10 : 9} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay usuarios registrados.
                   </td>
                 </tr>
@@ -328,6 +332,21 @@ export default function UsersPage() {
                 <option value="disabled">Deshabilitado</option>
               </select>
             </div>
+            {isAdmin && (
+              <div className="input-group">
+                <label htmlFor="canEditItems">Edición de artículos</label>
+                <label className="checkbox-label">
+                  <input
+                    id="canEditItems"
+                    name="canEditItems"
+                    type="checkbox"
+                    checked={formValues.canEditItems}
+                    onChange={handleFormChange}
+                  />
+                  Permitir crear y editar artículos, atributos e imágenes
+                </label>
+              </div>
+            )}
             {isAdmin && (
               <div className="input-group">
                 <label htmlFor="canModifyQuantities">Cantidades de stock</label>
