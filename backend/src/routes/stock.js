@@ -459,7 +459,6 @@ router.delete(
 router.post(
   '/request',
   requirePermission('stock.request'),
-  requireQuantityModification,
   asyncHandler(async (req, res) => {
     const body = req.body || {};
     const { quantity, fromLocation, toLocation } = await validateMovementPayload(body);
@@ -802,7 +801,6 @@ router.get(
 router.post(
   '/request/:id/resubmit',
   requirePermission('stock.request'),
-  requireQuantityModification,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const request = await MovementRequest.findById(id);

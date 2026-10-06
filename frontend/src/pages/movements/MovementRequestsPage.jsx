@@ -7,6 +7,7 @@ import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { formatDateTime24 } from '../../utils/dateTime.js';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
+import { canRequestStockMovement } from '../../utils/stockPermissions.js';
 import {
   MOVEMENT_TYPE_BADGE_CLASS,
   MOVEMENT_TYPE_LABELS,
@@ -41,7 +42,7 @@ export default function MovementRequestsPage() {
   const isAdmin = user?.role === 'Administrador';
   const hasRestrictedRequesterRole = ['Operador', 'Supervisor'].includes(user?.role);
   const hasRequestPermission = permissions.includes('stock.request');
-  const canRequest = hasRequestPermission && user?.canModifyQuantities !== false;
+  const canRequest = canRequestStockMovement(user);
   const hasRequesterRestrictions = hasRestrictedRequesterRole && hasRequestPermission;
 
   const [loading, setLoading] = useState(true);
