@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { canRequestStockMovement } from '../../utils/stockPermissions.js';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
 import { buildItemEan13, buildLegacyItemEan13 } from '../../utils/ean13.js';
@@ -111,8 +112,7 @@ function quantityLabel(quantity = {}) {
 export default function BarcodeReceptionPage() {
   const api = useApi();
   const { user } = useAuth();
-  const permissions = useMemo(() => user?.permissions || [], [user]);
-  const canRequest = permissions.includes('stock.request') && user?.canModifyQuantities !== false;
+  const canRequest = canRequestStockMovement(user);
   const hasRestrictedRequesterRole = ['Operador', 'Supervisor'].includes(user?.role);
   const hasRequesterRestrictions = hasRestrictedRequesterRole && canRequest;
 
