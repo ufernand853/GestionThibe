@@ -54,6 +54,7 @@ export default function App() {
           <Route path="items/trash" element={<ItemsTrashPage />} />
           <Route path="groups" element={<GroupsPage />} />
           <Route path="requests" element={<MovementRequestsPage />} />
+          <Route path="local-requests" element={<MovementRequestsPage localSalesOnly />} />
           <Route path="approvals" element={<ApprovalsPage />} />
           <Route path="locations" element={<LocationsPage />} />
           <Route path="reports" element={<ReportsPage />} />
