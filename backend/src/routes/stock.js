@@ -20,7 +20,7 @@ const {
 } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { parseDateBoundary } = require('../utils/dateRange');
-const { buildMovementScopeFilter, LOCAL_SALE_REASON } = require('../utils/movementScope');
+const { buildMovementScopeFilter, canAccessMovementHistory, LOCAL_SALE_REASON } = require('../utils/movementScope');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
 
 
@@ -650,7 +650,7 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     ensureStockAccess(req);
-    const { status, type, scope, locationId, from, to, itemId, itemCode, requestedBy, profile, page: rawPage, limit: rawLimit } = req.query || {};
+    const { status, type, scope, history, locationId, from, to, itemId, itemCode, requestedBy, profile, page: rawPage, limit: rawLimit } = req.query || {};
     const paginationRequested = rawPage !== undefined || rawLimit !== undefined;
     const page = Math.max(parseInt(rawPage, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 25, 1), 100);
@@ -659,6 +659,9 @@ router.get(
     const normalizedScope = typeof scope === 'string' ? scope.trim() : '';
     if (normalizedScope && !['deposits', 'local-sales'].includes(normalizedScope)) {
       throw new HttpError(400, 'Ámbito de solicitudes inválido');
+    }
+    if (!canAccessMovementHistory(req.user, { history, scope: normalizedScope })) {
+      throw new HttpError(403, 'Solo un administrador puede consultar el historial de solicitudes');
     }
     const filter = buildMovementScopeFilter(normalizedScope);
     const normalizedLocationId = typeof locationId === 'string' ? locationId.trim() : '';

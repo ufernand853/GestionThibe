@@ -80,6 +80,7 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
     const query = {
       page: requestedPage,
       limit: REQUESTS_PAGE_SIZE,
+      history: 'true',
       scope: localSalesOnly ? 'local-sales' : 'deposits'
     };
     if (localSalesOnly && locationFilter) {
@@ -402,13 +403,17 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
         }
       }
     };
-    if (canRequest) {
+    if (canRequest && isAdmin) {
       loadRequests();
+    } else {
+      setLoading(false);
+      setRequests([]);
+      setPagination({ total: 0, totalPages: 1 });
     }
     return () => {
       active = false;
     };
-  }, [canRequest, page, refreshRequests]);
+  }, [canRequest, isAdmin, page, refreshRequests]);
 
   const handleFormChange = event => {
     const { name, value } = event.target;
@@ -497,9 +502,11 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
         quantityUnits: ''
       }));
       setPage(1);
-      const refreshed = await refreshRequests(1);
-      setRequests(refreshed.requests);
-      setPagination({ total: refreshed.total, totalPages: refreshed.totalPages });
+      if (isAdmin) {
+        const refreshed = await refreshRequests(1);
+        setRequests(refreshed.requests);
+        setPagination({ total: refreshed.total, totalPages: refreshed.totalPages });
+      }
       await refreshPendingSnapshot();
     } catch (err) {
       setError(err);
@@ -696,7 +703,7 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
         </form>
       </div>}
 
-      <div className="section-card">
+      {isAdmin && <div className="section-card">
         <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
           <h3>{localSalesOnly ? 'Historial de ventas locales' : 'Solicitudes registradas'}</h3>
           <div className="inline-actions" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -955,7 +962,7 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
           </div>
           </>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

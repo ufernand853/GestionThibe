@@ -10,4 +10,9 @@ function buildMovementScopeFilter(scope) {
   return {};
 }
 
-module.exports = { buildMovementScopeFilter, LOCAL_SALE_REASON };
+function canAccessMovementHistory(user, { history, scope } = {}) {
+  const isRestrictedHistory = history === 'true' || scope === 'local-sales';
+  return !isRestrictedHistory || user?.role === 'Administrador';
+}
+
+module.exports = { buildMovementScopeFilter, canAccessMovementHistory, LOCAL_SALE_REASON };
