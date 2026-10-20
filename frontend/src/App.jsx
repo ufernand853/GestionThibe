@@ -30,6 +30,11 @@ function NonSellerRoutes() {
   return user?.role === 'Vendedor' ? <Navigate to="/venta-local" replace /> : <Outlet />;
 }
 
+function AdminRoute() {
+  const { user } = useAuth();
+  return user?.role === 'Administrador' ? <Outlet /> : <Navigate to="/requests" replace />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -54,6 +59,9 @@ export default function App() {
           <Route path="items/trash" element={<ItemsTrashPage />} />
           <Route path="groups" element={<GroupsPage />} />
           <Route path="requests" element={<MovementRequestsPage />} />
+          <Route element={<AdminRoute />}>
+            <Route path="local-requests" element={<MovementRequestsPage localSalesOnly />} />
+          </Route>
           <Route path="approvals" element={<ApprovalsPage />} />
           <Route path="locations" element={<LocationsPage />} />
           <Route path="reports" element={<ReportsPage />} />

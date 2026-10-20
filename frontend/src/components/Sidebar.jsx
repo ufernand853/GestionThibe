@@ -11,7 +11,8 @@ const NAV_ITEMS = [
   { to: '/items/trash', label: 'Papelera', permission: 'items.write', hiddenForRoles: ['Operador'] },
   { to: '/items/download', label: 'PDF e Impresión', permission: 'items.read', hiddenForRoles: ['Operador', 'Supervisor'] },
   { to: '/groups', label: 'Grupos', permission: 'items.write', hiddenForRoles: ['Operador'] },
-  { to: '/requests', label: 'Solicitudes', permission: 'stock.request' },
+  { to: '/requests', label: 'Solicitudes Depósitos', permission: 'stock.request' },
+  { to: '/local-requests', label: 'Solicitudes Locales', permission: 'stock.request', visibleForRoles: ['Administrador'] },
   { to: '/approvals', label: 'Aprobaciones', permission: 'stock.approve', hiddenForRoles: ['Operador'] },
   { to: '/locations', label: 'Ubicaciones', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/reports', label: 'Reportes', permission: 'reports.read', hiddenForRoles: ['Operador'] },
@@ -34,6 +35,9 @@ export default function Sidebar() {
       <nav className="sidebar-nav">
         {visibleItems.filter(item => {
           if (item.hiddenForRoles && role && item.hiddenForRoles.includes(role)) {
+            return false;
+          }
+          if (item.visibleForRoles && !item.visibleForRoles.includes(role)) {
             return false;
           }
           if (item.permission && !permissions.includes(item.permission)) {

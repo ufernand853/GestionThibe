@@ -7,6 +7,7 @@ import { ensureQuantity, formatQuantity } from '../../utils/quantity.js';
 import StockStatusBadge from '../../components/StockStatusBadge.jsx';
 import { formatDateTime24 } from '../../utils/dateTime.js';
 import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } from '../../utils/stockStatus.js';
+import { canRequestStockMovement } from '../../utils/stockPermissions.js';
 import {
   MOVEMENT_TYPE_BADGE_CLASS,
   MOVEMENT_TYPE_LABELS,
@@ -34,14 +35,14 @@ const MOVEMENT_TYPE_OPTIONS = [
 
 const REQUESTS_PAGE_SIZE = 25;
 
-export default function MovementRequestsPage() {
+export default function MovementRequestsPage({ localSalesOnly = false }) {
   const api = useApi();
   const { user } = useAuth();
   const permissions = useMemo(() => user?.permissions || [], [user]);
   const isAdmin = user?.role === 'Administrador';
   const hasRestrictedRequesterRole = ['Operador', 'Supervisor'].includes(user?.role);
   const hasRequestPermission = permissions.includes('stock.request');
-  const canRequest = hasRequestPermission && user?.canModifyQuantities !== false;
+  const canRequest = canRequestStockMovement(user);
   const hasRequesterRestrictions = hasRestrictedRequesterRole && hasRequestPermission;
 
   const [loading, setLoading] = useState(true);
@@ -58,6 +59,7 @@ export default function MovementRequestsPage() {
   const [itemFilterSearchTerm, setItemFilterSearchTerm] = useState('');
   const [profileFilter, setProfileFilter] = useState('');
   const [requesterFilter, setRequesterFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
   const [dateFilters, setDateFilters] = useState({ from: '', to: '' });
   const [pendingSnapshot, setPendingSnapshot] = useState([]);
   const [resubmittingId, setResubmittingId] = useState(null);
@@ -75,7 +77,15 @@ export default function MovementRequestsPage() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const refreshRequests = useCallback(async (requestedPage = page) => {
-    const query = { page: requestedPage, limit: REQUESTS_PAGE_SIZE };
+    const query = {
+      page: requestedPage,
+      limit: REQUESTS_PAGE_SIZE,
+      history: 'true',
+      scope: localSalesOnly ? 'local-sales' : 'deposits'
+    };
+    if (localSalesOnly && locationFilter) {
+      query.locationId = locationFilter;
+    }
     if (statusFilter) {
       query.status = statusFilter;
     }
@@ -116,6 +126,8 @@ export default function MovementRequestsPage() {
     itemFilter,
     profileFilter,
     requesterFilter,
+    locationFilter,
+    localSalesOnly,
     page,
     statusFilter,
     typeFilter
@@ -123,7 +135,7 @@ export default function MovementRequestsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, typeFilter, itemFilter, profileFilter, requesterFilter, dateFilters.from, dateFilters.to]);
+  }, [statusFilter, typeFilter, itemFilter, profileFilter, requesterFilter, locationFilter, dateFilters.from, dateFilters.to]);
 
   const refreshPendingSnapshot = useCallback(async () => {
     if (!canRequest) {
@@ -131,7 +143,7 @@ export default function MovementRequestsPage() {
       return [];
     }
     try {
-      const response = await api.get('/stock/requests', { query: { status: 'pending' } });
+      const response = await api.get('/stock/requests', { query: { status: 'pending', scope: 'deposits' } });
       const normalized = Array.isArray(response) ? response : [];
       setPendingSnapshot(normalized);
       return normalized;
@@ -391,13 +403,17 @@ export default function MovementRequestsPage() {
         }
       }
     };
-    if (canRequest) {
+    if (canRequest && isAdmin) {
       loadRequests();
+    } else {
+      setLoading(false);
+      setRequests([]);
+      setPagination({ total: 0, totalPages: 1 });
     }
     return () => {
       active = false;
     };
-  }, [canRequest, page, refreshRequests]);
+  }, [canRequest, isAdmin, page, refreshRequests]);
 
   const handleFormChange = event => {
     const { name, value } = event.target;
@@ -486,9 +502,11 @@ export default function MovementRequestsPage() {
         quantityUnits: ''
       }));
       setPage(1);
-      const refreshed = await refreshRequests(1);
-      setRequests(refreshed.requests);
-      setPagination({ total: refreshed.total, totalPages: refreshed.totalPages });
+      if (isAdmin) {
+        const refreshed = await refreshRequests(1);
+        setRequests(refreshed.requests);
+        setPagination({ total: refreshed.total, totalPages: refreshed.totalPages });
+      }
       await refreshPendingSnapshot();
     } catch (err) {
       setError(err);
@@ -546,15 +564,17 @@ export default function MovementRequestsPage() {
 
   return (
     <div>
-      <h2>Solicitudes de transferencia</h2>
+      <h2>{localSalesOnly ? 'Solicitudes Locales' : 'Solicitudes Depósitos'}</h2>
       <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
-        Genere solicitudes de transferencia de stock entre depósitos. Las solicitudes serán ejecutadas luego de la aprobación.
+        {localSalesOnly
+          ? 'Consulte el historial de movimientos generados automáticamente desde Venta desde Local.'
+          : 'Genere solicitudes de transferencia de stock entre depósitos. Las solicitudes serán ejecutadas luego de la aprobación.'}
       </p>
 
       {error && <ErrorMessage error={error} />}
       {successMessage && <div className="success-message">{successMessage}</div>}
 
-      <div className="section-card">
+      {!localSalesOnly && <div className="section-card">
         <h3>Nueva solicitud</h3>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }} onSubmit={handleSubmit}>
           <div className="input-group">
@@ -681,12 +701,27 @@ export default function MovementRequestsPage() {
             </button>
           </div>
         </form>
-      </div>
+      </div>}
 
-      <div className="section-card">
+      {isAdmin && <div className="section-card">
         <div className="flex-between" style={{ alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
-          <h3>Solicitudes registradas</h3>
+          <h3>{localSalesOnly ? 'Historial de ventas locales' : 'Solicitudes registradas'}</h3>
           <div className="inline-actions" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+            {localSalesOnly && (
+              <div className="input-group" style={{ minWidth: '200px' }}>
+                <label htmlFor="locationFilter">Local</label>
+                <select
+                  id="locationFilter"
+                  value={locationFilter}
+                  onChange={event => setLocationFilter(event.target.value)}
+                >
+                  <option value="">Todos los locales</option>
+                  {allLocations.filter(location => location.isLocal).map(location => (
+                    <option key={location.id} value={location.id}>{location.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="input-group" style={{ minWidth: '150px' }}>
               <label htmlFor="statusFilter">Estado</label>
               <select id="statusFilter" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
@@ -786,14 +821,14 @@ export default function MovementRequestsPage() {
             </div>
           </div>
         </div>
-        <div className="origin-legend" style={{ marginTop: '0.75rem' }}>
+        {!localSalesOnly && <div className="origin-legend" style={{ marginTop: '0.75rem' }}>
           <strong>Orígenes preferidos:</strong>
           {ORIGIN_PRIORITY.map(name => (
             <span key={name} className="badge">
               {name}
             </span>
           ))}
-        </div>
+        </div>}
         {loading ? (
           <LoadingIndicator message="Buscando solicitudes..." />
         ) : requests.length === 0 ? (
@@ -813,7 +848,7 @@ export default function MovementRequestsPage() {
                   <th>Estado</th>
                   <th>Solicitado por</th>
                   <th>Fecha</th>
-                  <th>Acciones</th>
+                  {!localSalesOnly && <th>Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -873,8 +908,9 @@ export default function MovementRequestsPage() {
                         </div>
                       </td>
                       <td>{formatDateTime24(request.requestedAt)}</td>
-                      <td>
-                        {request.status === 'rejected' && (
+                      {!localSalesOnly && (
+                        <td>
+                          {request.status === 'rejected' && (
                           <button
                             type="button"
                             className="secondary-button"
@@ -883,8 +919,8 @@ export default function MovementRequestsPage() {
                           >
                             {resubmittingId === request.id ? 'Reenviando...' : 'Reenviar'}
                           </button>
-                        )}
-                        {isAdmin && (
+                          )}
+                          {isAdmin && (
                           <button
                             type="button"
                             className="danger-button"
@@ -894,8 +930,9 @@ export default function MovementRequestsPage() {
                           >
                             {deletingId === request.id ? 'Eliminando...' : 'Eliminar'}
                           </button>
-                        )}
-                      </td>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -925,7 +962,7 @@ export default function MovementRequestsPage() {
           </div>
           </>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

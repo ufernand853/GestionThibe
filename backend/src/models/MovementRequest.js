@@ -10,6 +10,7 @@ const movementRequestSchema = new Schema(
     toLocation: { type: Types.ObjectId, ref: 'Location', required: true },
     quantity: { type: quantitySubSchema, required: true, default: () => coerceQuantity() },
     reason: { type: String, default: '' },
+    source: { type: String, enum: ['request', 'localSale'], default: 'request' },
     requestedBy: { type: Types.ObjectId, ref: 'User', required: true },
     requestedAt: { type: Date, default: Date.now },
     status: { type: String, enum: ['pending', 'approved', 'rejected', 'executed'], default: 'pending' },
@@ -25,6 +26,7 @@ const movementRequestSchema = new Schema(
 );
 
 movementRequestSchema.index({ status: 1, requestedAt: -1 });
+movementRequestSchema.index({ source: 1, requestedAt: -1 });
 movementRequestSchema.index({ requestedAt: -1 });
 movementRequestSchema.index({ requestedBy: 1, requestedAt: -1 });
 movementRequestSchema.index({ item: 1, requestedAt: -1 });
