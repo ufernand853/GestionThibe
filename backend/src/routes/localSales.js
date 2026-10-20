@@ -13,6 +13,7 @@ const LocalSale = require('../models/LocalSale');
 const { executeMovement, normalizeStoredQuantity } = require('../services/stockService');
 const { syncLocalSaleInventory } = require('../services/shopifyProductService');
 const { recordAuditEvent } = require('../services/auditService');
+const { LOCAL_SALE_REASON } = require('../utils/movementScope');
 
 const router = express.Router();
 const TOKEN_TTL = '30m';
@@ -145,7 +146,8 @@ router.post('/', requireAuth, asyncHandler(async (req, res) => {
     const quantity = quantities.get(item.id);
     const movement = await MovementRequest.create({
       item: item.id, type: 'egress', fromLocation: saleLocation.id, toLocation: destination.id,
-      quantity: { boxes: 0, units: quantity }, reason: 'Venta desde Local', requestedBy: saleUser.id,
+      quantity: { boxes: 0, units: quantity }, reason: LOCAL_SALE_REASON, requestedBy: saleUser.id,
+      source: 'localSale',
       status: 'approved', approvedBy: saleUser.id, approvedAt: new Date()
     });
     await executeMovement(movement, saleUser.id, { operatedBy: req.user.username, channel: 'local-sale' });

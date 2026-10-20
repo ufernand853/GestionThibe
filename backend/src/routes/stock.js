@@ -20,6 +20,7 @@ const {
 } = require('../services/stockService');
 const { recordAuditEvent } = require('../services/auditService');
 const { parseDateBoundary } = require('../utils/dateRange');
+const { buildMovementScopeFilter, LOCAL_SALE_REASON } = require('../utils/movementScope');
 const { collectGroupAndDescendantIds, buildGroupFilterValues } = require('../services/groupService');
 
 
@@ -253,6 +254,7 @@ function serializeMovementRequest(doc) {
     toLocation: populatedTo ? serializeLocationSummary(populatedTo) : null,
     quantity: normalizeStoredQuantity(doc.quantity),
     reason: doc.reason,
+    source: doc.source === 'localSale' || doc.reason === LOCAL_SALE_REASON ? 'localSale' : 'request',
     requestedBy: isValuePopulated(doc.requestedBy)
       ? serializeUserSummary(doc.requestedBy)
       : extractReferenceId(doc.requestedBy),
@@ -648,13 +650,24 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     ensureStockAccess(req);
-    const { status, type, from, to, itemId, itemCode, requestedBy, profile, page: rawPage, limit: rawLimit } = req.query || {};
+    const { status, type, scope, locationId, from, to, itemId, itemCode, requestedBy, profile, page: rawPage, limit: rawLimit } = req.query || {};
     const paginationRequested = rawPage !== undefined || rawLimit !== undefined;
     const page = Math.max(parseInt(rawPage, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(rawLimit, 10) || 25, 1), 100);
     const emptyResponse = () =>
       res.json(paginationRequested ? { requests: [], page, limit, total: 0, totalPages: 1 } : []);
-    const filter = {};
+    const normalizedScope = typeof scope === 'string' ? scope.trim() : '';
+    if (normalizedScope && !['deposits', 'local-sales'].includes(normalizedScope)) {
+      throw new HttpError(400, 'Ámbito de solicitudes inválido');
+    }
+    const filter = buildMovementScopeFilter(normalizedScope);
+    const normalizedLocationId = typeof locationId === 'string' ? locationId.trim() : '';
+    if (normalizedLocationId) {
+      if (normalizedScope !== 'local-sales' || !Types.ObjectId.isValid(normalizedLocationId)) {
+        return emptyResponse();
+      }
+      filter.fromLocation = normalizedLocationId;
+    }
     const normalizedType = typeof type === 'string' ? type.trim() : '';
     if (status) {
       filter.status = status;
