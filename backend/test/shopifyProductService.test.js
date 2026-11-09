@@ -140,12 +140,12 @@ test('maps inventory from stores and non-local warehouses to Shopify locations',
     {
       inventoryItemId: 'gid://shopify/InventoryItem/123',
       locationId: 'gid://shopify/Location/10',
-      quantity: 3
+      quantity: 2
     },
     {
       inventoryItemId: 'gid://shopify/InventoryItem/123',
       locationId: 'gid://shopify/Location/20',
-      quantity: 7
+      quantity: 4
     }
   ]);
 });
@@ -159,6 +159,60 @@ test('skips stock whose warehouse has no Shopify mapping', () => {
   });
 
   assert.deepEqual(quantities, []);
+});
+
+test('updates the linked variant and clears a mapped Shopify location with no loose units', async t => {
+  const config = require('../src/config');
+  const { syncShopifyProduct } = require('../src/services/shopifyProductService');
+  const originalConfig = { ...config.shopify };
+  const originalFetch = global.fetch;
+  t.after(() => {
+    Object.assign(config.shopify, originalConfig);
+    global.fetch = originalFetch;
+  });
+  Object.assign(config.shopify, { shopDomain: 'test.myshopify.com', adminAccessToken: 'mock-token' });
+  const productId = 'gid://shopify/Product/1';
+  const variantId = 'gid://shopify/ProductVariant/2';
+  const inventoryItemId = 'gid://shopify/InventoryItem/3';
+  const variant = { id: variantId, sku: 'SKU-1', inventoryItem: { id: inventoryItemId }, selectedOptions: [{ name: 'Size', value: 'M' }] };
+  const requests = [];
+  global.fetch = async (_url, request) => {
+    const { query, variables } = JSON.parse(request.body);
+    const operation = query.match(/(?:query|mutation) (\w+)/)[1];
+    requests.push(operation);
+    const responses = {
+      ProductForSync: () => ({ product: { id: productId, status: 'ACTIVE', options: [{ id: 'gid://shopify/ProductOption/4', name: 'Size', values: ['M'] }], variants: { nodes: [variant] } }, node: { ...variant, product: { id: productId } } }),
+      AddProductOptionValue: () => {
+        assert.deepEqual(variables.values, [{ name: 'L' }]);
+        return { productOptionUpdate: { userErrors: [] } };
+      },
+      productUpdate: () => {
+        assert.equal(variables.product.status, 'ACTIVE');
+        assert.equal(variables.product.descriptionHtml, undefined);
+        return { productUpdate: { product: { id: productId, status: 'ACTIVE' }, userErrors: [] } };
+      },
+      productVariantsBulkUpdate: () => {
+        assert.equal(variables.variants[0].id, variantId);
+        assert.deepEqual(variables.variants[0].optionValues, [{ optionName: 'Size', name: 'L' }]);
+        return { productVariantsBulkUpdate: { productVariants: [variant], userErrors: [] } };
+      },
+      InventoryLevelAvailable: () => ({ inventoryItem: { inventoryLevel: { quantities: [{ name: 'available', quantity: 4 }] } } }),
+      InventorySet: () => {
+        assert.deepEqual(variables.input.quantities, [{ inventoryItemId, locationId: 'gid://shopify/Location/10', quantity: 0, changeFromQuantity: 4 }]);
+        return { inventorySetQuantities: { userErrors: [] } };
+      }
+    };
+    assert.ok(responses[operation], operation);
+    return { ok: true, json: async () => ({ data: responses[operation]() }) };
+  };
+  const result = await syncShopifyProduct({
+    existingProductId: productId,
+    existingVariantId: variantId,
+    payload: { sku: 'SKU-1', title: 'Artículo', options: [{ name: 'Talle', value: 'L' }], stockByLocation: [{ shopifyLocationId: '10', boxes: 2, units: 0 }] }
+  });
+  assert.equal(result.status, 'active');
+  assert.equal(result.inventorySync.updated, 1);
+  assert.deepEqual(requests, ['ProductForSync', 'AddProductOptionValue', 'productUpdate', 'productVariantsBulkUpdate', 'InventoryLevelAvailable', 'InventorySet']);
 });
 
 test('recognizes a stale Shopify product id from mutation user errors', () => {

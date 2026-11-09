@@ -122,9 +122,18 @@ export default function ShopifyPage() {
       const inventoryDetail = updatedInventoryLocations > 0
         ? ` Inventario actualizado en ${updatedInventoryLocations} ubicación(es).`
         : '';
-      setMessage(`Actualización completada correctamente: ${data.processed} artículo(s) procesado(s)${mode}.${inventoryDetail}`);
-      setSelectedIds([]);
+      const results = data.results || [];
+      const problems = results.flatMap(result => [
+        ...(result.error ? [result.error] : []),
+        ...(result.mediaSync?.errors || [])
+      ].map(message => `${result.code}: ${message}`));
+      const photos = results.reduce((total, result) => total + (result.mediaSync?.attached || 0), 0);
+      const pending = results.reduce((total, result) => total + (result.mediaSync?.pending || 0), 0);
+      const completed = results.filter(result => result.status !== 'error').length;
+      setMessage(`${completed} de ${data.processed} artículo(s) procesados${mode}.${inventoryDetail}${photos ? ` ${photos} foto(s) agregada(s).` : ''}${pending ? ` ${pending} foto(s) en procesamiento. Volvé a enviar los artículos para asociarlas.` : ''}`);
+      setSelectedIds(results.filter(result => result.error || result.mediaSync?.pending || result.mediaSync?.errors?.length).map(result => result.itemId));
       await fetchItems();
+      if (problems.length) setError(problems.join(' | '));
     } catch (err) {
       setError(err.message || 'No se pudo procesar la operación de Shopify.');
     } finally {
@@ -138,7 +147,7 @@ export default function ShopifyPage() {
         <div className="page-header-row">
           <div>
             <h2>Shopify</h2>
-            <p className="muted-text">Productos Shopify disponibles a partir de los artículos con stock en locales. Podés enviar uno o varios artículos a la vez.</p>
+            <p className="muted-text">Artículos con unidades sueltas en locales y artículos ya vinculados a Shopify, incluso sin stock. Podés enviar varios a la vez.</p>
             {shopifyConfig && (
               <p className="muted-text">
                 Configuración: {shopifyConfig.shopDomain || 'sin dominio'} · API {shopifyConfig.apiVersion} ·{' '}
@@ -152,7 +161,7 @@ export default function ShopifyPage() {
             )}
           </div>
           <div className="shopify-actions">
-            <button type="button" onClick={() => runBulkAction('sync', 'draft')} disabled={!canWrite || saving || selectedIds.length === 0}>Enviar a Shopify</button>
+            <button type="button" onClick={() => runBulkAction('sync')} disabled={!canWrite || saving || selectedIds.length === 0}>Enviar a Shopify</button>
             <button type="button" className="secondary-button" onClick={() => runBulkAction('sync', 'draft')} disabled={!canWrite || saving || selectedIds.length === 0}>Guardar como borrador</button>
             <button type="button" className="danger-button" onClick={() => runBulkAction('archive')} disabled={!canWrite || saving || selectedIds.length === 0}>Dar de baja</button>
           </div>
@@ -242,6 +251,7 @@ export default function ShopifyPage() {
                       <td>
                         <small>
                           {item.payload.title} · {item.payload.productType} · {imageSummary.media.length} imagen(es) para Shopify
+                          {item.payload.options?.length > 0 && <div>{item.payload.options.map(option => `${option.name}: ${option.value}`).join(' · ')}</div>}
                         </small>
                       </td>
                     </tr>

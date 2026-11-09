@@ -3,6 +3,7 @@ const Item = require('../models/Item');
 const Location = require('../models/Location');
 const { recordAuditEvent } = require('./auditService');
 const config = require('../config');
+const { coerceQuantity } = require('../utils/quantity');
 
 function shopifyGid(resource, id) {
   const value = String(id || '').trim();
@@ -45,7 +46,7 @@ function parseWebhookBody(rawBody) {
 }
 
 async function applyInventoryLevelUpdate(payload) {
-  if (!config.shopify.inventoryWebhookSyncEnabled) {
+  if (config.shopify.dryRun || !config.shopify.inventoryWebhookSyncEnabled) {
     return {
       status: 'disabled',
       reason: 'La sincronización automática de stock desde webhooks Shopify está deshabilitada.'
@@ -54,7 +55,7 @@ async function applyInventoryLevelUpdate(payload) {
 
   const inventoryItemCandidates = getIdCandidates('InventoryItem', payload.inventory_item_id || payload.inventoryItemId);
   const locationCandidates = getIdCandidates('Location', payload.location_id || payload.locationId);
-  const available = Number(payload.available);
+  const available = payload.available;
   if (!Number.isInteger(available) || available < 0) {
     return { status: 'ignored', reason: 'El webhook no incluye stock disponible válido.' };
   }
@@ -80,15 +81,16 @@ async function applyInventoryLevelUpdate(payload) {
     item.stock = new Map(Object.entries(item.stock || {}));
   }
   const locationId = location.id;
-  if (available === 0) {
+  const { boxes, units } = coerceQuantity(item.stock.get(locationId));
+  if (available === units) return { status: 'unchanged', itemId: item.id, locationId, available };
+  if (available === 0 && boxes === 0) {
     item.stock.delete(locationId);
   } else {
-    item.stock.set(locationId, { boxes: 0, units: available });
+    item.stock.set(locationId, { boxes, units: available });
   }
   item.shopify.lastSyncedAt = new Date();
   item.shopify.lastAction = 'webhook-inventory-levels-update';
   item.shopify.lastError = null;
-  item.markModified('stock');
   await item.save();
 
   await recordAuditEvent({

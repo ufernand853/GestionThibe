@@ -8,7 +8,7 @@ const Location = require('../models/Location');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus, getAdminAccessToken } = require('../services/shopifyAuthService');
 const { syncShopifyProduct, archiveShopifyProduct } = require('../services/shopifyProductService');
-const { sumStock } = require('../services/shopifyPayloadService');
+const { sumStock, getShopifyStockByLocation } = require('../services/shopifyPayloadService');
 const { buildPositiveStockFilters } = require('../services/itemCatalogService');
 const config = require('../config');
 
@@ -49,12 +49,14 @@ function resolvePublicImageUrl(value) {
   const trimmed = value.trim();
   if (!trimmed || /^data:image\//i.test(trimmed)) return null;
   if (/^http:\/\//i.test(trimmed)) return null;
-  if (/^https:\/\//i.test(trimmed)) return trimmed;
   const publicBackendUrl = config.shopify.publicBackendUrl;
-  if (!publicBackendUrl) return null;
   try {
-    const publicUrl = new URL(trimmed.replace(/^\/+/, ''), `${publicBackendUrl}/`).toString();
-    return publicUrl.startsWith('https://') ? publicUrl : null;
+    const publicUrl = /^https:\/\//i.test(trimmed)
+      ? new URL(trimmed)
+      : new URL(trimmed.replace(/^\/+/, ''), `${publicBackendUrl}/`);
+    if (publicUrl.protocol !== 'https:' || publicUrl.username || publicUrl.password) return null;
+    publicUrl.hash = '';
+    return publicUrl.toString();
   } catch (error) {
     return null;
   }
@@ -62,10 +64,12 @@ function resolvePublicImageUrl(value) {
 
 function buildShopifyMedia(item) {
   const images = Array.isArray(item.images) ? item.images : [];
+  const sources = new Set();
   return images
     .map((image, index) => {
       const originalSource = resolvePublicImageUrl(image);
-      if (!originalSource) return null;
+      if (!originalSource || sources.has(originalSource)) return null;
+      sources.add(originalSource);
       return {
         mediaContentType: 'IMAGE',
         originalSource,
@@ -76,30 +80,6 @@ function buildShopifyMedia(item) {
 }
 
 function buildShopifyPayload(item, locations = []) {
-  const locationsById = new Map(
-    locations.map(location => [
-      String(location.id),
-      {
-        name: location.name,
-        shopifyLocationId: location.shopifyLocationId || null
-      }
-    ])
-  );
-  const stockByLocation = [];
-  const entries = item.stock instanceof Map ? Array.from(item.stock.entries()) : Object.entries(item.stock || {});
-  entries.forEach(([locationId, quantity]) => {
-    const boxes = Number(quantity?.boxes) || 0;
-    const units = Number(quantity?.units) || 0;
-    if (boxes <= 0 && units <= 0) return;
-    const locationInfo = locationsById.get(String(locationId));
-    stockByLocation.push({
-      locationId,
-      locationName: locationInfo?.name || 'Ubicación',
-      shopifyLocationId: locationInfo?.shopifyLocationId || null,
-      boxes,
-      units
-    });
-  });
   return {
     title: item.description,
     sku: item.sku || item.code,
@@ -110,7 +90,7 @@ function buildShopifyPayload(item, locations = []) {
     tags: Object.values(plainAttributes(item.attributes)).filter(Boolean),
     options: buildShopifyOptions(item.attributes),
     inventory: sumStock(item.stock),
-    stockByLocation,
+    stockByLocation: getShopifyStockByLocation(item.stock, locations),
     images: Array.isArray(item.images) ? item.images : [],
     media: buildShopifyMedia(item)
   };
@@ -201,25 +181,14 @@ router.get(
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 100);
     const filter = { deletedAt: null };
-    // Cargamos las ubicaciones una sola vez: las locales se usan únicamente
-    // para decidir qué artículos listar, pero todas se conservan para mostrar
-    // el nombre y el stock completo de cada artículo.
+    // Keep linked products visible after their last unit sells, so they can be resynced.
     const locations = await Location.find().sort({ name: 1 });
     const localLocations = locations.filter(location => location.type === 'warehouse' && location.isLocal === true);
     const localStockFilters = buildPositiveStockFilters(
       localLocations.map(location => String(location.id)),
       ['units']
     );
-    if (localStockFilters.length === 0) {
-      return res.json({
-        config: getShopifyAuthStatus(),
-        total: 0,
-        page: pageNumber,
-        pageSize: limit,
-        items: []
-      });
-    }
-    filter.$and = [{ $or: localStockFilters }];
+    filter.$and = [{ $or: [...localStockFilters, { 'shopify.productId': /^gid:\/\/shopify\/Product\// }] }];
     if (typeof search === 'string' && search.trim()) {
       const matcher = new RegExp(escapeRegex(search.trim()), 'i');
       filter.$or = [{ code: matcher }, { sku: matcher }, { description: matcher }];
@@ -256,6 +225,7 @@ router.post(
     const payload = getRequestBody(req.body);
     const items = await loadItemsByIds(payload.itemIds);
     const shopifyConfig = getShopifyAuthStatus();
+    if (!shopifyConfig.dryRun && !shopifyConfig.configured) throw new HttpError(400, 'Falta configurar las credenciales de Shopify.');
     if (!shopifyConfig.dryRun && shopifyConfig.configured) {
       await getAdminAccessToken();
     }
@@ -266,17 +236,35 @@ router.post(
     // warehouse stock to lose its Shopify location id and be skipped below.
     const locations = await Location.find({ type: 'warehouse' }).sort({ name: 1 });
     for (const item of items) {
-      const nextStatus = payload.status === 'active' ? 'active' : 'draft';
+      const nextStatus = ['active', 'draft'].includes(payload.status) ? payload.status : undefined;
       const productPayload = buildShopifyPayload(item, locations);
-      const syncedProduct = shopifyConfig.configured
-        ? await syncShopifyProduct({ existingProductId: getPersistedShopifyProductId(item), payload: productPayload, status: nextStatus })
-        : {
+      let syncedProduct;
+      try {
+        syncedProduct = shopifyConfig.configured
+          ? await syncShopifyProduct({
+            existingProductId: getPersistedShopifyProductId(item),
+            existingVariantId: item.shopify?.variantId,
+            payload: productPayload,
+            status: nextStatus,
+            onCreated: async created => {
+              setShopifyFields(item, { ...created, lastAction: 'created' });
+              await item.save();
+            }
+          })
+          : {
             productId: item.shopify?.productId || `local-${item.id}`,
             variantId: item.shopify?.variantId || `variant-${item.id}`,
             inventoryItemId: item.shopify?.inventoryItemId || `inventory-${item.id}`,
             handle: item.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80) || item.code,
-            status: nextStatus
+            status: nextStatus || getShopifyStatus(item)
           };
+      } catch (error) {
+        const message = String(error.message || 'Error desconocido').slice(0, 500);
+        setShopifyFields(item, { lastAction: 'sync-error', lastError: message });
+        await item.save();
+        results.push({ itemId: item.id, code: item.code, status: 'error', error: message });
+        continue;
+      }
       setShopifyFields(item, {
         productId: syncedProduct.productId,
         variantId: syncedProduct.variantId,
@@ -285,7 +273,7 @@ router.post(
         status: syncedProduct.status,
         lastSyncedAt: now,
         lastAction: shopifyConfig.configured ? 'sync' : 'dry-run',
-        lastError: null
+        lastError: syncedProduct.mediaSync?.errors.join(' | ').slice(0, 500) || null
       });
       await item.save();
       results.push({
@@ -294,7 +282,8 @@ router.post(
         status: shopifyConfig.configured ? 'synced' : 'dry-run',
         productId: syncedProduct.productId,
         handle: syncedProduct.handle,
-        inventorySync: syncedProduct.inventorySync || null
+        inventorySync: syncedProduct.inventorySync || null,
+        mediaSync: syncedProduct.mediaSync || null
       });
     }
     await recordAuditEvent({
@@ -314,16 +303,16 @@ router.post(
     const payload = getRequestBody(req.body);
     const items = await loadItemsByIds(payload.itemIds);
     const shopifyConfig = getShopifyAuthStatus();
+    if (!shopifyConfig.dryRun && !shopifyConfig.configured) throw new HttpError(400, 'Falta configurar las credenciales de Shopify.');
     if (!shopifyConfig.dryRun && shopifyConfig.configured) {
       await getAdminAccessToken();
     }
     const now = new Date();
     const results = [];
-    const locations = await Location.find({ type: 'warehouse' }).sort({ name: 1 });
     for (const item of items) {
       const persistedProductId = getPersistedShopifyProductId(item);
       const archivedProduct = shopifyConfig.configured && persistedProductId
-        ? await archiveShopifyProduct(persistedProductId, buildShopifyPayload(item, locations))
+        ? await archiveShopifyProduct(persistedProductId)
         : null;
       setShopifyFields(item, {
         status: archivedProduct?.status || 'archived',

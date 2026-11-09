@@ -10,6 +10,7 @@ Para que el ABM de Shopify deje de funcionar como preparación local y pueda con
 - **Permisos/scopes Admin API** mínimos:
   - `read_products`
   - `write_products`
+  - `read_files`
   - `write_files`
   - `read_inventory`
   - `write_inventory`
@@ -17,7 +18,7 @@ Para que el ABM de Shopify deje de funcionar como preparación local y pueda con
 - Definición funcional de publicación:
   - si los productos se crean como `draft` o `active` por defecto;
   - qué ubicación Shopify se toma como stock principal;
-  - si el stock se envía en unidades, cajas o ambas;
+  - qué locales o depósitos exponen sus unidades sueltas a Shopify;
   - si las imágenes locales deben subirse a Shopify o solo quedar como referencia interna. Para subirlas, el backend necesita `PUBLIC_BACKEND_URL` y que `/uploads/items` sea accesible públicamente.
 
 ## 2. Variables de entorno del backend
@@ -84,7 +85,7 @@ Para que una venta o cualquier ajuste de inventario en Shopify impacte el stock 
 https://TU_BACKEND_PUBLICO/api/shopify/webhooks/inventory-levels-update
 ```
 
-El backend valida la firma `X-Shopify-Hmac-Sha256` con `SHOPIFY_CLIENT_SECRET`. Cuando llega el webhook, busca el artículo por `inventory_item_id`, busca la ubicación por `location_id` y reemplaza el stock de esa ubicación con el `available` recibido desde Shopify. Si Shopify informa `0`, la ubicación se elimina del mapa de stock del artículo.
+El backend valida la firma `X-Shopify-Hmac-Sha256` con `SHOPIFY_CLIENT_SECRET`. Fuera de `dry-run`, el webhook busca el artículo por `inventory_item_id` y la ubicación por `location_id`. Actualiza las unidades sueltas con el `available` recibido y conserva las cajas cerradas. El envío hacia Shopify también publica únicamente unidades sueltas. Si una ubicación vinculada se queda sin unidades, se actualiza a cero en Shopify si el nivel ya estaba activo.
 
 ## 6. Categoría, talle, color y género
 
@@ -97,6 +98,10 @@ El backend valida la firma `X-Shopify-Hmac-Sha256` con `SHOPIFY_CLIENT_SECRET`. 
 - Los demás atributos siguen enviándose como etiquetas para facilitar búsquedas y colecciones automáticas.
 - Todos estos atributos son opcionales: si un artículo no tiene Talle, Color o Género, esas opciones se omiten y el producto se sincroniza con la variante predeterminada, igual que antes.
 
-Antes de sincronizar, completar Grupo, Talle, Color y Género al crear o editar el artículo. Los productos creados en Shopify antes de incorporar estas opciones deben recrearse para obtener la estructura nueva: archivarlos o eliminarlos en Shopify, limpiar sus identificadores Shopify en la base y volver a enviarlos desde la pantalla **Shopify**.
+Antes de sincronizar, completar Grupo, Talle, Color y Género al crear o editar el artículo. Para un producto vinculado de una sola variante, **Enviar a Shopify** puede agregar opciones faltantes o actualizar sus valores conservando su estado actual. **Guardar como borrador** solicita ese estado de forma explícita. Si el producto tiene varias variantes y el vínculo es ambiguo, el sistema pide revisar el mapeo.
 
-Actualmente cada artículo/SKU local sigue representando un producto Shopify. Por lo tanto, el producto tendrá opciones con un único valor. Para reunir varios SKU bajo un solo producto con múltiples combinaciones de Talle/Color/Género primero será necesario incorporar un identificador de modelo o familia que indique inequívocamente qué artículos deben agruparse.
+Cada artículo/SKU local representa una ficha de producto en Shopify. Por lo tanto, Talle y Color tendrán un solo valor por ficha.
+
+## 7. Imágenes del producto
+
+Al reenviar un artículo, las fotos nuevas se agregan a la galería. Las fotos que ya están en Shopify se conservan. Si Shopify informa que una foto sigue en procesamiento, volvé a enviar el artículo para asociarla cuando esté lista. El sistema vuelve a usar el mismo archivo de Shopify en el reintento.
