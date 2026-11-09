@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { sumStock } = require('../src/services/shopifyPayloadService');
+const { sumStock, getShopifyStockByLocation } = require('../src/services/shopifyPayloadService');
 
 test('sumStock totals Shopify inventory from a Mongoose-style map', () => {
   const stock = new Map([
@@ -20,4 +20,14 @@ test('sumStock accepts plain stock objects and ignores invalid quantities', () =
 
   assert.deepEqual(sumStock(stock), { boxes: 2, units: 7 });
   assert.deepEqual(sumStock(undefined), { boxes: 0, units: 0 });
+});
+
+test('includes mapped locations whose inventory is no longer present in the local stock map', () => {
+  const locations = [
+    { id: 'store', name: 'Local', shopifyLocationId: '10' },
+    { id: 'unmapped', name: 'Depósito' }
+  ];
+  assert.deepEqual(getShopifyStockByLocation(new Map(), locations), [
+    { locationId: 'store', locationName: 'Local', shopifyLocationId: '10', boxes: 0, units: 0 }
+  ]);
 });

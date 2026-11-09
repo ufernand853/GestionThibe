@@ -2,6 +2,8 @@ const config = require('../config');
 const crypto = require('crypto');
 const { HttpError } = require('../utils/errors');
 const { getAdminAccessToken, normalizeShopDomain } = require('./shopifyAuthService');
+const { coerceQuantity } = require('../utils/quantity');
+const { syncProductImages } = require('./shopifyMediaService');
 
 const SHOPIFY_CATEGORY_MAP = Object.freeze({
   'ROPA DAMA': 'MUJER',
@@ -136,14 +138,14 @@ function shopifyGid(resource, value) {
 }
 
 function getLocationAvailableQuantity(location) {
-  return (Number(location?.boxes) || 0) + (Number(location?.units) || 0);
+  return coerceQuantity(location).units;
 }
 
 function getMappedInventoryQuantities(inventoryItemId, payload) {
   const normalizedInventoryItemId = shopifyGid('InventoryItem', inventoryItemId);
   if (!normalizedInventoryItemId) return [];
   const locations = Array.isArray(payload?.stockByLocation) ? payload.stockByLocation : [];
-  return locations
+  const quantities = locations
     .map(location => {
       const locationId = shopifyGid('Location', location.shopifyLocationId);
       if (!locationId) return null;
@@ -154,13 +156,17 @@ function getMappedInventoryQuantities(inventoryItemId, payload) {
       };
     })
     .filter(Boolean);
+  if (new Set(quantities.map(quantity => quantity.locationId)).size !== quantities.length) {
+    throw new HttpError(400, 'Hay más de una ubicación de GestionThibe vinculada a la misma ubicación de Shopify.');
+  }
+  return quantities;
 }
 
 async function getCurrentAvailableQuantity(inventoryItemId, locationId) {
   const query = `
     query InventoryLevelAvailable($inventoryItemId: ID!, $locationId: ID!) {
       inventoryItem(id: $inventoryItemId) {
-        inventoryLevel(locationId: $locationId, includeInactive: true) {
+        inventoryLevel(locationId: $locationId) {
           quantities(names: ["available"]) {
             name
             quantity
@@ -170,25 +176,12 @@ async function getCurrentAvailableQuantity(inventoryItemId, locationId) {
     }
   `;
   const data = await shopifyGraphql(query, { inventoryItemId, locationId });
-  const available = data.inventoryItem?.inventoryLevel?.quantities?.find(quantity => quantity.name === 'available');
-  return Number(available?.quantity) || 0;
-}
-
-async function withCurrentInventoryQuantities(quantities) {
-  const resolvedQuantities = [];
-  for (const quantity of quantities) {
-    const currentQuantity = await getCurrentAvailableQuantity(quantity.inventoryItemId, quantity.locationId);
-    resolvedQuantities.push({
-      ...quantity,
-      changeFromQuantity: currentQuantity
-    });
-  }
-  return resolvedQuantities;
-}
-
-function isAlreadyActiveInventoryError(error) {
-  const message = String(error?.message || '').toLowerCase();
-  return message.includes('already') || message.includes('active') || message.includes('activado');
+  if (!data.inventoryItem) throw new HttpError(404, 'Shopify no encontró el inventario vinculado.');
+  const level = data.inventoryItem.inventoryLevel;
+  if (!level) return null;
+  const available = level.quantities?.find(quantity => quantity.name === 'available');
+  if (!Number.isInteger(available?.quantity)) throw new HttpError(502, 'Shopify no informó la cantidad disponible.');
+  return available.quantity;
 }
 
 async function activateInventoryLocation(quantity) {
@@ -212,9 +205,7 @@ async function activateInventoryLocation(quantity) {
     available: quantity.quantity,
     idempotencyKey: crypto.randomUUID()
   });
-  const userErrors = data.inventoryActivate?.userErrors || [];
-  const blockingErrors = userErrors.filter(error => !isAlreadyActiveInventoryError(error));
-  assertNoUserErrors('la activación de inventario por ubicación', blockingErrors);
+  assertNoUserErrors('la activación de inventario por ubicación', data.inventoryActivate?.userErrors);
 }
 
 async function setInventoryQuantities(quantities, referenceDocumentUri) {
@@ -238,20 +229,29 @@ async function setInventoryQuantities(quantities, referenceDocumentUri) {
   assertNoUserErrors('la actualización de inventario por ubicación', data.inventorySetQuantities?.userErrors);
 }
 
-async function syncInventoryLevels(inventoryItemId, payload) {
-  const quantities = getMappedInventoryQuantities(inventoryItemId, payload);
-  if (quantities.length === 0) {
-    return { updated: 0, skipped: true };
-  }
+async function syncAvailableQuantities(quantities, referenceDocumentUri) {
+  const updates = [];
+  let activated = 0;
   for (const quantity of quantities) {
-    await activateInventoryLocation(quantity);
+    const current = await getCurrentAvailableQuantity(quantity.inventoryItemId, quantity.locationId);
+    if (current === null) {
+      if (quantity.quantity > 0) {
+        await activateInventoryLocation(quantity);
+        activated++;
+      }
+    } else if (quantity.quantity !== current) {
+      updates.push({ ...quantity, changeFromQuantity: current });
+    }
   }
-  const quantitiesWithCurrentValues = await withCurrentInventoryQuantities(quantities);
-  await setInventoryQuantities(
-    quantitiesWithCurrentValues,
+  if (updates.length > 0) await setInventoryQuantities(updates, referenceDocumentUri);
+  return { updated: activated + updates.length, skipped: quantities.length === 0 };
+}
+
+async function syncInventoryLevels(inventoryItemId, payload) {
+  return syncAvailableQuantities(
+    getMappedInventoryQuantities(inventoryItemId, payload),
     `gestionthibe://shopify/inventory-sync/${encodeURIComponent(payload.sku || inventoryItemId)}`
   );
-  return { updated: quantities.length, skipped: false };
 }
 
 async function syncLocalSaleInventory(item, location) {
@@ -263,10 +263,7 @@ async function syncLocalSaleInventory(item, location) {
   const quantity = getLocationAvailableQuantity(stock);
   const inventoryItemId = shopifyGid('InventoryItem', item.shopify.inventoryItemId);
   const locationId = shopifyGid('Location', location.shopifyLocationId);
-  const inventoryQuantity = { inventoryItemId, locationId, quantity };
-  await activateInventoryLocation(inventoryQuantity);
-  const [withCurrent] = await withCurrentInventoryQuantities([inventoryQuantity]);
-  await setInventoryQuantities([withCurrent], `gestionthibe://local-sale/${encodeURIComponent(item.code)}`);
+  await syncAvailableQuantities([{ inventoryItemId, locationId, quantity }], `gestionthibe://local-sale/${encodeURIComponent(item.code)}`);
   return { status: 'synced' };
 }
 
@@ -293,10 +290,10 @@ async function updateDefaultVariant(productId, variantId, payload, includeOption
   return result?.productVariants?.[0] || null;
 }
 
-async function createShopifyProduct(payload, status) {
+async function createShopifyProduct(payload, status, onCreated) {
   const query = `
-    mutation productCreate($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
-      productCreate(product: $product, media: $media) {
+    mutation productCreate($product: ProductCreateInput!) {
+      productCreate(product: $product) {
         product {
           id
           handle
@@ -309,8 +306,7 @@ async function createShopifyProduct(payload, status) {
       }
     }
   `;
-  const media = Array.isArray(payload.media) && payload.media.length > 0 ? payload.media : null;
-  const data = await shopifyGraphql(query, { product: buildProductInput(payload, status), media });
+  const data = await shopifyGraphql(query, { product: buildProductInput(payload, status) });
   const result = data.productCreate;
   assertNoUserErrors('la creación del producto', result?.userErrors);
   const product = result?.product;
@@ -319,47 +315,114 @@ async function createShopifyProduct(payload, status) {
   }
   const variantNode = product.variants?.nodes?.[0] || null;
   const variantId = variantNode?.id || null;
-  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload, true);
-  return {
+  const created = {
     productId: product.id,
-    variantId: updatedVariant?.id || variantId,
-    inventoryItemId: updatedVariant?.inventoryItem?.id || variantNode?.inventoryItem?.id || null,
+    variantId,
+    inventoryItemId: variantNode?.inventoryItem?.id || null,
     handle: product.handle || null,
     status: String(product.status || status || 'draft').toLowerCase()
   };
+  if (onCreated) await onCreated(created);
+  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload, true);
+  return {
+    ...created,
+    variantId: updatedVariant?.id || variantId,
+    inventoryItemId: updatedVariant?.inventoryItem?.id || created.inventoryItemId
+  };
 }
 
-
-async function productHasMedia(productId) {
+async function getProductForSync(productId, variantId) {
   const query = `
-    query productMediaExists($id: ID!) {
+    query ProductForSync($id: ID!, $variantId: ID!) {
       product(id: $id) {
-        media(first: 1) { nodes { id } }
+        id
+        handle
+        status
+        hasOnlyDefaultVariant
+        options { id name values }
+        variants(first: 2) { nodes { ...SyncVariant } }
       }
+      node(id: $variantId) { ... on ProductVariant { ...SyncVariant product { id } } }
     }
+    fragment SyncVariant on ProductVariant { id sku inventoryItem { id } selectedOptions { name value } }
   `;
-  const data = await shopifyGraphql(query, { id: productId });
-  return Boolean(data.product?.media?.nodes?.length);
+  const data = await shopifyGraphql(query, { id: productId, variantId: variantId || productId });
+  if (!data.product) throw new HttpError(404, 'Shopify product not found.');
+  return { ...data.product, linkedVariant: data.node?.product?.id === productId ? data.node : null };
 }
 
-async function appendProductMediaIfEmpty(productId, media = []) {
-  if (!Array.isArray(media) || media.length === 0) return false;
-  if (await productHasMedia(productId)) return false;
+function selectProductVariant(product, sku) {
+  if (product.linkedVariant) return product.linkedVariant;
+  const variants = product.variants?.nodes || [];
+  const [single] = variants;
+  if (variants.length === 1 && (!single.sku || single.sku === sku)) return single;
+  throw new HttpError(409, 'No se pudo identificar una única variante de Shopify para este SKU. Revisá la vinculación.');
+}
+
+function getOptionChanges(product, payload) {
+  const optionNames = product.hasOnlyDefaultVariant ? [] : (product.options || []).map(option => option.name);
+  const aliases = { talle: ['talle', 'talla', 'size'], color: ['color', 'colour'], 'género': ['género', 'genero', 'gender'] };
+  const options = normalizeOptions(payload.options).map(option => {
+    const key = option.name.toLocaleLowerCase('es');
+    const match = optionNames.find(name => (aliases[key] || [key]).includes(name.toLocaleLowerCase('es')));
+    return { ...option, name: match || option.name };
+  });
+  const missing = options.filter(option => !optionNames.includes(option.name));
+  if (missing.length && (product.variants.nodes.length !== 1 || optionNames.length + missing.length > 3)) {
+    throw new HttpError(409, 'El producto Shopify tiene opciones o variantes que requieren revisar el mapeo antes de agregar talles o colores.');
+  }
+  return { options, missing };
+}
+
+async function createProductOptions(productId, options) {
+  if (!options.length) return;
   const query = `
-    mutation productUpdateMedia($product: ProductUpdateInput!, $media: [CreateMediaInput!]) {
-      productUpdate(product: $product, media: $media) {
-        product { id }
+    mutation CreateProductOptions($productId: ID!, $options: [OptionCreateInput!]!) {
+      productOptionsCreate(productId: $productId, options: $options, variantStrategy: LEAVE_AS_IS) {
         userErrors { field message }
       }
     }
   `;
-  const data = await shopifyGraphql(query, { product: { id: productId }, media });
-  const result = data.productUpdate;
-  assertNoUserErrors('la carga de imágenes del producto', result?.userErrors);
-  return true;
+  const data = await shopifyGraphql(query, {
+    productId,
+    options: options.map(option => ({ name: option.name, values: [{ name: option.value }] }))
+  });
+  assertNoUserErrors('la creación de opciones de talle o color', data.productOptionsCreate?.userErrors);
 }
 
-async function updateShopifyProduct(productId, payload, status) {
+async function addMissingOptionValues(product, options) {
+  for (const option of options) {
+    const existing = product.options.find(current => current.name === option.name);
+    if (existing.values.includes(option.value)) continue;
+    const data = await shopifyGraphql(`
+      mutation AddProductOptionValue($productId: ID!, $option: OptionUpdateInput!, $values: [OptionValueCreateInput!]!) {
+        productOptionUpdate(productId: $productId, option: $option, optionValuesToAdd: $values, variantStrategy: LEAVE_AS_IS) {
+          userErrors { field message }
+        }
+      }
+    `, { productId: product.id, option: { id: existing.id }, values: [{ name: option.value }] });
+    assertNoUserErrors('la incorporación del valor de talle o color', data.productOptionUpdate?.userErrors);
+  }
+}
+
+async function updateShopifyProduct(productId, payload, status, variantId) {
+  let existing = await getProductForSync(productId, variantId);
+  let target = selectProductVariant(existing, payload.sku);
+  if (existing.variants.nodes.length > 1 && status && status !== existing.status.toLowerCase()) {
+    throw new HttpError(409, 'El estado pertenece a toda la ficha de Shopify. Cambialo desde Shopify para no afectar los otros SKU.');
+  }
+  const { options, missing } = getOptionChanges(existing, payload);
+  if (missing.length) {
+    await createProductOptions(productId, missing);
+    existing = await getProductForSync(productId, target.id);
+    target = selectProductVariant(existing, payload.sku);
+  }
+  await addMissingOptionValues(existing, options);
+  const desired = new Map((target.selectedOptions || []).map(option => [option.name, option.value]));
+  options.forEach(option => desired.set(option.name, option.value));
+  const variantOptions = options.some(option => !target.selectedOptions?.some(current => current.name === option.name && current.value === option.value))
+    ? [...desired].map(([name, value]) => ({ name, value }))
+    : [];
   const query = `
     mutation productUpdate($product: ProductUpdateInput!) {
       productUpdate(product: $product) {
@@ -367,60 +430,70 @@ async function updateShopifyProduct(productId, payload, status) {
           id
           handle
           status
-          variants(first: 1) {
-            nodes { id inventoryItem { id } }
-          }
         }
         userErrors { field message }
       }
     }
   `;
-  const data = await shopifyGraphql(query, { product: { id: productId, ...buildProductInput(payload, status, false) } });
+  const productInput = { id: productId, ...buildProductInput(payload, status || existing.status.toLowerCase(), false) };
+  delete productInput.descriptionHtml;
+  // Keep the product-level catalog data of a Shopify product shared by several SKUs.
+  const data = existing.variants.nodes.length > 1
+    ? { productUpdate: { product: existing } }
+    : await shopifyGraphql(query, { product: productInput });
   const result = data.productUpdate;
   assertNoUserErrors('la actualización del producto', result?.userErrors);
   const product = result?.product;
   if (!product?.id) {
     throw new HttpError(502, 'Shopify no devolvió el producto actualizado.');
   }
-  const variantNode = product.variants?.nodes?.[0] || null;
-  const variantId = variantNode?.id || null;
-  const updatedVariant = await updateDefaultVariant(product.id, variantId, payload, false);
-  await appendProductMediaIfEmpty(product.id, payload.media);
+  const updatedVariant = await updateDefaultVariant(product.id, target.id, { ...payload, options: variantOptions });
   return {
     productId: product.id,
-    variantId: updatedVariant?.id || variantId,
-    inventoryItemId: updatedVariant?.inventoryItem?.id || variantNode?.inventoryItem?.id || null,
+    variantId: updatedVariant?.id || target.id,
+    inventoryItemId: updatedVariant?.inventoryItem?.id || target.inventoryItem?.id || null,
     handle: product.handle || null,
     status: String(product.status || status || 'draft').toLowerCase()
   };
 }
 
-async function syncShopifyProduct({ existingProductId, payload, status }) {
+async function syncShopifyProduct({ existingProductId, existingVariantId, payload, status, onCreated }) {
   let product;
   if (existingProductId) {
     try {
-      product = await updateShopifyProduct(existingProductId, payload, status);
+      product = await updateShopifyProduct(existingProductId, payload, status, existingVariantId);
     } catch (error) {
       // The product may have been deleted directly in Shopify while its old ID
       // remains stored locally. Recreate only for Shopify's explicit not-found
       // response; authentication, validation and network errors must still fail.
       if (!isShopifyProductNotFoundError(error)) throw error;
-      product = await createShopifyProduct(payload, status);
+      product = await createShopifyProduct(payload, status || 'draft', onCreated);
     }
   } else {
-    product = await createShopifyProduct(payload, status);
+    product = await createShopifyProduct(payload, status || 'draft', onCreated);
   }
   return {
     ...product,
-    inventorySync: await syncInventoryLevels(product.inventoryItemId, payload)
+    inventorySync: await syncInventoryLevels(product.inventoryItemId, payload),
+    mediaSync: await syncProductImages(shopifyGraphql, product.productId, payload.media)
   };
 }
 
-async function archiveShopifyProduct(productId, payload = {}) {
+async function archiveShopifyProduct(productId) {
   if (!productId) {
     return null;
   }
-  return updateShopifyProduct(productId, payload, 'archived');
+  const product = await getProductForSync(productId);
+  if (product.variants.nodes.length > 1) {
+    throw new HttpError(409, 'La ficha tiene varias variantes. Revisá la baja en Shopify para no archivar los otros SKU.');
+  }
+  const data = await shopifyGraphql(`
+    mutation ArchiveProduct($product: ProductUpdateInput!) {
+      productUpdate(product: $product) { product { status } userErrors { field message } }
+    }
+  `, { product: { id: productId, status: 'ARCHIVED' } });
+  assertNoUserErrors('el archivado del producto', data.productUpdate?.userErrors);
+  return { status: 'archived' };
 }
 
 module.exports = {
