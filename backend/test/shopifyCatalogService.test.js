@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const config = require('../src/config');
-const { getCatalogAvailability, normalizeCatalogInput, getExistingBoxStock, resolveCatalogPhotoUrl, suggestOpening, validateOpeningStock, getVariantSku } = require('../src/services/shopifyCatalogService');
+const { getCatalogAvailability, normalizeCatalogInput, getExistingBoxStock, resolveCatalogPhotoUrl, suggestOpening, validateOpeningStock, getVariantSku, validateSingleProduct } = require('../src/services/shopifyCatalogService');
 const { syncCatalogDraft } = require('../src/services/shopifyCatalogDraftService');
 
 const mediumId = 'aaaaaaaaaaaaaaaaaaaaaaaa';
@@ -198,4 +198,16 @@ test('abre las variantes cuando el operador completa el talle faltante en el cat
   ]);
   assert.equal(item.attributes.size, undefined);
   assert.throws(() => suggestOpening(item, { color: 'Beige/Negro', size: '' }), /talle/);
+});
+
+
+test('limita los modelos nuevos a un producto y permite conservar los modelos anteriores', () => {
+  const principal = { itemId: mediumId };
+  const other = { itemId: largeId };
+  const model = { principalItemId: mediumId, variants: [principal] };
+  assert.doesNotThrow(() => validateSingleProduct(model));
+  assert.throws(() => validateSingleProduct({ ...model, variants: [principal, other] }), /producto elegido/);
+  const previous = { ...model, variants: [principal, other] };
+  assert.doesNotThrow(() => validateSingleProduct(previous, previous));
+  assert.throws(() => validateSingleProduct({ principalItemId: largeId, variants: [other] }, previous), /SKU principal/);
 });

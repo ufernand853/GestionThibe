@@ -11,7 +11,7 @@ const { HttpError } = require('../utils/errors');
 const asyncHandler = require('../utils/asyncHandler');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus } = require('../services/shopifyAuthService');
-const { normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, getVariantSku, suggestOpening, validateOpeningStock } = require('../services/shopifyCatalogService');
+const { normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, getVariantSku, suggestOpening, validateOpeningStock, validateSingleProduct } = require('../services/shopifyCatalogService');
 const { syncCatalogDraft } = require('../services/shopifyCatalogDraftService');
 
 const router = express.Router();
@@ -167,6 +167,11 @@ router.get('/models', read, asyncHandler(async (req, res) => {
 async function saveModel(req, res) {
   if (req.params.id && !idPattern.test(req.params.id)) throw new HttpError(400, 'Modelo inválido.');
   const input = normalizeCatalogInput(req.body);
+  const before = req.params.id ? await findModel(req.params.id) : null;
+  if (before && (!Number.isSafeInteger(req.body.revision) || req.body.revision !== before.revision)) {
+    throw new HttpError(409, 'El modelo cambió. Volvé a cargarlo antes de guardar.');
+  }
+  validateSingleProduct(input, before);
   const items = await loadItems(input.variants, [input.principalItemId]);
   if (input.principalItemId) {
     const principal = items.get(String(input.principalItemId));
@@ -186,13 +191,8 @@ async function saveModel(req, res) {
   validateOpeningStock(input, items);
   const updatedBy = req.user?.username || 'Desconocido';
   let saved;
-  let before;
   try {
-    if (req.params.id) {
-      before = await findModel(req.params.id);
-      if (!Number.isSafeInteger(req.body.revision) || req.body.revision !== before.revision) {
-        throw new HttpError(409, 'El modelo cambió. Volvé a cargarlo antes de guardar.');
-      }
+    if (before) {
       const available = getCatalogAvailability({ ...input, testOrders: before.testOrders });
       const reserved = before.testOrders?.filter(order => order.status === 'reserved') || [];
       if (reserved.some(order => (available.get(String(order.itemId)) ?? -1) < 0)) {

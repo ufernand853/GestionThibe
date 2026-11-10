@@ -15,16 +15,6 @@ const splitOptions = value => [...new Map(
 const photoUrl = source => /^(?:data:image\/|https:\/\/)/i.test(source) ? source : API_ROOT_URL + '/' + source.replace(/^\/+/, '');
 const modelStatus = model => model.syncError ? 'Error de sincronización' : model.pending ? 'Pendiente de enviar' : 'Borrador sincronizado';
 
-function itemVariant(item) {
-  return {
-    itemId: item.id,
-    sku: item.sku,
-    item,
-    color: item.attributes?.color || '',
-    size: item.attributes?.size || ''
-  };
-}
-
 async function openPrincipal(api, model, item) {
   const variants = await api.get(`${endpoint}/items/${item.id}/opening`);
   return {
@@ -69,34 +59,21 @@ function VariantEditor({ model, update, disabled }) {
     }
   }
 
-  async function addItem(item) {
-    setError('');
-    if (!model.id && !model.variants.length) {
-      setSearching(true);
-      try {
-        update(await openPrincipal(api, model, item));
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setSearching(false);
-      }
-      return;
-    }
+  const choosingProduct = !model.id && !model.principal;
 
-    const row = itemVariant(item);
-    const match = model.variants.find(variant => variant.sourceItemId &&
-      colorKey(variant.color) === colorKey(row.color) && colorKey(variant.size) === colorKey(row.size));
-    if (match && model.boxes.some(box => box.quantities.some(quantity => quantity.itemId === match.itemId && quantity.units))) {
-      setError('Poné en cero el saldo de la variante generada antes de reemplazarla por un SKU existente.');
-      return;
+  async function chooseProduct(item) {
+    setError('');
+    setSearching(true);
+    try {
+      const opening = await openPrincipal(api, model, item);
+      update(current => current === model ? opening : current);
+      setSearch('');
+      setItems([]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSearching(false);
     }
-    update(current => {
-      const variants = [...current.variants.filter(variant => variant.itemId !== match?.itemId), row];
-      const sources = new Set(variants.map(variant => variant.sourceItemId || variant.itemId));
-      const boxes = current.boxes.filter(box => !box.sourceKey || sources.has(box.sourceKey.split(':')[0]))
-        .map(box => ({ ...box, quantities: box.quantities.filter(quantity => quantity.itemId !== match?.itemId) }));
-      return { ...current, variants, boxes };
-    });
   }
 
   async function expandRow(row) {
@@ -109,7 +86,7 @@ function VariantEditor({ model, update, disabled }) {
     try {
       const options = new URLSearchParams({ color: row.color, size: row.size });
       const variants = await api.get(`${endpoint}/items/${row.itemId}/opening?${options}`);
-      update(current => ({
+      update(current => current === model ? ({
         ...current,
         principal: row.item,
         code: row.item.sku,
@@ -118,7 +95,7 @@ function VariantEditor({ model, update, disabled }) {
         boxes: current.boxes.map(box => ({
           ...box, quantities: box.quantities.filter(quantity => quantity.itemId !== row.itemId)
         }))
-      }));
+      }) : current);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -146,39 +123,44 @@ function VariantEditor({ model, update, disabled }) {
 
   return (
     <section>
-      <h3 id="catalogo-variantes">Artículos del modelo</h3>
-      <p className="muted-text">Elegí el SKU principal. Los colores y talles que vienen separados con / o - generan combinaciones para revisar. Quitá las que no existen. Si una combinación tiene su propio SKU, buscá y agregá ese artículo para reutilizarlo.</p>
-      <p className="muted-text">Si falta el color o el talle, completalo acá. Si escribís varios valores con / o -, usá Generar variantes para separarlos. Después cargá el saldo de cada combinación en Stock para la tienda online.</p>
-      <div className="inline-actions">
-        <label>
-          Buscar por código, SKU o descripción
-          <input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            if (search.trim() && !searching) findItems();
-          }} />
-        </label>
-        <button type="button" className="secondary-button" onClick={findItems} disabled={!search.trim() || searching}>Buscar</button>
-      </div>
+      <h3 id="catalogo-variantes">{choosingProduct ? 'Elegí un producto' : 'Variantes del producto'}</h3>
       {error && <ErrorMessage error={error} />}
-      {items.length > 0 && (
-        <ul>
-          {items.map(item => (
-            <li key={item.id}>
-              {item.sku} · {item.description}{' '}
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={disabled || searching || item.linked || model.principal?.id === item.id || model.variants.some(row => row.itemId === item.id)}
-                onClick={() => addItem(item)}
-              >
-                {item.linked ? 'Vinculado a una ficha individual' : !model.id && !model.variants.length ? 'Usar como SKU principal' : 'Agregar SKU'}
-              </button>
-            </li>
-          ))}
-        </ul>
+      {choosingProduct ? (
+        <>
+          <p className="muted-text">Buscá el producto que querés preparar. Podés trabajar con otro después de guardar o cerrar este.</p>
+          <div className="inline-actions">
+            <label>
+              Buscar por código, SKU o descripción
+              <input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => {
+                if (event.key !== 'Enter') return;
+                event.preventDefault();
+                if (search.trim() && !searching) findItems();
+              }} />
+            </label>
+            <button type="button" className="secondary-button" onClick={findItems} disabled={!search.trim() || searching}>Buscar</button>
+          </div>
+          {items.length > 0 && (
+            <ul>
+              {items.map(item => (
+                <li key={item.id}>
+                  {item.sku} · {item.description}{' '}
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={disabled || searching || item.linked}
+                    onClick={() => chooseProduct(item)}
+                  >
+                    {item.linked ? 'Vinculado a una ficha individual' : 'Elegir producto'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <p className="muted-text">Revisá los colores y talles de este producto. Si falta un dato, completalo acá. Quitá las combinaciones que no existen.</p>
       )}
-      <div className="table-wrapper">
+      {!choosingProduct && <div className="table-wrapper">
         <table>
           <thead><tr><th>SKU</th><th>Artículo</th><th>Color</th><th>Talle</th><th>Acción</th></tr></thead>
           <tbody>
@@ -201,7 +183,7 @@ function VariantEditor({ model, update, disabled }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
     </section>
   );
 }
@@ -547,6 +529,7 @@ export default function ShopifyCatalogPage() {
   const canWrite = user?.permissions?.includes('items.write');
   const [models, setModels] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [expandedModelId, setExpandedModelId] = useState(null);
   const [readingPhoto, setReadingPhoto] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -624,6 +607,7 @@ export default function ShopifyCatalogPage() {
         : await api.post(`${endpoint}/models`, payload);
       replaceModel(model);
       setEditing(null);
+      setExpandedModelId(model.id);
       setMessage('Modelo guardado en GestionThibe.');
     } catch (err) {
       setError(err.message);
@@ -669,7 +653,7 @@ export default function ShopifyCatalogPage() {
     <div className="page-wrapper shopify-page">
       <header className="page-header">
         <h2>Shopify · Catálogo online</h2>
-        <p className="muted-text">Prepará una ficha agrupando SKU, elegí las fotos por color y revisá cuánto stock querés ofrecer en la web. El envío crea o actualiza un borrador en Shopify.</p>
+        <p className="muted-text">Prepará un producto por vez. Revisá sus variantes, fotos y unidades antes de enviarlo como borrador a Shopify.</p>
         <nav className="inline-actions" aria-label="Shopify">
           <Link to="/shopify/catalogo">Catálogo online</Link>
           <Link to="/shopify/catalogo?vista=pedidos">Pedidos online</Link>
@@ -696,20 +680,21 @@ export default function ShopifyCatalogPage() {
         </section>
       ) : (
         <>
-          {canWrite && !editing && <button type="button" onClick={() => setEditing(emptyModel)} disabled={busy}>Nuevo modelo</button>}
+          {canWrite && !editing && <button type="button" onClick={() => setEditing({ ...emptyModel })} disabled={busy}>Nuevo modelo</button>}
           {editing && canWrite && (
             <form onSubmit={save}>
               <fieldset disabled={busy || readingPhoto}>
                 <legend>{editing.id ? 'Editar modelo' : 'Nuevo modelo'}</legend>
-                <p className="muted-text">El código del modelo se toma del SKU principal. El nombre es el título de la ficha en Shopify.</p>
-                <div className="inline-actions">
-              <label>Código del modelo <input required maxLength={60} readOnly={Boolean(editing.principal) || !editing.id} placeholder="Elegí el SKU principal" value={editing.code} onChange={event => setEditing({ ...editing, code: event.target.value })} /></label>
-              <label>Nombre <input required maxLength={150} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
-                </div>
+                {(editing.principal || editing.id) && (
+                  <div className="inline-actions">
+                    <label>SKU principal <input required maxLength={60} readOnly={Boolean(editing.principal)} value={editing.code} onChange={event => setEditing({ ...editing, code: event.target.value })} /></label>
+                    <label>Nombre en Shopify <input required maxLength={150} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
+                  </div>
+                )}
                 <VariantEditor model={editing} update={setEditing} disabled={busy} />
-                <GalleryEditor model={editing} update={setEditing} onReading={setReadingPhoto} />
-                <BoxEditor model={editing} update={setEditing} />
-                <p className="muted-text">Guardar modelo registra los cambios en GestionThibe. Para aplicarlos en el borrador de Shopify, usá Enviar borrador a Shopify después de guardar.</p>
+                {(editing.principal || editing.id) && <GalleryEditor model={editing} update={setEditing} onReading={setReadingPhoto} />}
+                {(editing.principal || editing.id) && <BoxEditor model={editing} update={setEditing} />}
+                {(editing.principal || editing.id) && <p className="muted-text">Guardá el producto para poder enviarlo como borrador a Shopify.</p>}
                 <div className="inline-actions">
                   <button type="submit" disabled={!editing.variants.length}>Guardar modelo</button>
                   <button type="button" className="secondary-button" onClick={() => setEditing(null)}>Cerrar</button>
@@ -717,10 +702,15 @@ export default function ShopifyCatalogPage() {
               </fieldset>
             </form>
           )}
-          {models.length > 0 && <h3>Envío a Shopify</h3>}
-          {models.map(model => (
-            <details key={model.id}>
-              <summary>SKU principal {model.principal?.sku || model.code} · {model.title} · {model.variants.length} variante(s)</summary>
+          {!editing && models.length > 0 && <h3>Envío a Shopify</h3>}
+          {!editing && models.map(model => (
+            <details key={model.id} open={expandedModelId === model.id}>
+              <summary onClick={event => {
+                event.preventDefault();
+                setExpandedModelId(current => current === model.id ? null : model.id);
+              }}>
+                SKU principal {model.principal?.sku || model.code} · {model.title} · {model.variants.length} variante(s)
+              </summary>
               <p>{modelStatus(model)}{model.syncError ? ` · ${model.syncError}` : ''}</p>
               <div className="table-wrapper">
                 <table>

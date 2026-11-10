@@ -59,6 +59,22 @@ function suggestOpening(item, overrides) {
   return variants.map(row => ({ ...row, sku: getVariantSku(row, item) }));
 }
 
+function validateSingleProduct(input, previous) {
+  const principal = input.principalItemId;
+  const previousPrincipal = previous?.principalItemId ? String(previous.principalItemId) : null;
+  const previousSources = new Set((previous?.variants || []).map(row => String(row.sourceItemId || row.itemId)));
+  if ((!previous && !principal) || (previousPrincipal && previousPrincipal !== principal) ||
+      (previous && principal && !previousPrincipal && !previousSources.has(principal))) {
+    invalid('Elegí un solo producto como SKU principal del modelo.');
+  }
+  if (input.variants.some(row => {
+    const source = row.sourceItemId || row.itemId;
+    return source !== principal && !previousSources.has(source);
+  })) {
+    invalid('El modelo solo puede incluir variantes del producto elegido.');
+  }
+}
+
 function validateOpeningStock(model, items) {
   const sourceIds = new Map(model.variants.filter(row => row.sourceItemId).map(row => [String(row.itemId), String(row.sourceItemId)]));
   const totals = new Map();
@@ -215,4 +231,4 @@ function getCatalogAvailability(model) {
   return totals;
 }
 
-module.exports = { MAX_VARIANTS, normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, resolveCatalogPhotoUrl, normalizeLabel, splitColors, suggestOpening, getVariantSku, validateOpeningStock };
+module.exports = { MAX_VARIANTS, normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, resolveCatalogPhotoUrl, normalizeLabel, splitColors, suggestOpening, getVariantSku, validateOpeningStock, validateSingleProduct };

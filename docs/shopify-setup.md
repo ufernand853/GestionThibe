@@ -112,9 +112,8 @@ Al reenviar un artículo, las fotos nuevas se agregan a la galería. Las fotos q
 En Shopify → Catálogo online, elegí el SKU principal. El código del modelo
 se completa con ese SKU. Si el color o el talle trae valores separados por
 / o -, el piloto propone las combinaciones y genera sus códigos online.
-Quitá las combinaciones que no existen. Si un SKU real ya identifica una
-combinación, podés buscarlo y agregarlo al modelo para reutilizarlo. Las
-fotos se cargan por color y se comparten entre los talles.
+Quitá las combinaciones que no existen. Las fotos se cargan por color y se
+comparten entre los talles. Guardá o cerrá el modelo para elegir otro producto.
 
 Los códigos generados pertenecen al catálogo online. Repartí las unidades
 contadas del SKU principal entre sus variantes. Con unidades por caja
