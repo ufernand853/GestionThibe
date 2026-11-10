@@ -6,6 +6,7 @@ const MAX_BOXES = 100;
 const MAX_BOX_UNITS = 1000000;
 const MAX_PHOTOS = 50;
 const normalizeLabel = value => value.normalize('NFC').trim().toLocaleLowerCase('es');
+const splitColors = value => value.split(/[/\-–—]/).map(part => part.trim()).filter(Boolean);
 
 function invalid(message) {
   throw new HttpError(400, message);
@@ -121,15 +122,21 @@ function normalizeCatalogInput(input) {
     };
   });
 
+  const availableColors = new Map(colors);
+  for (const color of colors.values()) {
+    for (const part of splitColors(color)) {
+      if (!availableColors.has(normalizeLabel(part))) availableColors.set(normalizeLabel(part), part);
+    }
+  }
   const galleryColors = new Set();
   let photoCount = 0;
   const galleries = list(input.galleries, 'galerías', MAX_VARIANTS).map(gallery => {
     const key = normalizeLabel(label(gallery?.color, 'el color de la galería'));
-    if (!colors.has(key) || galleryColors.has(key)) invalid('Debe haber una sola galería por color del modelo.');
+    if (!availableColors.has(key) || galleryColors.has(key)) invalid('Debe haber una sola galería por color del modelo.');
     galleryColors.add(key);
     const images = [...new Set(list(gallery.images, 'fotos', MAX_PHOTOS).map(imageSource))];
     photoCount += images.length;
-    return { color: colors.get(key), images };
+    return { color: availableColors.get(key), images };
   });
   if (photoCount > MAX_PHOTOS) invalid(`El modelo admite hasta ${MAX_PHOTOS} fotos.`);
   return { code, title, variants, boxes, galleries };
@@ -150,4 +157,4 @@ function getCatalogAvailability(model) {
   return totals;
 }
 
-module.exports = { MAX_VARIANTS, normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, resolveCatalogPhotoUrl };
+module.exports = { MAX_VARIANTS, normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, resolveCatalogPhotoUrl, normalizeLabel, splitColors };

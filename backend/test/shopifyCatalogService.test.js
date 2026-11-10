@@ -130,3 +130,18 @@ test('permite guardar una foto local y requiere el dominio público al enviarla 
   assert.throws(() => resolveCatalogPhotoUrl(photo, ''), /URL pública/);
   assert.equal(resolveCatalogPhotoUrl(photo, 'https://example.com'), 'https://example.com/' + photo);
 });
+
+
+test('mantiene el texto de talle y color del SKU y admite fotos de cada color separado', () => {
+  const input = modelInput();
+  input.variants[0] = { itemId: mediumId, color: 'Negro/Blanco-Verde', size: 'M/L-XL' };
+  input.galleries = [
+    { color: 'negro', images: ['/uploads/items/negro.jpg'] },
+    { color: 'blanco', images: ['/uploads/items/blanco.jpg'] },
+    { color: 'verde', images: ['/uploads/items/verde.jpg'] }
+  ];
+  const model = normalizeCatalogInput(input);
+  assert.deepEqual(model.variants[0], input.variants[0]);
+  assert.deepEqual(model.galleries.map(gallery => gallery.color), ['negro', 'Blanco', 'Verde']);
+  assert.equal(getCatalogAvailability(model).get(mediumId), 3);
+});

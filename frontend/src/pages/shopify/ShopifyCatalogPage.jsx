@@ -16,32 +16,24 @@ const photoUrl = source => /^(?:data:image\/|https:\/\/)/i.test(source) ? source
 const modelStatus = model => model.syncError ? 'Error de sincronización' : model.pending ? 'Pendiente de enviar' : 'Borrador sincronizado';
 
 function itemVariant(item) {
-  const colors = splitOptions(item.attributes?.color);
-  const sizes = splitOptions(item.attributes?.size);
   return {
     itemId: item.id,
     item,
-    color: colors.length === 1 ? colors[0] : '',
-    size: sizes.length === 1 ? sizes[0] : ''
+    color: item.attributes?.color || '',
+    size: item.attributes?.size || ''
   };
 }
 
 function OptionField({ variant, field, onChange }) {
-  const suggestions = splitOptions(variant.item?.attributes?.[field]);
-  const listId = `${variant.itemId}-${field}`;
+  const label = field === 'color' ? 'Color' : 'Talle';
   return (
-    <>
-      <input
-        aria-label={`${field === 'color' ? 'Color' : 'Talle'} para ${variant.item?.sku || 'el artículo'}`}
-        list={listId}
-        value={variant[field]}
-        onChange={event => onChange(event.target.value)}
-        required
-      />
-      <datalist id={listId}>
-        {suggestions.map(value => <option key={value} value={value} />)}
-      </datalist>
-    </>
+    <input
+      aria-label={`${label} para ${variant.item?.sku || 'el artículo'}`}
+      placeholder={`Sin ${label.toLowerCase()} cargado`}
+      value={variant[field]}
+      onChange={event => onChange(event.target.value)}
+      required
+    />
   );
 }
 
@@ -83,8 +75,9 @@ function VariantEditor({ model, update, disabled }) {
 
   return (
     <section>
-      <h3>Variantes por color y talle</h3>
-      <p className="muted-text">Vinculá un artículo existente por combinación. Si el artículo tiene talles o colores separados con / o -, elegí el valor que corresponde a ese SKU.</p>
+      <h3>Artículos del modelo</h3>
+      <p className="muted-text">Cada fila usa el código y el saldo de un SKU. Si un SKU trae varios colores o talles en el mismo texto, su saldo es compartido. Para manejar cantidades distintas por combinación, cada una necesita su propio SKU.</p>
+      <p className="muted-text">Buscá un artículo y agregalo al modelo. El color y el talle se copian tal como están en Artículos. Podés completar un dato faltante o corregirlo para la web desde acá.</p>
       <div className="inline-actions">
         <label>
           Buscar por código, SKU o descripción
@@ -137,21 +130,15 @@ function VariantEditor({ model, update, disabled }) {
 function colorsFor(variants) {
   const colors = new Map();
   for (const { color } of variants) {
-    if (color.trim() && !colors.has(colorKey(color))) colors.set(colorKey(color), color.trim());
+    for (const part of splitOptions(color)) {
+      if (!colors.has(colorKey(part))) colors.set(colorKey(part), part);
+    }
   }
   return colors;
 }
 
 function GalleryEditor({ model, update, onReading }) {
   const [error, setError] = useState('');
-  const confirmed = colorsFor(model.variants);
-  const suggested = new Map(confirmed);
-  for (const variant of model.variants) {
-    for (const color of splitOptions(variant.item?.attributes?.color)) {
-      if (!suggested.has(colorKey(color))) suggested.set(colorKey(color), color);
-    }
-  }
-
   function setPhoto(color, image) {
     update(current => ({
       ...current,
@@ -184,37 +171,33 @@ function GalleryEditor({ model, update, onReading }) {
   return (
     <section>
       <h3>Fotos por color</h3>
-      <p className="muted-text">Seleccioná una foto por color. Todos los talles de ese color usan la misma imagen.</p>
+      <p className="muted-text">Si un artículo dice Blanco/Negro o Blanco-Negro, vas a ver una tarjeta para Blanco y otra para Negro. Elegí una foto en cada tarjeta. Los talles del mismo color comparten esa foto.</p>
       {error && <ErrorMessage error={error} />}
       <div className="image-preview-grid">
-        {[...suggested].map(([key, color]) => {
+        {[...colorsFor(model.variants)].map(([key, color]) => {
           const photo = model.galleries.find(row => colorKey(row.color) === key)?.images[0];
           const choices = [...new Set(model.variants
-            .filter(row => colorKey(row.color) === key)
+            .filter(row => splitOptions(row.color).some(part => colorKey(part) === key))
             .flatMap(row => row.item?.images || []))]
             .filter(image => /^https:\/\//i.test(image) || /^\/?uploads\/items\//i.test(image));
           return (
             <div key={key} className="image-preview-item catalog-color-photo">
               <strong>{color}</strong>
               {photo ? <img src={photoUrl(photo)} alt={`Foto del color ${color}`} /> : <span>Sin foto</span>}
-              {confirmed.has(key) ? (
-                <>
-                  <label>
-                    Seleccionar foto
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={event => selectPhoto(color, event)} />
-                  </label>
-                  {choices.length > 0 && (
-                    <label>
-                      Fotos del artículo
-                      <select value="" onChange={event => setPhoto(color, event.target.value)}>
-                        <option value="">Elegir foto existente</option>
-                        {choices.map((image, index) => <option key={image} value={image}>Foto {index + 1}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {photo && <button type="button" className="secondary-button" onClick={() => setPhoto(color, null)}>Quitar foto</button>}
-                </>
-              ) : <span className="muted-text">Confirmá este color en una variante para cargar su foto.</span>}
+              <label>
+                Seleccionar foto
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={event => selectPhoto(color, event)} />
+              </label>
+              {choices.length > 0 && (
+                <label>
+                  Fotos del artículo
+                  <select value="" onChange={event => setPhoto(color, event.target.value)}>
+                    <option value="">Elegir foto existente</option>
+                    {choices.map((image, index) => <option key={image} value={image}>Foto {index + 1}</option>)}
+                  </select>
+                </label>
+              )}
+              {photo && <button type="button" className="secondary-button" onClick={() => setPhoto(color, null)}>Quitar foto</button>}
             </div>
           );
         })}
@@ -229,7 +212,7 @@ function ExistingBoxes({ model, update }) {
   const rows = model.variants.flatMap(variant => (variant.item?.boxStock || []).map(stock => {
     const sourceKey = variant.itemId + ':' + stock.locationId;
     const attributes = variant.item.attributes;
-    const hasMixedAttributes = [attributes?.size, attributes?.color].some(value => splitOptions(value).length > 1);
+    const hasMixedAttributes = [variant.size, variant.color, attributes?.size, attributes?.color].some(value => splitOptions(value).length > 1);
     const estimate = stock.boxes * stock.unitsPerBox;
     const units = !hasMixedAttributes && stock.unitsPerBox && estimate <= maxBoxUnits ? estimate : null;
     return { variant, stock, sourceKey, units };
@@ -272,7 +255,7 @@ function ExistingBoxes({ model, update }) {
                     <button type="button" className="secondary-button" onClick={() => importBoxes(row)}>
                       {row.units === null ? 'Traer para confirmar unidades' : 'Traer cajas'}
                     </button>
-                  )}
+              )}
                 </td>
               </tr>
             );
@@ -296,7 +279,16 @@ function BoxEditor({ model, update }) {
   return (
     <section>
       <h3>Cajas que respaldan el stock web</h3>
-      <p className="muted-text">Podés traer las cajas registradas por SKU y ubicación. Revisá el saldo del piloto al hacer retiros o reposiciones. Si la caja es surtida, confirmá las unidades al contarla.</p>
+      <p className="muted-text"><strong>Editar unidades acá solo cambia el saldo del catálogo online.</strong> El stock de Artículos, los movimientos y las ventas locales siguen usando sus propios datos. Shopify recibe el nuevo saldo cuando enviás el borrador.</p>
+      <details>
+        <summary>Cómo leer y editar las cajas</summary>
+        <ul>
+          <li><strong>Cajas cargadas</strong> es el número de cajas que ya tiene el SKU en esa ubicación. Traer cajas copia ese dato al modelo.</li>
+          <li><strong>Unidades disponibles</strong> es el total de prendas que querés ofrecer, sumando las cajas de esa fila. Si traés 2 cajas de 12, el total inicial es 24. Si te quedan 18, ingresá 18.</li>
+          <li>Si el SKU mezcla colores o talles, o falta el dato de unidades por caja, ingresá el total contado. Un campo vacío equivale a 0 para la web.</li>
+          <li><strong>Abierta o incompleta</strong> sirve para identificar la caja. El saldo cambia al editar las unidades. Quitar una fila la elimina del modelo online.</li>
+        </ul>
+      </details>
       <ExistingBoxes model={model} update={update} />
       {model.boxes.map((box, index) => (
         <fieldset key={index}>
@@ -309,12 +301,12 @@ function BoxEditor({ model, update }) {
           </div>
           {model.variants.filter(row => !box.sourceKey || box.sourceKey.startsWith(row.itemId + ':')).map(row => (
             <label key={row.itemId} className="form-field">
-              {row.item?.sku} · {row.color || 'Color pendiente'} · {row.size || 'Talle pendiente'}
+              Unidades disponibles · {row.item?.sku} · {row.color || 'sin color cargado'} · {row.size || 'sin talle cargado'}
               <input
                 type="number"
                 min="0"
                 max={maxBoxUnits}
-                step="1"
+                step="1" placeholder="0"
                 value={box.quantities.find(quantity => quantity.itemId === row.itemId)?.units ?? ''}
                 onChange={event => changeBox(index, {
                   quantities: [
@@ -470,6 +462,9 @@ export default function ShopifyCatalogPage() {
     setMessage('');
     try {
       const colors = colorsFor(editing.variants);
+      for (const variant of editing.variants) {
+        if (variant.color.trim()) colors.set(colorKey(variant.color), variant.color.trim());
+      }
       const galleries = [];
       for (const gallery of editing.galleries) {
         if (!colors.has(colorKey(gallery.color))) continue;
@@ -537,7 +532,7 @@ export default function ShopifyCatalogPage() {
     <div className="page-wrapper shopify-page">
       <header className="page-header">
         <h2>Shopify · Catálogo online</h2>
-        <p className="muted-text">Piloto de modelos, fotos y cajas. El envío crea una ficha en borrador.</p>
+        <p className="muted-text">Prepará una ficha agrupando SKU, elegí las fotos por color y revisá cuánto stock querés ofrecer en la web. El envío crea o actualiza un borrador en Shopify.</p>
         <nav className="inline-actions" aria-label="Shopify">
           <Link to="/shopify/catalogo">Catálogo online</Link>
           <Link to="/shopify/catalogo?vista=pedidos">Pedidos online</Link>
@@ -553,7 +548,7 @@ export default function ShopifyCatalogPage() {
       ) : tab === 'alertas' ? (
         <section>
           <h3>Variantes del piloto sin stock</h3>
-          <p className="muted-text">Disponibilidad calculada con las cajas registradas para el catálogo online.</p>
+          <p className="muted-text">Acá aparecen los SKU del catálogo online cuyo saldo llegó a cero. Al reponer unidades o cancelar una reserva de prueba, el aviso se resuelve.</p>
           {alerts.length === 0 ? <p>No hay variantes sin stock.</p> : (
             <ul>
               {alerts.map(({ model, variant }) => (
@@ -569,13 +564,15 @@ export default function ShopifyCatalogPage() {
             <form onSubmit={save}>
               <fieldset disabled={busy || readingPhoto}>
                 <legend>{editing.id ? 'Editar modelo' : 'Nuevo modelo'}</legend>
+                <p className="muted-text">Usá un código interno para agrupar los SKU y un nombre para la ficha que se verá en Shopify. Los códigos de los artículos se conservan.</p>
                 <div className="inline-actions">
-                  <label>Código del modelo <input required maxLength={60} value={editing.code} onChange={event => setEditing({ ...editing, code: event.target.value })} /></label>
-                  <label>Nombre <input required maxLength={150} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
+              <label>Código del modelo <input required maxLength={60} value={editing.code} onChange={event => setEditing({ ...editing, code: event.target.value })} /></label>
+              <label>Nombre <input required maxLength={150} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
                 </div>
                 <VariantEditor model={editing} update={setEditing} disabled={busy} />
                 <GalleryEditor model={editing} update={setEditing} onReading={setReadingPhoto} />
                 <BoxEditor model={editing} update={setEditing} />
+                <p className="muted-text">Guardar modelo registra los cambios en GestionThibe. Para aplicarlos en el borrador de Shopify, usá Enviar borrador a Shopify después de guardar.</p>
                 <div className="inline-actions">
                   <button type="submit" disabled={!editing.variants.length}>Guardar modelo</button>
                   <button type="button" className="secondary-button" onClick={() => setEditing(null)}>Cerrar</button>

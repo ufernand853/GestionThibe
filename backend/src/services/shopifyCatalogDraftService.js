@@ -2,7 +2,7 @@ const config = require('../config');
 const { HttpError } = require('../utils/errors');
 const { shopifyGraphql } = require('./shopifyProductService');
 const { getOrCreateImage } = require('./shopifyMediaService');
-const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl } = require('./shopifyCatalogService');
+const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl, normalizeLabel, splitColors } = require('./shopifyCatalogService');
 
 async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   const location = config.shopify.defaultLocationId.trim();
@@ -72,8 +72,13 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
       }
       ids.push(filesBySource.get(source));
     }
-    filesByColor.set(gallery.color, ids);
+    filesByColor.set(normalizeLabel(gallery.color), ids);
   }
+
+  const variantPhotos = model.variants.map(({ color }) => {
+    const ids = splitColors(color).flatMap(part => filesByColor.get(normalizeLabel(part)) || []);
+    return ids.length ? [...new Set(ids)] : filesByColor.get(normalizeLabel(color)) || [];
+  });
 
   const productOptions = [['Color', 'color'], ['Talle', 'size']].map(([name, key]) => ({
     name,
@@ -87,7 +92,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
     productOptions,
     files: [...filesBySource.values()].map(id => ({ id })),
     variants: variants.map((variant, index) => {
-      const photo = filesByColor.get(model.variants[index].color)?.[0];
+      const photo = variantPhotos[index][0];
       return photo ? { ...variant, file: { id: photo } } : variant;
     })
   };
@@ -125,7 +130,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   for (const variant of variantsWithMedia) {
     const index = variants.findIndex(candidate => candidate.sku === variant.sku);
     if (index === -1) continue;
-    const desired = filesByColor.get(model.variants[index].color) || [];
+    const desired = variantPhotos[index];
     const current = variant.media.nodes.map(node => node.id);
     const added = desired.filter(id => !current.includes(id));
     const removed = current.filter(id => !desired.includes(id));

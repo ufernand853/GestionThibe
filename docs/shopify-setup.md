@@ -109,10 +109,9 @@ Al reenviar un artículo, las fotos nuevas se agregan a la galería. Las fotos q
 
 ## Piloto de Catálogo online
 
-En Shopify → Catálogo online se vincula cada combinación de color y talle con
-un artículo existente. Los valores separados por / o - se muestran como
-sugerencias. Confirmá un color y talle por SKU y elegí una foto por color
-desde el equipo o entre las fotos de sus artículos.
+En Shopify → Catálogo online se agregan los SKU al modelo. El color y el talle
+se copian del artículo. Si el texto del color contiene / o -, cada color
+tiene su tarjeta para elegir una foto. El saldo se controla por SKU.
 
 En Cajas, revisá las cantidades que GestionThibe ya registra por SKU y
 ubicación y usá **Traer cajas** para incorporarlas al modelo. Si se conoce la
