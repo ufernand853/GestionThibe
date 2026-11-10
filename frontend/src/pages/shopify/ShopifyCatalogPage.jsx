@@ -15,6 +15,10 @@ const splitOptions = value => [...new Map(
 const photoUrl = source => /^(?:data:image\/|https:\/\/)/i.test(source) ? source : API_ROOT_URL + '/' + source.replace(/^\/+/, '');
 const modelStatus = model => model.syncError ? 'Error de sincronización' : model.pending ? 'Pendiente de enviar' : 'Borrador sincronizado';
 
+function principalArticleCode(model) {
+  return model.principal?.code || (model.variants.length === 1 ? model.variants[0].item?.code : null);
+}
+
 async function openPrincipal(api, model, item) {
   const variants = await api.get(`${endpoint}/items/${item.id}/opening`);
   return {
@@ -689,6 +693,9 @@ export default function ShopifyCatalogPage() {
                 {(editing.principal || editing.id) && (
                   <div className="inline-actions">
                     <label>SKU principal <input required maxLength={60} readOnly={Boolean(editing.principal)} value={editing.code} onChange={event => setEditing({ ...editing, code: event.target.value })} /></label>
+                    {principalArticleCode(editing) && (
+                      <label>Código de artículo <input readOnly value={principalArticleCode(editing)} /></label>
+                    )}
                     <label>Nombre en Shopify <input required maxLength={150} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
                   </div>
                 )}
@@ -713,7 +720,7 @@ export default function ShopifyCatalogPage() {
                 event.preventDefault();
                 setExpandedModelId(current => current === model.id ? null : model.id);
               }}>
-                SKU principal {model.principal?.sku || model.code} · {model.title} · {model.variants.length} variante(s)
+                SKU principal {model.principal?.sku || model.code}{principalArticleCode(model) && ` · Código ${principalArticleCode(model)}`} · {model.title} · {model.variants.length} variante(s)
               </summary>
               <p>{modelStatus(model)}{model.syncError ? ` · ${model.syncError}` : ''}</p>
               <div className="table-wrapper">
