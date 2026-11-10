@@ -144,7 +144,7 @@ function VariantEditor({ model, models, update, disabled }) {
             <ul>
               {items.map(item => (
                 <li key={item.id}>
-                  {item.sku} · {item.description}{' '}
+                  <strong>SKU {item.sku}</strong> · Código {item.code} · {item.description}{' '}
                   <button
                     type="button"
                     className="secondary-button"
