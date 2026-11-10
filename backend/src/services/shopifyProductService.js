@@ -497,6 +497,7 @@ async function archiveShopifyProduct(productId) {
 }
 
 module.exports = {
+  shopifyGraphql,
   SHOPIFY_CATEGORY_MAP,
   syncShopifyProduct,
   archiveShopifyProduct,

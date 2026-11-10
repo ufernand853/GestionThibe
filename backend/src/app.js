@@ -17,6 +17,7 @@ const reportsRoutes = require('./routes/reports');
 const rolesRoutes = require('./routes/roles');
 const preferencesRoutes = require('./routes/preferences');
 const shopifyRoutes = require('./routes/shopify');
+const shopifyCatalogRoutes = require('./routes/shopifyCatalog');
 const localSalesRoutes = require('./routes/localSales');
 const { verifyShopifyWebhook, parseWebhookBody, applyInventoryLevelUpdate } = require('./services/shopifyWebhookService');
 
@@ -57,6 +58,7 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/preferences', preferencesRoutes);
+app.use('/api/shopify/catalog', shopifyCatalogRoutes);
 app.use('/api/shopify', shopifyRoutes);
 app.use('/api/local-sales', localSalesRoutes);
 

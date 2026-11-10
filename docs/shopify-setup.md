@@ -105,3 +105,23 @@ Cada artículo/SKU local representa una ficha de producto en Shopify. Por lo tan
 ## 7. Imágenes del producto
 
 Al reenviar un artículo, las fotos nuevas se agregan a la galería. Las fotos que ya están en Shopify se conservan. Si Shopify informa que una foto sigue en procesamiento, volvé a enviar el artículo para asociarla cuando esté lista. El sistema vuelve a usar el mismo archivo de Shopify en el reintento.
+
+
+## Piloto de Catálogo online
+
+En Shopify → Catálogo online se vincula cada combinación de color y talle con
+un artículo existente. Las fotos se pueden reutilizar desde esos artículos o
+agregar con una URL HTTPS. Cargá el saldo contado de cada caja o copiá la
+composición de una caja idéntica. Estos conteos pertenecen al piloto.
+
+Para enviar una ficha de prueba, configurá las credenciales, la URL pública
+si se usan fotos de GestionThibe, y `SHOPIFY_DEFAULT_LOCATION_ID`. El botón
+**Enviar borrador a Shopify** sincroniza las variantes, sus fotos y el saldo
+de las cajas, incluidos los ceros. Si Shopify sigue procesando una foto,
+volvé a enviar el borrador cuando esté lista.
+
+Desde **Pedidos online**, reservá la última unidad, revisá **Alertas de stock**
+y cancelá para comprobar que vuelva a estar disponible. También se puede
+simular la preparación desde una caja o registrar una sucursal de origen.
+Los pedidos del piloto son simulados. Este flujo todavía no procesa pedidos
+reales ni publica fichas activas.

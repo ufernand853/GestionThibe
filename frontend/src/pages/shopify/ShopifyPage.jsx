@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
@@ -147,6 +148,7 @@ export default function ShopifyPage() {
         <div className="page-header-row">
           <div>
             <h2>Shopify</h2>
+            <Link to="/shopify/catalogo">Catálogo online</Link>
             <p className="muted-text">Artículos con unidades sueltas en locales y artículos ya vinculados a Shopify, incluso sin stock. Podés enviar varios a la vez.</p>
             {shopifyConfig && (
               <p className="muted-text">

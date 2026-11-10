@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
@@ -1551,6 +1551,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                             <button type="button" className="secondary-button" onClick={() => handleEdit(item)}>
                               Editar
                             </button>
+                            {permissions.includes('items.write') && <Link to={`/shopify/catalogo?articulo=${item.id}`}>Preparar para Shopify</Link>}
                             {canManageItems && (
                               <button
                                 type="button"

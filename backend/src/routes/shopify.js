@@ -4,6 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
+const ShopifyCatalogModel = require('../models/ShopifyCatalogModel');
 const Location = require('../models/Location');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus, getAdminAccessToken } = require('../services/shopifyAuthService');
@@ -224,6 +225,10 @@ router.post(
   asyncHandler(async (req, res) => {
     const payload = getRequestBody(req.body);
     const items = await loadItemsByIds(payload.itemIds);
+    const grouped = await ShopifyCatalogModel.exists({ 'variants.itemId': { $in: items.map(item => item._id) } });
+    if (grouped) {
+      throw new HttpError(409, 'La selección contiene SKU de Catálogo online. Enviá esos SKU desde su modelo.');
+    }
     const shopifyConfig = getShopifyAuthStatus();
     if (!shopifyConfig.dryRun && !shopifyConfig.configured) throw new HttpError(400, 'Falta configurar las credenciales de Shopify.');
     if (!shopifyConfig.dryRun && shopifyConfig.configured) {
