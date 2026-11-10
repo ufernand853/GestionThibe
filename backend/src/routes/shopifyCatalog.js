@@ -11,7 +11,7 @@ const { HttpError } = require('../utils/errors');
 const asyncHandler = require('../utils/asyncHandler');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus } = require('../services/shopifyAuthService');
-const { normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock } = require('../services/shopifyCatalogService');
+const { normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, getVariantSku, suggestOpening, validateOpeningStock } = require('../services/shopifyCatalogService');
 const { syncCatalogDraft } = require('../services/shopifyCatalogDraftService');
 
 const router = express.Router();
@@ -41,8 +41,8 @@ function serializeItem(item, locations) {
   };
 }
 
-async function loadItems(variants) {
-  const ids = [...new Set(variants.map(variant => String(variant.itemId)))];
+async function loadItems(variants, principals = []) {
+  const ids = [...new Set([...variants.map(variant => variant.sourceItemId || variant.itemId), ...principals].filter(Boolean).map(String))];
   const items = await Item.find({ _id: { $in: ids } }).select(itemFields).lean();
   return new Map(items.map(item => [String(item._id), item]));
 }
@@ -50,9 +50,9 @@ async function loadItems(variants) {
 function validateItems(variants, items) {
   const skus = new Set();
   for (const variant of variants) {
-    const item = items.get(String(variant.itemId));
+    const item = items.get(String(variant.sourceItemId || variant.itemId));
     if (!item || item.deletedAt) throw new HttpError(409, 'Hay artículos eliminados o inexistentes en el modelo.');
-    const sku = item.sku || item.code;
+    const sku = getVariantSku(variant, item);
     if (isLinked(item)) {
       throw new HttpError(409, `El SKU ${sku} ya está vinculado a una ficha individual de Shopify.`);
     }
@@ -67,6 +67,7 @@ function serializeModel(model, items, locations) {
     id: String(model._id),
     code: model.code,
     title: model.title,
+    principal: items.has(String(model.principalItemId)) ? serializeItem(items.get(String(model.principalItemId)), locations) : null,
     revision: model.revision,
     productId: model.productId,
     syncedAt: model.syncedAt,
@@ -75,11 +76,15 @@ function serializeModel(model, items, locations) {
     boxes: model.boxes,
     testOrders: model.testOrders || [],
     galleries: model.galleries,
-    variants: model.variants.map(variant => ({
-      ...variant,
-      item: items.has(String(variant.itemId)) ? serializeItem(items.get(String(variant.itemId)), locations) : null,
-      available: availability.get(String(variant.itemId))
-    }))
+    variants: model.variants.map(variant => {
+      const item = items.get(String(variant.sourceItemId || variant.itemId));
+      return {
+        ...variant,
+        item: item ? serializeItem(item, locations) : null,
+        sku: item ? getVariantSku(variant, item) : null,
+        available: availability.get(String(variant.itemId))
+      };
+    })
   };
 }
 
@@ -140,19 +145,43 @@ router.get('/items', read, asyncHandler(async (req, res) => {
   res.json(items.map(item => serializeItem(item, locations)));
 }));
 
+router.get('/items/:id/opening', read, asyncHandler(async (req, res) => {
+  if (!idPattern.test(req.params.id)) throw new HttpError(400, 'Artículo inválido.');
+  const item = await Item.findOne({ _id: req.params.id, deletedAt: null }).select(itemFields).lean();
+  if (!item) throw new HttpError(404, 'No se encontró el SKU principal.');
+  if (isLinked(item)) throw new HttpError(409, 'El SKU principal ya tiene una ficha individual en Shopify.');
+  res.json(suggestOpening(item));
+}));
+
 router.get('/models', read, asyncHandler(async (req, res) => {
   const itemId = String(req.query.itemId || '');
-  const filter = idPattern.test(itemId) ? { 'variants.itemId': itemId } : {};
+  const filter = idPattern.test(itemId) ? { $or: [{ 'variants.itemId': itemId }, { principalItemId: itemId }] } : {};
   const models = await ShopifyCatalogModel.find(filter).sort({ title: 1 }).lean();
-  const items = await loadItems(models.flatMap(model => model.variants));
+  const items = await loadItems(models.flatMap(model => model.variants), models.map(model => model.principalItemId));
   const locations = await loadLocationNames(items.values());
   res.json(models.map(model => serializeModel(model, items, locations)));
 }));
 
 async function saveModel(req, res) {
+  if (req.params.id && !idPattern.test(req.params.id)) throw new HttpError(400, 'Modelo inválido.');
   const input = normalizeCatalogInput(req.body);
-  const items = await loadItems(input.variants);
+  const items = await loadItems(input.variants, [input.principalItemId]);
+  if (input.principalItemId) {
+    const principal = items.get(String(input.principalItemId));
+    if (!principal || principal.deletedAt || isLinked(principal)) {
+      throw new HttpError(409, 'El SKU principal ya no está disponible para este modelo.');
+    }
+    input.code = (principal.sku || principal.code).toUpperCase();
+  }
+  const claimedItemIds = [...items.keys()];
+  const conflict = await ShopifyCatalogModel.exists({
+    ...(req.params.id ? { _id: { $ne: req.params.id } } : {}),
+    $or: [{ principalItemId: { $in: claimedItemIds } }, { 'variants.itemId': { $in: claimedItemIds } }]
+  });
+  if (conflict) throw new HttpError(409, 'Uno de los SKU ya pertenece a otro modelo online.');
+  input.claimedItemIds = claimedItemIds;
   validateItems(input.variants, items);
+  validateOpeningStock(input, items);
   const updatedBy = req.user?.username || 'Desconocido';
   let saved;
   let before;
@@ -203,15 +232,16 @@ router.post('/models/:id/sync-draft', write, asyncHandler(async (req, res) => {
   if (syncing.has(id)) throw new HttpError(409, 'Este modelo ya se está sincronizando.');
   syncing.add(id);
   try {
-    const items = await loadItems(model.variants);
+    const items = await loadItems(model.variants, [model.principalItemId]);
     validateItems(model.variants, items);
+    validateOpeningStock(model, items);
     const productId = await syncCatalogDraft(model, items);
     const saved = await ShopifyCatalogModel.findByIdAndUpdate(
       id,
       { $set: { productId, syncedRevision: model.revision, syncedAt: new Date(), syncError: null } },
       { new: true }
     ).lean();
-    await sendModel(res, saved, await loadItems(saved.variants));
+    await sendModel(res, saved, await loadItems(saved.variants, [saved.principalItemId]));
   } catch (error) {
     await ShopifyCatalogModel.findByIdAndUpdate(id, { $set: { syncError: error.message.slice(0, 500) } });
     throw error;
@@ -228,19 +258,19 @@ router.post('/models/:id/test-orders', write, asyncHandler(async (req, res) => {
   }
   const orders = model.testOrders || [];
   if (orders.some(order => order.key === key)) {
-    return sendModel(res, model, await loadItems(model.variants));
+    return sendModel(res, model, await loadItems(model.variants, [model.principalItemId]));
   }
   if (orders.length >= 200) throw new HttpError(409, 'El modelo alcanzó el máximo de pedidos de prueba.');
   const variant = model.variants.find(row => String(row.itemId) === itemId);
   const available = getCatalogAvailability(model).get(itemId) || 0;
   if (!variant || units > available) throw new HttpError(409, 'La variante no tiene suficientes unidades disponibles.');
-  const items = await loadItems(model.variants);
+  const items = await loadItems(model.variants, [model.principalItemId]);
   validateItems(model.variants, items);
-  const item = items.get(itemId);
+  const item = items.get(String(variant.sourceItemId || itemId));
   const saved = await ShopifyCatalogModel.findOneAndUpdate(
     { _id: model._id, revision: model.revision },
     {
-      $push: { testOrders: { key, itemId, units, sku: item.sku || item.code, color: variant.color, size: variant.size, status: 'reserved', createdAt: new Date() } },
+      $push: { testOrders: { key, itemId, units, sku: getVariantSku(variant, item), color: variant.color, size: variant.size, status: 'reserved', createdAt: new Date() } },
       $inc: { revision: 1 }
     },
     { new: true }
@@ -255,7 +285,7 @@ router.post('/models/:id/test-orders/:key/resolve', write, asyncHandler(async (r
   if (!['cancelled', 'prepared'].includes(status)) throw new HttpError(400, 'Acción de pedido inválida.');
   const order = model.testOrders?.find(row => row.key === req.params.key);
   if (!order) throw new HttpError(404, 'No se encontró el pedido de prueba.');
-  const items = await loadItems(model.variants);
+  const items = await loadItems(model.variants, [model.principalItemId]);
   if (order.status === status) return sendModel(res, model, items);
   if (order.status !== 'reserved') throw new HttpError(409, 'El pedido de prueba ya se resolvió.');
 

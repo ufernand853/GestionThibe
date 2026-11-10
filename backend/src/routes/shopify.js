@@ -225,7 +225,10 @@ router.post(
   asyncHandler(async (req, res) => {
     const payload = getRequestBody(req.body);
     const items = await loadItemsByIds(payload.itemIds);
-    const grouped = await ShopifyCatalogModel.exists({ 'variants.itemId': { $in: items.map(item => item._id) } });
+    const ids = items.map(item => item._id);
+    const grouped = await ShopifyCatalogModel.exists({
+      $or: [{ 'variants.itemId': { $in: ids } }, { principalItemId: { $in: ids } }]
+    });
     if (grouped) {
       throw new HttpError(409, 'La selección contiene SKU de Catálogo online. Enviá esos SKU desde su modelo.');
     }

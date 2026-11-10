@@ -18,9 +18,21 @@ const modelStatus = model => model.syncError ? 'Error de sincronización' : mode
 function itemVariant(item) {
   return {
     itemId: item.id,
+    sku: item.sku,
     item,
     color: item.attributes?.color || '',
     size: item.attributes?.size || ''
+  };
+}
+
+async function openPrincipal(api, model, item) {
+  const variants = await api.get(`${endpoint}/items/${item.id}/opening`);
+  return {
+    ...model,
+    principal: item,
+    code: item.sku,
+    title: model.title || item.description,
+    variants: variants.map(row => ({ ...row, item }))
   };
 }
 
@@ -31,6 +43,7 @@ function OptionField({ variant, field, onChange }) {
       aria-label={`${label} para ${variant.item?.sku || 'el artículo'}`}
       placeholder={`Sin ${label.toLowerCase()} cargado`}
       value={variant[field]}
+      readOnly={Boolean(variant.sourceItemId)}
       onChange={event => onChange(event.target.value)}
       required
     />
@@ -56,6 +69,36 @@ function VariantEditor({ model, update, disabled }) {
     }
   }
 
+  async function addItem(item) {
+    setError('');
+    if (!model.id && !model.variants.length) {
+      setSearching(true);
+      try {
+        update(await openPrincipal(api, model, item));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setSearching(false);
+      }
+      return;
+    }
+
+    const row = itemVariant(item);
+    const match = model.variants.find(variant => variant.sourceItemId &&
+      colorKey(variant.color) === colorKey(row.color) && colorKey(variant.size) === colorKey(row.size));
+    if (match && model.boxes.some(box => box.quantities.some(quantity => quantity.itemId === match.itemId && quantity.units))) {
+      setError('Poné en cero el saldo de la variante generada antes de reemplazarla por un SKU existente.');
+      return;
+    }
+    update(current => {
+      const variants = [...current.variants.filter(variant => variant.itemId !== match?.itemId), row];
+      const sources = new Set(variants.map(variant => variant.sourceItemId || variant.itemId));
+      const boxes = current.boxes.filter(box => !box.sourceKey || sources.has(box.sourceKey.split(':')[0]))
+        .map(box => ({ ...box, quantities: box.quantities.filter(quantity => quantity.itemId !== match?.itemId) }));
+      return { ...current, variants, boxes };
+    });
+  }
+
   function changeVariant(itemId, field, value) {
     update(current => ({
       ...current,
@@ -68,7 +111,8 @@ function VariantEditor({ model, update, disabled }) {
       ...current,
       variants: current.variants.filter(row => row.itemId !== itemId),
       boxes: current.boxes
-        .filter(box => !box.sourceKey?.startsWith(itemId + ':'))
+        .filter(box => !box.sourceKey || current.variants.some(row => row.itemId !== itemId &&
+          box.sourceKey.startsWith((row.sourceItemId || row.itemId) + ':')))
         .map(box => ({ ...box, quantities: box.quantities.filter(row => row.itemId !== itemId) }))
     }));
   }
@@ -76,8 +120,8 @@ function VariantEditor({ model, update, disabled }) {
   return (
     <section>
       <h3>Artículos del modelo</h3>
-      <p className="muted-text">Cada fila usa el código y el saldo de un SKU. Si un SKU trae varios colores o talles en el mismo texto, su saldo es compartido. Para manejar cantidades distintas por combinación, cada una necesita su propio SKU.</p>
-      <p className="muted-text">Buscá un artículo y agregalo al modelo. El color y el talle se copian tal como están en Artículos. Podés completar un dato faltante o corregirlo para la web desde acá.</p>
+      <p className="muted-text">Elegí el SKU principal. Los colores y talles que vienen separados con / o - generan combinaciones para revisar. Quitá las que no existen. Si una combinación tiene su propio SKU, buscá y agregá ese artículo para reutilizarlo.</p>
+      <p className="muted-text">Los códigos generados se usan en el catálogo online. Completá el color o talle que falte en un SKU existente y cargá el saldo de cada combinación en Cajas.</p>
       <div className="inline-actions">
         <label>
           Buscar por código, SKU o descripción
@@ -98,10 +142,10 @@ function VariantEditor({ model, update, disabled }) {
               <button
                 type="button"
                 className="secondary-button"
-                disabled={disabled || item.linked || model.variants.some(row => row.itemId === item.id)}
-                onClick={() => update(current => ({ ...current, variants: [...current.variants, itemVariant(item)] }))}
+                disabled={disabled || searching || item.linked || model.principal?.id === item.id || model.variants.some(row => row.itemId === item.id)}
+                onClick={() => addItem(item)}
               >
-                {item.linked ? 'Vinculado a una ficha individual' : 'Agregar SKU'}
+                {item.linked ? 'Vinculado a una ficha individual' : !model.id && !model.variants.length ? 'Usar como SKU principal' : 'Agregar SKU'}
               </button>
             </li>
           ))}
@@ -113,7 +157,7 @@ function VariantEditor({ model, update, disabled }) {
           <tbody>
             {model.variants.map(row => (
               <tr key={row.itemId}>
-                <td>{row.item?.sku || 'Artículo inexistente'}</td>
+                <td>{row.sku || 'Artículo inexistente'}{row.sourceItemId ? ' (generado)' : ''}</td>
                 <td>{row.item?.description}{row.item?.deleted ? ' (eliminado)' : ''}</td>
                 <td><OptionField variant={row} field="color" onChange={value => changeVariant(row.itemId, 'color', value)} /></td>
                 <td><OptionField variant={row} field="size" onChange={value => changeVariant(row.itemId, 'size', value)} /></td>
@@ -209,13 +253,14 @@ function GalleryEditor({ model, update, onReading }) {
 const maxBoxUnits = 1000000;
 
 function ExistingBoxes({ model, update }) {
-  const rows = model.variants.flatMap(variant => (variant.item?.boxStock || []).map(stock => {
-    const sourceKey = variant.itemId + ':' + stock.locationId;
+  const stockSources = new Map(model.variants.map(variant => [variant.sourceItemId || variant.itemId, variant]));
+  const rows = [...stockSources.entries()].flatMap(([sourceId, variant]) => (variant.item?.boxStock || []).map(stock => {
+    const sourceKey = sourceId + ':' + stock.locationId;
     const attributes = variant.item.attributes;
     const hasMixedAttributes = [variant.size, variant.color, attributes?.size, attributes?.color].some(value => splitOptions(value).length > 1);
     const estimate = stock.boxes * stock.unitsPerBox;
-    const units = !hasMixedAttributes && stock.unitsPerBox && estimate <= maxBoxUnits ? estimate : null;
-    return { variant, stock, sourceKey, units };
+    const units = !variant.sourceItemId && !hasMixedAttributes && stock.unitsPerBox && estimate <= maxBoxUnits ? estimate : null;
+    return { variant, stock, sourceId, sourceKey, units };
   }));
 
   function importBoxes({ variant, stock, sourceKey, units }) {
@@ -243,7 +288,7 @@ function ExistingBoxes({ model, update }) {
           {rows.map(row => {
             const imported = model.boxes.some(box => box.sourceKey === row.sourceKey);
             const hasManualCount = model.boxes.some(box => !box.sourceKey &&
-              box.quantities.some(quantity => quantity.itemId === row.variant.itemId && quantity.units > 0));
+              box.quantities.some(quantity => quantity.units > 0 && model.variants.some(variant => variant.itemId === quantity.itemId && (variant.sourceItemId || variant.itemId) === row.sourceId)));
             return (
               <tr key={row.sourceKey}>
                 <td>{row.variant.item.sku}</td>
@@ -285,7 +330,7 @@ function BoxEditor({ model, update }) {
         <ul>
           <li><strong>Cajas cargadas</strong> es el número de cajas que ya tiene el SKU en esa ubicación. Traer cajas copia ese dato al modelo.</li>
           <li><strong>Unidades disponibles</strong> es el total de prendas que querés ofrecer, sumando las cajas de esa fila. Si traés 2 cajas de 12, el total inicial es 24. Si te quedan 18, ingresá 18.</li>
-          <li>Si el SKU mezcla colores o talles, o falta el dato de unidades por caja, ingresá el total contado. Un campo vacío equivale a 0 para la web.</li>
+          <li>Si el SKU principal generó varias combinaciones, repartí las unidades contadas entre esas filas. Por ejemplo, 12 unidades se pueden cargar como 5 Blancas M y 7 Negras L. Un campo vacío equivale a 0 para la web.</li>
           <li><strong>Abierta o incompleta</strong> sirve para identificar la caja. El saldo cambia al editar las unidades. Quitar una fila la elimina del modelo online.</li>
         </ul>
       </details>
@@ -299,9 +344,9 @@ function BoxEditor({ model, update }) {
             {!box.sourceKey && <button type="button" className="secondary-button" onClick={() => addBox(box.quantities)}>Copiar composición</button>}
             <button type="button" className="secondary-button" onClick={() => update(current => ({ ...current, boxes: current.boxes.filter((_, position) => position !== index) }))}>Quitar caja</button>
           </div>
-          {model.variants.filter(row => !box.sourceKey || box.sourceKey.startsWith(row.itemId + ':')).map(row => (
+          {model.variants.filter(row => !box.sourceKey || box.sourceKey.startsWith((row.sourceItemId || row.itemId) + ':')).map(row => (
             <label key={row.itemId} className="form-field">
-              Unidades disponibles · {row.item?.sku} · {row.color || 'sin color cargado'} · {row.size || 'sin talle cargado'}
+              Unidades disponibles · {row.sku} · {row.color || 'sin color cargado'} · {row.size || 'sin talle cargado'}
               <input
                 type="number"
                 min="0"
@@ -374,7 +419,7 @@ function PilotOrders({ models, canWrite, busy, submit }) {
               <label>Variante <select value={itemId} required onChange={event => setItemId(event.target.value)} disabled={!model}>
                 <option value="">Seleccioná</option>
                 {model?.variants.map(row => <option key={row.itemId} value={row.itemId} disabled={!row.available}>
-                  {row.item?.sku} · {row.color} · {row.size} · {row.available} disponibles
+                  {row.sku} · {row.color} · {row.size} · {row.available} disponibles
                 </option>)}
               </select></label>
               <label>Unidades <input type="number" min="1" max={variant?.available || 1} step="1" required value={units} onChange={event => setUnits(event.target.value)} /></label>
@@ -427,7 +472,7 @@ export default function ShopifyCatalogPage() {
         if (!current) return;
         setModels(saved);
         if (!itemId || !canWrite) return;
-        const existing = saved.find(model => model.variants.some(row => row.itemId === itemId));
+        const existing = saved.find(model => model.principal?.id === itemId || model.variants.some(row => row.itemId === itemId));
         if (existing) {
           setEditing(existing);
           return;
@@ -438,7 +483,8 @@ export default function ShopifyCatalogPage() {
           setError('El artículo no está disponible para el catálogo o ya tiene una ficha individual en Shopify.');
           return;
         }
-        setEditing({ ...emptyModel, title: item.description, variants: [itemVariant(item)] });
+        const opening = await openPrincipal(api, emptyModel, item);
+        if (current) setEditing(opening);
       } catch (err) {
         if (current) setError(err.message);
       } finally {
@@ -479,7 +525,8 @@ export default function ShopifyCatalogPage() {
       }
       const payload = {
         ...editing,
-        variants: editing.variants.map(({ itemId, color, size }) => ({ itemId, color, size })),
+        principalItemId: editing.principal?.id,
+        variants: editing.variants.map(({ itemId, sourceItemId, color, size }) => ({ itemId, sourceItemId, color, size })),
         galleries
       };
       const model = editing.id
@@ -552,7 +599,7 @@ export default function ShopifyCatalogPage() {
           {alerts.length === 0 ? <p>No hay variantes sin stock.</p> : (
             <ul>
               {alerts.map(({ model, variant }) => (
-                <li key={variant.itemId}>{model.title} · {variant.color} · {variant.size} · {variant.item?.sku} · {modelStatus(model)}</li>
+                <li key={variant.itemId}>{model.title} · {variant.color} · {variant.size} · {variant.sku} · {modelStatus(model)}</li>
               ))}
             </ul>
           )}
@@ -564,9 +611,9 @@ export default function ShopifyCatalogPage() {
             <form onSubmit={save}>
               <fieldset disabled={busy || readingPhoto}>
                 <legend>{editing.id ? 'Editar modelo' : 'Nuevo modelo'}</legend>
-                <p className="muted-text">Usá un código interno para agrupar los SKU y un nombre para la ficha que se verá en Shopify. Los códigos de los artículos se conservan.</p>
+                <p className="muted-text">El código del modelo se toma del SKU principal. El nombre es el título de la ficha en Shopify.</p>
                 <div className="inline-actions">
-              <label>Código del modelo <input required maxLength={60} value={editing.code} onChange={event => setEditing({ ...editing, code: event.target.value })} /></label>
+              <label>Código del modelo <input required maxLength={60} readOnly={Boolean(editing.principal) || !editing.id} placeholder="Elegí el SKU principal" value={editing.code} onChange={event => setEditing({ ...editing, code: event.target.value })} /></label>
               <label>Nombre <input required maxLength={150} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
                 </div>
                 <VariantEditor model={editing} update={setEditing} disabled={busy} />
@@ -580,16 +627,17 @@ export default function ShopifyCatalogPage() {
               </fieldset>
             </form>
           )}
+          {models.length > 0 && <h3>Envío a Shopify</h3>}
           {models.map(model => (
-            <section key={model.id}>
-              <h3>{model.code} · {model.title}</h3>
+            <details key={model.id}>
+              <summary>SKU principal {model.principal?.sku || model.code} · {model.title} · {model.variants.length} variante(s)</summary>
               <p>{modelStatus(model)}{model.syncError ? ` · ${model.syncError}` : ''}</p>
               <div className="table-wrapper">
                 <table>
                   <thead><tr><th>SKU</th><th>Color</th><th>Talle</th><th>Disponibles para la web</th></tr></thead>
                   <tbody>
                     {model.variants.map(row => (
-                      <tr key={row.itemId}><td>{row.item?.sku || 'Artículo inexistente'}</td><td>{row.color}</td><td>{row.size}</td><td>{row.available || 'Agotado'}</td></tr>
+                      <tr key={row.itemId}><td>{row.sku || 'Artículo inexistente'}{row.sourceItemId ? ' (generado)' : ''}</td><td>{row.color}</td><td>{row.size}</td><td>{row.available || 'Agotado'}</td></tr>
                     ))}
                   </tbody>
                 </table>
@@ -600,7 +648,7 @@ export default function ShopifyCatalogPage() {
                   <button type="button" onClick={() => syncDraft(model)} disabled={busy || Boolean(editing)}>Enviar borrador a Shopify</button>
                 </div>
               )}
-            </section>
+            </details>
           ))}
         </>
       )}

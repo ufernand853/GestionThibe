@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const config = require('../src/config');
-const { getCatalogAvailability, normalizeCatalogInput, getExistingBoxStock, resolveCatalogPhotoUrl } = require('../src/services/shopifyCatalogService');
+const { getCatalogAvailability, normalizeCatalogInput, getExistingBoxStock, resolveCatalogPhotoUrl, suggestOpening, validateOpeningStock, getVariantSku } = require('../src/services/shopifyCatalogService');
 const { syncCatalogDraft } = require('../src/services/shopifyCatalogDraftService');
 
 const mediumId = 'aaaaaaaaaaaaaaaaaaaaaaaa';
@@ -144,4 +144,47 @@ test('mantiene el texto de talle y color del SKU y admite fotos de cada color se
   assert.deepEqual(model.variants[0], input.variants[0]);
   assert.deepEqual(model.galleries.map(gallery => gallery.color), ['negro', 'Blanco', 'Verde']);
   assert.equal(getCatalogAvailability(model).get(mediumId), 3);
+});
+
+
+test('abre un SKU mixto en combinaciones estables y reparte el saldo sin tocar el artículo', () => {
+  const locationId = 'cccccccccccccccccccccccc';
+  const item = {
+    _id: mediumId, sku: '000488', attributes: { color: 'Blanco/Negro', size: 'M-L' },
+    unitsPerBox: 12, stock: { [locationId]: { boxes: 1, units: 3 } }
+  };
+  const variants = suggestOpening(item);
+  assert.deepEqual(variants.map(({ color, size }) => [color, size]), [
+    ['Blanco', 'M'], ['Blanco', 'L'], ['Negro', 'M'], ['Negro', 'L']
+  ]);
+  assert.deepEqual(suggestOpening(item), variants);
+  assert.equal(new Set(variants.map(row => row.sku)).size, 4);
+  assert.ok(variants.every(row => row.sku.startsWith('000488-')));
+
+  const input = {
+    ...modelInput(),
+    principalItemId: mediumId,
+    variants: [variants[0], variants[3]],
+    galleries: [],
+    boxes: [{
+      label: 'Caja original',
+      sourceKey: mediumId + ':' + locationId,
+      sourceBoxes: 1,
+      quantities: [{ itemId: variants[0].itemId, units: 5 }, { itemId: variants[3].itemId, units: 7 }]
+    }]
+  };
+  const model = normalizeCatalogInput(input);
+  assert.equal(getVariantSku(model.variants[0], item), variants[0].sku);
+  assert.deepEqual([...getCatalogAvailability(model).values()], [5, 7]);
+  const sources = new Map([[mediumId, item]]);
+  validateOpeningStock(model, sources);
+  model.boxes[0].quantities[1].units = 8;
+  assert.throws(() => validateOpeningStock(model, sources), /suma 13 unidades y hay 12/);
+  assert.equal(item.stock[locationId].boxes, 1);
+  assert.equal(item.stock[locationId].units, 3);
+});
+
+test('una combinación que ya tiene SKU conserva su código', () => {
+  const [variant] = suggestOpening({ _id: mediumId, sku: '000488', attributes: { color: 'Blanco', size: 'M' } });
+  assert.deepEqual(variant, { itemId: mediumId, sku: '000488', color: 'Blanco', size: 'M' });
 });

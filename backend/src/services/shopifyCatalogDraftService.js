@@ -2,7 +2,7 @@ const config = require('../config');
 const { HttpError } = require('../utils/errors');
 const { shopifyGraphql } = require('./shopifyProductService');
 const { getOrCreateImage } = require('./shopifyMediaService');
-const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl, normalizeLabel, splitColors } = require('./shopifyCatalogService');
+const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl, normalizeLabel, splitColors, getVariantSku } = require('./shopifyCatalogService');
 
 async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   const location = config.shopify.defaultLocationId.trim();
@@ -31,8 +31,8 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
 
   const variants = model.variants.map(row => {
     const id = String(row.itemId);
-    const item = items.get(id);
-    const sku = item.sku || item.code;
+    const item = items.get(String(row.sourceItemId || id));
+    const sku = getVariantSku(row, item);
     if (!Number.isFinite(item.pDecimal) || item.pDecimal < 0) {
       throw new HttpError(400, `Cargá un precio para el SKU ${sku} antes de sincronizar.`);
     }

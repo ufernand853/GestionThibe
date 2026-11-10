@@ -1,3 +1,4 @@
+const { createHash } = require('node:crypto');
 const { HttpError } = require('../utils/errors');
 const { coerceQuantity } = require('../utils/quantity');
 
@@ -29,6 +30,53 @@ function list(value, field, max, min = 0) {
 function itemId(value) {
   if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) invalid('Seleccioná un artículo válido.');
   return value.toLowerCase();
+}
+
+function variantId(sourceItemId, color, size) {
+  return createHash('sha256')
+    .update(JSON.stringify([sourceItemId, normalizeLabel(color), normalizeLabel(size)]))
+    .digest('hex').slice(0, 24);
+}
+
+function getVariantSku(row, item) {
+  const base = item.sku || item.code;
+  if (!row.sourceItemId) return base;
+  const slug = value => value.normalize('NFD').replace(/\p{M}/gu, '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return [base, slug(row.color), slug(row.size), String(row.itemId).slice(-5).toUpperCase()].filter(Boolean).join('-');
+}
+
+function suggestOpening(item) {
+  const sourceItemId = String(item._id);
+  const color = item.attributes?.color || '';
+  const size = item.attributes?.size || '';
+  const options = value => [...new Map(splitColors(value).map(part => [normalizeLabel(part), part])).values()];
+  const colors = options(color);
+  const sizes = options(size);
+  if (colors.length * sizes.length > MAX_VARIANTS) invalid('El artículo supera las 50 combinaciones del piloto.');
+  const variants = colors.length && sizes.length && (colors.length > 1 || sizes.length > 1)
+    ? colors.flatMap(color => sizes.map(size => ({ itemId: variantId(sourceItemId, color, size), sourceItemId, color, size })))
+    : [{ itemId: sourceItemId, color, size }];
+  return variants.map(row => ({ ...row, sku: getVariantSku(row, item) }));
+}
+
+function validateOpeningStock(model, items) {
+  const sourceIds = new Map(model.variants.filter(row => row.sourceItemId).map(row => [String(row.itemId), String(row.sourceItemId)]));
+  const totals = new Map();
+  for (const box of model.boxes) {
+    for (const quantity of box.quantities) {
+      const sourceId = sourceIds.get(String(quantity.itemId));
+      if (sourceId) totals.set(sourceId, (totals.get(sourceId) || 0) + quantity.units);
+    }
+  }
+  for (const [sourceId, units] of totals) {
+    const item = items.get(sourceId);
+    const unitsPerBox = item.unitsPerBox;
+    if (!Number.isSafeInteger(unitsPerBox) || unitsPerBox <= 0) continue;
+    const available = getExistingBoxStock(item).reduce((total, row) => total + row.boxes * unitsPerBox, 0);
+    if (units > available) {
+      invalid(`El reparto del SKU ${item.sku || item.code} suma ${units} unidades y hay ${available} en las cajas registradas.`);
+    }
+  }
 }
 
 function imageSource(value) {
@@ -67,6 +115,7 @@ function getExistingBoxStock(item, locations = new Map()) {
 function normalizeCatalogInput(input) {
   const code = label(input?.code, 'el código del modelo', 60).toUpperCase();
   const title = label(input?.title, 'el nombre del modelo', 150);
+  const principalItemId = input.principalItemId == null ? null : itemId(input.principalItemId);
   const items = new Set();
   const combinations = new Set();
   const colors = new Map();
@@ -75,6 +124,10 @@ function normalizeCatalogInput(input) {
     const id = itemId(row?.itemId);
     const color = label(row?.color, 'un color');
     const size = label(row?.size, 'un talle');
+    const sourceItemId = row.sourceItemId == null ? null : itemId(row.sourceItemId);
+    if (sourceItemId && (sourceItemId !== principalItemId || variantId(sourceItemId, color, size) !== id)) {
+      invalid('La variante generada no corresponde al SKU principal.');
+    }
     const colorKey = normalizeLabel(color);
     const sizeKey = normalizeLabel(size);
     const combination = JSON.stringify([colorKey, sizeKey]);
@@ -84,9 +137,14 @@ function normalizeCatalogInput(input) {
     combinations.add(combination);
     if (!colors.has(colorKey)) colors.set(colorKey, color);
     if (!sizes.has(sizeKey)) sizes.set(sizeKey, size);
-    return { itemId: id, color: colors.get(colorKey), size: sizes.get(sizeKey) };
+    return { itemId: id, ...(sourceItemId ? { sourceItemId } : {}), color: colors.get(colorKey), size: sizes.get(sizeKey) };
   });
 
+  const sourcesByVariant = new Map(variants.map(row => [row.itemId, row.sourceItemId || row.itemId]));
+  if (variants.some(row => row.sourceItemId) && items.has(principalItemId)) {
+    invalid('El SKU principal ya está representado por sus variantes generadas.');
+  }
+  const stockSources = new Set(sourcesByVariant.values());
   const boxLabels = new Set();
   const boxSources = new Set();
   const boxes = list(input.boxes, 'cajas', MAX_BOXES).map(box => {
@@ -98,7 +156,7 @@ function normalizeCatalogInput(input) {
     const sourceItemId = typeof source === 'string' ? source.split(':')[0] : null;
     if (source != null) {
       if (typeof source !== 'string' || !/^[a-f\d]{24}:[a-f\d]{24}$/.test(source) ||
-          !items.has(sourceItemId) || boxSources.has(source) ||
+          !stockSources.has(sourceItemId) || boxSources.has(source) ||
           !Number.isSafeInteger(box.sourceBoxes) || box.sourceBoxes < 1) {
         invalid('Revisá las cajas importadas para cada SKU y ubicación.');
       }
@@ -107,7 +165,7 @@ function normalizeCatalogInput(input) {
     const counted = new Set();
     const quantities = list(box.quantities, 'cantidades de la caja', MAX_VARIANTS).map(row => {
       const id = itemId(row?.itemId);
-      if (!items.has(id) || counted.has(id) || (sourceItemId && id !== sourceItemId)) invalid(`Revisá las variantes de la caja ${name}.`);
+      if (!items.has(id) || counted.has(id) || (sourceItemId && sourcesByVariant.get(id) !== sourceItemId)) invalid(`Revisá las variantes de la caja ${name}.`);
       if (!Number.isSafeInteger(row.units) || row.units < 0 || row.units > MAX_BOX_UNITS) {
         invalid(`Ingresá cantidades enteras entre 0 y ${MAX_BOX_UNITS} para la caja ${name}.`);
       }
@@ -139,7 +197,7 @@ function normalizeCatalogInput(input) {
     return { color: availableColors.get(key), images };
   });
   if (photoCount > MAX_PHOTOS) invalid(`El modelo admite hasta ${MAX_PHOTOS} fotos.`);
-  return { code, title, variants, boxes, galleries };
+  return { code, title, ...(principalItemId ? { principalItemId } : {}), variants, boxes, galleries };
 }
 
 function getCatalogAvailability(model) {
@@ -157,4 +215,4 @@ function getCatalogAvailability(model) {
   return totals;
 }
 
-module.exports = { MAX_VARIANTS, normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, resolveCatalogPhotoUrl, normalizeLabel, splitColors };
+module.exports = { MAX_VARIANTS, normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, resolveCatalogPhotoUrl, normalizeLabel, splitColors, suggestOpening, getVariantSku, validateOpeningStock };
