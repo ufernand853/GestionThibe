@@ -211,3 +211,39 @@ test('limita los modelos nuevos a un producto y permite conservar los modelos an
   assert.doesNotThrow(() => validateSingleProduct(previous, previous));
   assert.throws(() => validateSingleProduct({ principalItemId: largeId, variants: [other] }, previous), /SKU principal/);
 });
+
+
+test('edita la ficha individual en borrador y registra su gestión antes de enviar inventario', async t => {
+  const previousLocation = config.shopify.defaultLocationId;
+  config.shopify.defaultLocationId = '1234';
+  t.after(() => { config.shopify.defaultLocationId = previousLocation; });
+
+  const productId = 'gid://shopify/Product/310';
+  const item = { sku: '000323', pDecimal: 100, shopify: { productId } };
+  const model = {
+    _id: 'catalogo', title: 'Jean recto', principalItemId: mediumId,
+    variants: [{ itemId: mediumId, color: 'Azul', size: 'M' }], boxes: [], galleries: []
+  };
+  const items = new Map([[mediumId, item]]);
+  const beforeAdopt = t.mock.fn();
+  const variant = { id: 'gid://shopify/ProductVariant/12', sku: item.sku };
+  const graphql = t.mock.fn(async (query, variables) => {
+    assert.deepEqual(variables.identifier, { id: productId });
+    if (query.includes('productByIdentifier')) {
+      return { productByIdentifier: { id: productId, status: 'DRAFT', variants: { nodes: [variant], pageInfo: { hasNextPage: false } } } };
+    }
+    assert.equal(beforeAdopt.mock.callCount(), 1);
+    assert.equal(beforeAdopt.mock.calls[0].arguments[0], productId);
+    assert.equal(variables.input.variants[0].id, variant.id);
+    assert.equal(variables.input.files, undefined);
+    assert.equal(variables.input.vendor, undefined);
+    return { productSet: { product: { id: productId, variants: { nodes: [variant] } }, userErrors: [] } };
+  });
+  assert.equal(await syncCatalogDraft(model, items, graphql, { beforeAdopt }), productId);
+  assert.equal(graphql.mock.callCount(), 2);
+
+  const active = t.mock.fn(async () => ({ productByIdentifier: { id: productId, status: 'ACTIVE' } }));
+  await assert.rejects(syncCatalogDraft(model, items, active, { beforeAdopt }), /solo sincroniza borradores/);
+  assert.equal(beforeAdopt.mock.callCount(), 1);
+  assert.equal(active.mock.callCount(), 1);
+});

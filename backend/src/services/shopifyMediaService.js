@@ -102,4 +102,4 @@ async function syncProductImages(graphql, productId, media = []) {
   return result;
 }
 
-module.exports = { getOrCreateImage, syncProductImages };
+module.exports = { getOrCreateImage, getProductImages, syncProductImages };

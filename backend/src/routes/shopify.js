@@ -5,6 +5,7 @@ const { HttpError } = require('../utils/errors');
 const { requirePermission } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const ShopifyCatalogModel = require('../models/ShopifyCatalogModel');
+const { getLinkedProductId } = require('../services/shopifyCatalogLinkService');
 const Location = require('../models/Location');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus, getAdminAccessToken } = require('../services/shopifyAuthService');
@@ -225,9 +226,14 @@ router.post(
   asyncHandler(async (req, res) => {
     const payload = getRequestBody(req.body);
     const items = await loadItemsByIds(payload.itemIds);
-    const ids = items.map(item => item._id);
+    const unlinkedIds = items.filter(item => !getLinkedProductId(item)).map(item => item._id);
+    const linkedIds = items.map(getLinkedProductId).filter(Boolean);
     const grouped = await ShopifyCatalogModel.exists({
-      $or: [{ 'variants.itemId': { $in: ids } }, { principalItemId: { $in: ids } }]
+      $or: [
+        { 'variants.itemId': { $in: unlinkedIds } },
+        { principalItemId: { $in: unlinkedIds } },
+        { adoptedProductId: { $in: linkedIds } }
+      ]
     });
     if (grouped) {
       throw new HttpError(409, 'La selección contiene SKU de Catálogo online. Enviá esos SKU desde su modelo.');

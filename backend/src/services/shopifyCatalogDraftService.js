@@ -1,10 +1,11 @@
 const config = require('../config');
 const { HttpError } = require('../utils/errors');
 const { shopifyGraphql } = require('./shopifyProductService');
-const { getOrCreateImage } = require('./shopifyMediaService');
+const { getOrCreateImage, getProductImages } = require('./shopifyMediaService');
+const { getLinkedProductId } = require('./shopifyCatalogLinkService');
 const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl, normalizeLabel, splitColors, getVariantSku } = require('./shopifyCatalogService');
 
-async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
+async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { beforeAdopt } = {}) {
   const location = config.shopify.defaultLocationId.trim();
   const locationId = /^\d+$/.test(location) ? `gid://shopify/Location/${location}` : location;
   if (!/^gid:\/\/shopify\/Location\/\d+$/.test(locationId)) {
@@ -12,7 +13,12 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   }
   const available = getCatalogAvailability(model);
   const handle = `gestionthibe-modelo-${model._id}`;
-  const identifier = model.productId ? { id: model.productId } : { handle };
+  const principal = items.get(String(model.principalItemId));
+  const linkedProductId = getLinkedProductId(principal);
+  const adopting = !model.productId && Boolean(linkedProductId);
+  const adopted = adopting || Boolean(model.adoptedProductId);
+  const productId = model.productId || linkedProductId;
+  const identifier = productId ? { id: productId } : { handle };
   const found = await graphql(`
     query ThibeCatalogDraft($identifier: ProductIdentifierInput!, $limit: Int!) {
       productByIdentifier(identifier: $identifier) {
@@ -23,10 +29,18 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   `, { identifier, limit: MAX_VARIANTS });
   const product = found.productByIdentifier;
   if (product && product.status !== 'DRAFT') {
-    throw new HttpError(409, 'La ficha ya no está en borrador. El piloto solo sincroniza borradores.');
+    throw new HttpError(409, 'El piloto solo sincroniza borradores. Podés seguir editando en GestionThibe. Para enviar los cambios, la ficha de Shopify tiene que estar en borrador.');
   }
   if (product?.variants.pageInfo.hasNextPage) {
     throw new HttpError(409, 'El borrador tiene más variantes de las que admite el piloto.');
+  }
+
+  if (adopted && !product) {
+    throw new HttpError(409, 'Shopify no encontró la ficha vinculada. El modelo quedó guardado en GestionThibe.');
+  }
+  if (adopting && (product.variants.nodes.length !== 1 ||
+      product.variants.nodes[0].sku !== (principal.sku || principal.code))) {
+    throw new HttpError(409, 'La ficha vinculada contiene variantes que requieren revisión en Shopify.');
   }
 
   const variants = model.variants.map(row => {
@@ -86,16 +100,20 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   }));
   const input = {
     title: model.title,
-    vendor: 'GestionThibe',
+    ...(adopted ? {} : { vendor: 'GestionThibe' }),
     status: 'DRAFT',
     ...(product ? {} : { handle }),
     productOptions,
-    files: [...filesBySource.values()].map(id => ({ id })),
+    ...(adopted ? {} : { files: [...filesBySource.values()].map(id => ({ id })) }),
     variants: variants.map((variant, index) => {
       const photo = variantPhotos[index][0];
-      return photo ? { ...variant, file: { id: photo } } : variant;
+      return photo && !adopted ? { ...variant, file: { id: photo } } : variant;
     })
   };
+  if (adopting) {
+    if (!beforeAdopt) throw new HttpError(409, 'No se pudo vincular el borrador al catálogo online.');
+    await beforeAdopt(product.id);
+  }
   const result = await graphql(`
     mutation ThibeSetCatalogDraft($identifier: ProductSetIdentifiers, $input: ProductSetInput!, $limit: Int!) {
       productSet(identifier: $identifier, input: $input, synchronous: true) {
@@ -111,6 +129,22 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   const errors = result.productSet?.userErrors || [];
   if (!synced?.id || errors.length) {
     throw new HttpError(502, errors.map(error => error.message).join(' · ') || 'Shopify no devolvió el borrador.');
+  }
+
+  if (adopted && filesBySource.size) {
+    const existing = new Set((await getProductImages(graphql, synced.id)).map(image => image.id));
+    const files = [...filesBySource.values()].filter(id => !existing.has(id))
+      .map(id => ({ id, referencesToAdd: [synced.id] }));
+    if (files.length) {
+      const updated = await graphql(`
+        mutation ThibeCatalogKeepExistingMedia($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) { files { id } userErrors { message } }
+        }
+      `, { files });
+      if (updated.fileUpdate?.files?.length !== files.length || updated.fileUpdate.userErrors?.length) {
+        throw new HttpError(502, 'No se pudieron agregar las fotos al borrador existente.');
+      }
+    }
   }
 
   const append = [];
@@ -133,7 +167,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
     const desired = variantPhotos[index];
     const current = variant.media.nodes.map(node => node.id);
     const added = desired.filter(id => !current.includes(id));
-    const removed = current.filter(id => !desired.includes(id));
+    const removed = adopted && !desired.length ? [] : current.filter(id => !desired.includes(id));
     if (added.length) append.push({ variantId: variant.id, mediaIds: added });
     if (removed.length) detach.push({ variantId: variant.id, mediaIds: removed });
   }

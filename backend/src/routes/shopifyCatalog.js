@@ -13,6 +13,7 @@ const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus } = require('../services/shopifyAuthService');
 const { normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, getVariantSku, suggestOpening, validateOpeningStock, validateSingleProduct } = require('../services/shopifyCatalogService');
 const { syncCatalogDraft } = require('../services/shopifyCatalogDraftService');
+const { getLinkedProductId } = require('../services/shopifyCatalogLinkService');
 
 const router = express.Router();
 const read = requirePermission('items.read');
@@ -20,11 +21,6 @@ const write = requirePermission('items.write');
 const syncing = new Set();
 const idPattern = /^[a-f\d]{24}$/i;
 const itemFields = 'code sku description attributes images pDecimal unitsPerBox stock deletedAt shopify.productId';
-
-function isLinked(item) {
-  const productId = item?.shopify?.productId;
-  return Boolean(productId && !productId.startsWith('local-'));
-}
 
 function serializeItem(item, locations) {
   return {
@@ -37,7 +33,7 @@ function serializeItem(item, locations) {
     boxStock: getExistingBoxStock(item, locations),
     unitsPerBox: item.unitsPerBox ?? null,
     price: item.pDecimal,
-    linked: isLinked(item),
+    linked: Boolean(getLinkedProductId(item)),
     deleted: Boolean(item.deletedAt)
   };
 }
@@ -48,13 +44,14 @@ async function loadItems(variants, principals = []) {
   return new Map(items.map(item => [String(item._id), item]));
 }
 
-function validateItems(variants, items) {
+function validateItems(variants, items, principalItemId) {
   const skus = new Set();
   for (const variant of variants) {
-    const item = items.get(String(variant.sourceItemId || variant.itemId));
+    const sourceId = String(variant.sourceItemId || variant.itemId);
+    const item = items.get(sourceId);
     if (!item || item.deletedAt) throw new HttpError(409, 'Hay artículos eliminados o inexistentes en el modelo.');
     const sku = getVariantSku(variant, item);
-    if (isLinked(item)) {
+    if (getLinkedProductId(item) && sourceId !== String(principalItemId)) {
       throw new HttpError(409, `El SKU ${sku} ya está vinculado a una ficha individual de Shopify.`);
     }
     if (skus.has(sku)) throw new HttpError(409, `El SKU ${sku} está repetido.`);
@@ -150,7 +147,6 @@ router.get('/items/:id/opening', read, asyncHandler(async (req, res) => {
   if (!idPattern.test(req.params.id)) throw new HttpError(400, 'Artículo inválido.');
   const item = await Item.findOne({ _id: req.params.id, deletedAt: null }).select(itemFields).lean();
   if (!item) throw new HttpError(404, 'No se encontró el SKU principal.');
-  if (isLinked(item)) throw new HttpError(409, 'El SKU principal ya tiene una ficha individual en Shopify.');
   const options = req.query.color == null && req.query.size == null ? undefined : req.query;
   res.json(suggestOpening(item, options));
 }));
@@ -175,7 +171,7 @@ async function saveModel(req, res) {
   const items = await loadItems(input.variants, [input.principalItemId]);
   if (input.principalItemId) {
     const principal = items.get(String(input.principalItemId));
-    if (!principal || principal.deletedAt || isLinked(principal)) {
+    if (!principal || principal.deletedAt) {
       throw new HttpError(409, 'El SKU principal ya no está disponible para este modelo.');
     }
     input.code = (principal.sku || principal.code).toUpperCase();
@@ -187,7 +183,7 @@ async function saveModel(req, res) {
   });
   if (conflict) throw new HttpError(409, 'Uno de los SKU ya pertenece a otro modelo online.');
   input.claimedItemIds = claimedItemIds;
-  validateItems(input.variants, items);
+  validateItems(input.variants, items, input.principalItemId);
   validateOpeningStock(input, items);
   const updatedBy = req.user?.username || 'Desconocido';
   let saved;
@@ -235,9 +231,22 @@ router.post('/models/:id/sync-draft', write, asyncHandler(async (req, res) => {
   syncing.add(id);
   try {
     const items = await loadItems(model.variants, [model.principalItemId]);
-    validateItems(model.variants, items);
+    validateItems(model.variants, items, model.principalItemId);
     validateOpeningStock(model, items);
-    const productId = await syncCatalogDraft(model, items);
+    const productId = await syncCatalogDraft(model, items, undefined, {
+      async beforeAdopt(adoptedProductId) {
+        try {
+          const claimed = await ShopifyCatalogModel.findOneAndUpdate(
+            { _id: id, revision: model.revision, productId: null },
+            { $set: { productId: adoptedProductId, adoptedProductId } }
+          );
+          if (!claimed) throw new HttpError(409, 'El modelo cambió. Volvé a cargarlo antes de enviar el borrador.');
+        } catch (error) {
+          if (error.code === 11000) throw new HttpError(409, 'Esa ficha Shopify ya está asignada a otro modelo.');
+          throw error;
+        }
+      }
+    });
     const saved = await ShopifyCatalogModel.findByIdAndUpdate(
       id,
       { $set: { productId, syncedRevision: model.revision, syncedAt: new Date(), syncError: null } },
@@ -267,7 +276,7 @@ router.post('/models/:id/test-orders', write, asyncHandler(async (req, res) => {
   const available = getCatalogAvailability(model).get(itemId) || 0;
   if (!variant || units > available) throw new HttpError(409, 'La variante no tiene suficientes unidades disponibles.');
   const items = await loadItems(model.variants, [model.principalItemId]);
-  validateItems(model.variants, items);
+  validateItems(model.variants, items, model.principalItemId);
   const item = items.get(String(variant.sourceItemId || itemId));
   const saved = await ShopifyCatalogModel.findOneAndUpdate(
     { _id: model._id, revision: model.revision },

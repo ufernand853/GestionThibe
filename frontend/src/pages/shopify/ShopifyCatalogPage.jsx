@@ -40,7 +40,7 @@ function OptionField({ variant, field, onChange }) {
   );
 }
 
-function VariantEditor({ model, update, disabled }) {
+function VariantEditor({ model, models, update, disabled }) {
   const api = useApi();
   const [search, setSearch] = useState('');
   const [items, setItems] = useState([]);
@@ -65,7 +65,8 @@ function VariantEditor({ model, update, disabled }) {
     setError('');
     setSearching(true);
     try {
-      const opening = await openPrincipal(api, model, item);
+      const existing = models.find(saved => saved.principal?.id === item.id || saved.variants.some(row => row.itemId === item.id));
+      const opening = existing || await openPrincipal(api, model, item);
       update(current => current === model ? opening : current);
       setSearch('');
       setItems([]);
@@ -147,10 +148,10 @@ function VariantEditor({ model, update, disabled }) {
                   <button
                     type="button"
                     className="secondary-button"
-                    disabled={disabled || searching || item.linked}
+                    disabled={disabled || searching}
                     onClick={() => chooseProduct(item)}
                   >
-                    {item.linked ? 'Vinculado a una ficha individual' : 'Elegir producto'}
+                    {item.linked ? 'Editar para Shopify' : 'Elegir producto'}
                   </button>
                 </li>
               ))}
@@ -552,8 +553,8 @@ export default function ShopifyCatalogPage() {
         }
         const [item] = await api.get(`${endpoint}/items?id=${encodeURIComponent(itemId)}`);
         if (!current) return;
-        if (!item || item.linked) {
-          setError('El artículo no está disponible para el catálogo o ya tiene una ficha individual en Shopify.');
+        if (!item) {
+          setError('El artículo no está disponible para el catálogo.');
           return;
         }
         const opening = await openPrincipal(api, emptyModel, item);
@@ -691,7 +692,10 @@ export default function ShopifyCatalogPage() {
                     <label>Nombre en Shopify <input required maxLength={150} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
                   </div>
                 )}
-                <VariantEditor model={editing} update={setEditing} disabled={busy} />
+                {editing.principal?.linked && (
+                  <p className="muted-text">Este SKU ya tiene una ficha en Shopify. Podés editarlo acá. Al enviar los cambios, se usa esa misma ficha si está en borrador.</p>
+                )}
+                <VariantEditor model={editing} models={models} update={setEditing} disabled={busy} />
                 {(editing.principal || editing.id) && <GalleryEditor model={editing} update={setEditing} onReading={setReadingPhoto} />}
                 {(editing.principal || editing.id) && <BoxEditor model={editing} update={setEditing} />}
                 {(editing.principal || editing.id) && <p className="muted-text">Guardá el producto para poder enviarlo como borrador a Shopify.</p>}

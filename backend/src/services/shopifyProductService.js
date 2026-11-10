@@ -1,3 +1,4 @@
+const { getLinkedProductId, isCatalogManagedProduct } = require('./shopifyCatalogLinkService');
 const config = require('../config');
 const crypto = require('crypto');
 const { HttpError } = require('../utils/errors');
@@ -259,6 +260,8 @@ async function syncLocalSaleInventory(item, location) {
   if (!location.shopifyLocationId) return { status: 'location_not_mapped' };
   if (config.shopify.dryRun) return { status: 'synced', dryRun: true };
 
+  if (await isCatalogManagedProduct(getLinkedProductId(item))) return { status: 'catalog_managed' };
+
   const stock = item.stock instanceof Map ? item.stock.get(String(location.id)) : item.stock?.[String(location.id)];
   const quantity = getLocationAvailableQuantity(stock);
   const inventoryItemId = shopifyGid('InventoryItem', item.shopify.inventoryItemId);
@@ -482,6 +485,9 @@ async function syncShopifyProduct({ existingProductId, existingVariantId, payloa
 async function archiveShopifyProduct(productId) {
   if (!productId) {
     return null;
+  }
+  if (await isCatalogManagedProduct(productId)) {
+    throw new HttpError(409, 'La ficha está gestionada desde Catálogo online.');
   }
   const product = await getProductForSync(productId);
   if (product.variants.nodes.length > 1) {

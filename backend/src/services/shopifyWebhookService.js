@@ -1,3 +1,4 @@
+const { getLinkedProductId, isCatalogManagedProduct } = require('./shopifyCatalogLinkService');
 const crypto = require('crypto');
 const Item = require('../models/Item');
 const Location = require('../models/Location');
@@ -75,6 +76,10 @@ async function applyInventoryLevelUpdate(payload) {
       inventoryItemId: shopifyGid('InventoryItem', payload.inventory_item_id || payload.inventoryItemId),
       locationId: shopifyGid('Location', payload.location_id || payload.locationId)
     };
+  }
+
+  if (await isCatalogManagedProduct(getLinkedProductId(item))) {
+    return { status: 'ignored', reason: 'El saldo de esta ficha se gestiona desde Catálogo online.' };
   }
 
   if (!item.stock || !(item.stock instanceof Map)) {
