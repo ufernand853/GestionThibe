@@ -99,6 +99,33 @@ function VariantEditor({ model, update, disabled }) {
     });
   }
 
+  async function expandRow(row) {
+    setError('');
+    if (model.boxes.some(box => box.quantities.some(quantity => quantity.itemId === row.itemId && quantity.units))) {
+      setError('Antes de generar las variantes, dejá en 0 las unidades del SKU principal. Después podés repartirlas entre las variantes.');
+      return;
+    }
+    setSearching(true);
+    try {
+      const options = new URLSearchParams({ color: row.color, size: row.size });
+      const variants = await api.get(`${endpoint}/items/${row.itemId}/opening?${options}`);
+      update(current => ({
+        ...current,
+        principal: row.item,
+        code: row.item.sku,
+        variants: current.variants.flatMap(variant => variant.itemId === row.itemId
+          ? variants.map(generated => ({ ...generated, item: row.item })) : [variant]),
+        boxes: current.boxes.map(box => ({
+          ...box, quantities: box.quantities.filter(quantity => quantity.itemId !== row.itemId)
+        }))
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSearching(false);
+    }
+  }
+
   function changeVariant(itemId, field, value) {
     update(current => ({
       ...current,
@@ -119,9 +146,9 @@ function VariantEditor({ model, update, disabled }) {
 
   return (
     <section>
-      <h3>Artículos del modelo</h3>
+      <h3 id="catalogo-variantes">Artículos del modelo</h3>
       <p className="muted-text">Elegí el SKU principal. Los colores y talles que vienen separados con / o - generan combinaciones para revisar. Quitá las que no existen. Si una combinación tiene su propio SKU, buscá y agregá ese artículo para reutilizarlo.</p>
-      <p className="muted-text">Los códigos generados se usan en el catálogo online. Completá el color o talle que falte en un SKU existente y cargá el saldo de cada combinación en Cajas.</p>
+      <p className="muted-text">Si falta el color o el talle, completalo acá. Si escribís varios valores con / o -, usá Generar variantes para separarlos. Después cargá el saldo de cada combinación en Stock para la tienda online.</p>
       <div className="inline-actions">
         <label>
           Buscar por código, SKU o descripción
@@ -161,7 +188,15 @@ function VariantEditor({ model, update, disabled }) {
                 <td>{row.item?.description}{row.item?.deleted ? ' (eliminado)' : ''}</td>
                 <td><OptionField variant={row} field="color" onChange={value => changeVariant(row.itemId, 'color', value)} /></td>
                 <td><OptionField variant={row} field="size" onChange={value => changeVariant(row.itemId, 'size', value)} /></td>
-                <td><button type="button" className="secondary-button" onClick={() => removeVariant(row.itemId)}>Quitar</button></td>
+                <td>
+                  <div className="inline-actions">
+                    {row.item && !row.sourceItemId && (model.principal?.id === row.itemId || (!model.principal && model.variants.length === 1)) &&
+                      row.color.trim() && row.size.trim() && [row.color, row.size].some(value => splitOptions(value).length > 1) && (
+                        <button type="button" className="secondary-button" onClick={() => expandRow(row)} disabled={searching}>Generar variantes</button>
+                    )}
+                    <button type="button" className="secondary-button" onClick={() => removeVariant(row.itemId)}>Quitar</button>
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -298,7 +333,7 @@ function ExistingBoxes({ model, update }) {
                 <td>
                   {imported ? 'Traídas al modelo' : hasManualCount ? 'Revisá el conteo manual de este SKU antes de traer las cajas' : (
                     <button type="button" className="secondary-button" onClick={() => importBoxes(row)}>
-                      {row.units === null ? 'Traer para confirmar unidades' : 'Traer cajas'}
+                      {row.units === null ? 'Traer y repartir unidades' : 'Traer cajas'}
                     </button>
               )}
                 </td>
@@ -312,59 +347,114 @@ function ExistingBoxes({ model, update }) {
 }
 
 function BoxEditor({ model, update }) {
-  const changeBox = (index, changes) => update(current => ({
-    ...current,
-    boxes: current.boxes.map((box, position) => position === index ? { ...box, ...changes } : box)
-  }));
-  const addBox = (quantities = []) => update(current => ({
-    ...current,
-    boxes: [...current.boxes, { label: '', opened: false, quantities }]
-  }));
+  const missingOptions = model.variants.some(row => !row.color.trim() || !row.size.trim());
+  const assigned = model.boxes.reduce((total, box) => total + box.quantities.reduce((sum, row) => sum + row.units, 0), 0);
+  const hasSourceBoxes = model.variants.some(row => row.item?.boxStock?.length);
+  const hasManualCount = model.boxes.some(box => !box.sourceKey);
+  const importedSources = new Set(model.boxes.filter(box => box.sourceKey).map(box => box.sourceKey.split(':')[0]));
+  const manualVariants = model.variants.filter(row =>
+    !importedSources.has(row.sourceItemId || row.itemId) &&
+    (!row.sourceItemId || !row.item?.unitsPerBox || row.item?.boxStock?.length)
+  );
+  const canCountManually = manualVariants.length > 0;
+
+  function changeUnits(index, itemId, value) {
+    update(current => ({
+      ...current,
+      boxes: current.boxes.map((box, position) => position === index ? {
+        ...box,
+        quantities: [...box.quantities.filter(row => row.itemId !== itemId), { itemId, units: Number(value) }]
+      } : box)
+    }));
+  }
+
+  function addManualCount() {
+    update(current => {
+      if (current.boxes.some(box => !box.sourceKey)) return current;
+      return { ...current, boxes: [...current.boxes, { label: 'Conteo manual', opened: false, quantities: [] }] };
+    });
+  }
 
   return (
-    <section>
-      <h3>Cajas que respaldan el stock web</h3>
-      <p className="muted-text"><strong>Editar unidades acá solo cambia el saldo del catálogo online.</strong> El stock de Artículos, los movimientos y las ventas locales siguen usando sus propios datos. Shopify recibe el nuevo saldo cuando enviás el borrador.</p>
-      <details>
-        <summary>Cómo leer y editar las cajas</summary>
-        <ul>
-          <li><strong>Cajas cargadas</strong> es el número de cajas que ya tiene el SKU en esa ubicación. Traer cajas copia ese dato al modelo.</li>
-          <li><strong>Unidades disponibles</strong> es el total de prendas que querés ofrecer, sumando las cajas de esa fila. Si traés 2 cajas de 12, el total inicial es 24. Si te quedan 18, ingresá 18.</li>
-          <li>Si el SKU principal generó varias combinaciones, repartí las unidades contadas entre esas filas. Por ejemplo, 12 unidades se pueden cargar como 5 Blancas M y 7 Negras L. Un campo vacío equivale a 0 para la web.</li>
-          <li><strong>Abierta o incompleta</strong> sirve para identificar la caja. El saldo cambia al editar las unidades. Quitar una fila la elimina del modelo online.</li>
-        </ul>
-      </details>
-      <ExistingBoxes model={model} update={update} />
-      {model.boxes.map((box, index) => (
-        <fieldset key={index}>
-          <legend>{box.sourceKey ? `${box.sourceBoxes} caja(s) traídas` : `Caja ${index + 1}`}</legend>
-          <div className="inline-actions">
-            <label>Identificador <input required value={box.label} onChange={event => changeBox(index, { label: event.target.value })} /></label>
-            <label><input type="checkbox" checked={box.opened} onChange={event => changeBox(index, { opened: event.target.checked })} /> Abierta o incompleta</label>
-            {!box.sourceKey && <button type="button" className="secondary-button" onClick={() => addBox(box.quantities)}>Copiar composición</button>}
-            <button type="button" className="secondary-button" onClick={() => update(current => ({ ...current, boxes: current.boxes.filter((_, position) => position !== index) }))}>Quitar caja</button>
-          </div>
-          {model.variants.filter(row => !box.sourceKey || box.sourceKey.startsWith((row.sourceItemId || row.itemId) + ':')).map(row => (
-            <label key={row.itemId} className="form-field">
-              Unidades disponibles · {row.sku} · {row.color || 'sin color cargado'} · {row.size || 'sin talle cargado'}
-              <input
-                type="number"
-                min="0"
-                max={maxBoxUnits}
-                step="1" placeholder="0"
-                value={box.quantities.find(quantity => quantity.itemId === row.itemId)?.units ?? ''}
-                onChange={event => changeBox(index, {
-                  quantities: [
-                    ...box.quantities.filter(quantity => quantity.itemId !== row.itemId),
-                    { itemId: row.itemId, units: event.target.value === '' ? 0 : Number(event.target.value) }
-                  ]
-                })}
-              />
-            </label>
-          ))}
-        </fieldset>
-      ))}
-      <button type="button" className="secondary-button" onClick={() => addBox()}>Agregar caja</button>
+    <section className="catalog-stock">
+      <h3>Stock para la tienda online</h3>
+      <p><strong>Solo cambia el saldo online.</strong> El stock de Artículos y de las sucursales queda igual.</p>
+      {missingOptions ? (
+        <p><a href="#catalogo-variantes">Completá el color o el talle que falta arriba</a> para poder guardar el modelo.</p>
+      ) : null}
+      {hasSourceBoxes ? (
+        <>
+          <h4>Cajas registradas en GestionThibe</h4>
+          <p className="muted-text">Elegí la ubicación que querés usar como respaldo y traé sus cajas al modelo.</p>
+          <ExistingBoxes model={model} update={update} />
+        </>
+      ) : model.variants.length > 0 && (
+        <p className="muted-text">
+          Estos SKU no tienen cajas registradas. Podés guardar el modelo con stock cero.{' '}
+          {canCountManually ? 'Si ya contaste unidades para la web, usá Cargar unidades contadas.' : 'Para asignar unidades a estas variantes, primero registrá las cajas del SKU principal en GestionThibe.'}
+        </p>
+      )}
+
+      <h4>Unidades asignadas a la web · {assigned}</h4>
+      {model.boxes.length > 0 && <p className="muted-text">Ingresá el total de unidades que querés ofrecer de cada variante. Si trajiste dos cajas de 12 y quedan 18 unidades, ingresá 18. Dejá 0 para las variantes que estén agotadas.</p>}
+      {model.boxes.map((box, index) => {
+        const variants = box.sourceKey
+          ? model.variants.filter(row => box.sourceKey.startsWith((row.sourceItemId || row.itemId) + ':'))
+          : model.variants.filter(row => manualVariants.includes(row) || box.quantities.some(quantity => quantity.itemId === row.itemId && quantity.units > 0));
+        return (
+          <fieldset key={box.sourceKey || index}>
+            <legend>{box.label}{box.sourceKey ? ` · ${box.sourceBoxes} caja(s) registradas` : ''}</legend>
+            <div className="table-responsive">
+              <table className="data-table">
+                <thead><tr><th>SKU</th><th>Color</th><th>Talle</th><th>Unidades para la web</th></tr></thead>
+                <tbody>
+                  {variants.map(row => (
+                    <tr key={row.itemId}>
+                      <td>{row.sku}</td>
+                      <td>{row.color || 'Falta completar'}</td>
+                      <td>{row.size || 'Falta completar'}</td>
+                      <td>
+                        <input
+                          type="number"
+                          className="quantity-input"
+                          min="0"
+                          max={maxBoxUnits}
+                          step="1"
+                          placeholder="0"
+                          aria-label={`Unidades para la web de ${row.sku} en ${box.label}`}
+                          value={box.quantities.find(quantity => quantity.itemId === row.itemId)?.units ?? ''}
+                          onChange={event => changeUnits(index, row.itemId, event.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {(box.sourceKey || box.opened) && (
+              <details>
+                <summary>Detalles de las cajas</summary>
+                <label>
+                  <input type="checkbox" checked={box.opened} onChange={event => {
+                    const opened = event.target.checked;
+                    update(current => ({
+                      ...current, boxes: current.boxes.map((entry, position) => position === index ? { ...entry, opened } : entry)
+                    }));
+                  }} />
+                  Marcar como abiertas o incompletas
+                </label>
+                <p className="muted-text">Esta marca es informativa. Para cambiar el saldo, editá las unidades de la tabla.</p>
+              </details>
+            )}
+            <button type="button" className="secondary-button" onClick={() => update(current => ({ ...current, boxes: current.boxes.filter((_, position) => position !== index) }))}>
+              Quitar del saldo online
+            </button>
+          </fieldset>
+        );
+      })}
+      {canCountManually && !hasManualCount && (
+        <button type="button" className="secondary-button" onClick={addManualCount}>Cargar unidades contadas</button>
+      )}
     </section>
   );
 }

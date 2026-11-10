@@ -188,3 +188,14 @@ test('una combinación que ya tiene SKU conserva su código', () => {
   const [variant] = suggestOpening({ _id: mediumId, sku: '000488', attributes: { color: 'Blanco', size: 'M' } });
   assert.deepEqual(variant, { itemId: mediumId, sku: '000488', color: 'Blanco', size: 'M' });
 });
+
+
+test('abre las variantes cuando el operador completa el talle faltante en el catálogo', () => {
+  const item = { _id: mediumId, sku: '000531', attributes: { color: 'Beige/Negro' } };
+  assert.equal(suggestOpening(item).length, 1);
+  assert.deepEqual(suggestOpening(item, { color: 'Beige/Negro', size: 'M' }).map(row => [row.color, row.size]), [
+    ['Beige', 'M'], ['Negro', 'M']
+  ]);
+  assert.equal(item.attributes.size, undefined);
+  assert.throws(() => suggestOpening(item, { color: 'Beige/Negro', size: '' }), /talle/);
+});

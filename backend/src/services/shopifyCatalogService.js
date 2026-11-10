@@ -45,10 +45,10 @@ function getVariantSku(row, item) {
   return [base, slug(row.color), slug(row.size), String(row.itemId).slice(-5).toUpperCase()].filter(Boolean).join('-');
 }
 
-function suggestOpening(item) {
+function suggestOpening(item, overrides) {
   const sourceItemId = String(item._id);
-  const color = item.attributes?.color || '';
-  const size = item.attributes?.size || '';
+  const color = overrides ? label(overrides.color, 'un color') : item.attributes?.color || '';
+  const size = overrides ? label(overrides.size, 'un talle') : item.attributes?.size || '';
   const options = value => [...new Map(splitColors(value).map(part => [normalizeLabel(part), part])).values()];
   const colors = options(color);
   const sizes = options(size);

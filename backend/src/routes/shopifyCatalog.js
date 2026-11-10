@@ -35,6 +35,7 @@ function serializeItem(item, locations) {
     attributes: item.attributes || {},
     images: item.images || [],
     boxStock: getExistingBoxStock(item, locations),
+    unitsPerBox: item.unitsPerBox ?? null,
     price: item.pDecimal,
     linked: isLinked(item),
     deleted: Boolean(item.deletedAt)
@@ -150,7 +151,8 @@ router.get('/items/:id/opening', read, asyncHandler(async (req, res) => {
   const item = await Item.findOne({ _id: req.params.id, deletedAt: null }).select(itemFields).lean();
   if (!item) throw new HttpError(404, 'No se encontró el SKU principal.');
   if (isLinked(item)) throw new HttpError(409, 'El SKU principal ya tiene una ficha individual en Shopify.');
-  res.json(suggestOpening(item));
+  const options = req.query.color == null && req.query.size == null ? undefined : req.query;
+  res.json(suggestOpening(item, options));
 }));
 
 router.get('/models', read, asyncHandler(async (req, res) => {
