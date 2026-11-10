@@ -2,7 +2,7 @@ const config = require('../config');
 const { HttpError } = require('../utils/errors');
 const { shopifyGraphql } = require('./shopifyProductService');
 const { getOrCreateImage } = require('./shopifyMediaService');
-const { getCatalogAvailability, MAX_VARIANTS } = require('./shopifyCatalogService');
+const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl } = require('./shopifyCatalogService');
 
 async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   const location = config.shopify.defaultLocationId.trim();
@@ -55,7 +55,8 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql) {
   const filesByColor = new Map();
   for (const gallery of model.galleries) {
     const ids = [];
-    for (const source of gallery.images) {
+    for (const photo of gallery.images) {
+      const source = resolveCatalogPhotoUrl(photo, config.shopify.publicBackendUrl);
       if (!filesBySource.has(source)) {
         const file = await getOrCreateImage(graphql, handle, {
           originalSource: source,

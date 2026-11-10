@@ -110,9 +110,17 @@ Al reenviar un artículo, las fotos nuevas se agregan a la galería. Las fotos q
 ## Piloto de Catálogo online
 
 En Shopify → Catálogo online se vincula cada combinación de color y talle con
-un artículo existente. Las fotos se pueden reutilizar desde esos artículos o
-agregar con una URL HTTPS. Cargá el saldo contado de cada caja o copiá la
-composición de una caja idéntica. Estos conteos pertenecen al piloto.
+un artículo existente. Los valores separados por / o - se muestran como
+sugerencias. Confirmá un color y talle por SKU y elegí una foto por color
+desde el equipo o entre las fotos de sus artículos.
+
+En Cajas, revisá las cantidades que GestionThibe ya registra por SKU y
+ubicación y usá **Traer cajas** para incorporarlas al modelo. Si se conoce la
+cantidad de unidades por caja y el SKU identifica una sola variante, el
+piloto completa el saldo inicial. Si falta ese dato o el SKU tiene varios
+colores o talles, confirmá el saldo con un conteo. Traer cajas copia los datos
+del momento al piloto. Los ajustes posteriores del piloto se registran en
+Catálogo online.
 
 Para enviar una ficha de prueba, configurá las credenciales, la URL pública
 si se usan fotos de GestionThibe, y `SHOPIFY_DEFAULT_LOCATION_ID`. El botón

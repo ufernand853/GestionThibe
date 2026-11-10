@@ -1,4 +1,9 @@
 const express = require('express');
+const path = require('node:path');
+const { mkdir, writeFile } = require('node:fs/promises');
+const { createHash } = require('node:crypto');
+const Location = require('../models/Location');
+const { sanitizeDataUrl, getDataUrlMeta } = require('../utils/imageDataUrl');
 const Item = require('../models/Item');
 const ShopifyCatalogModel = require('../models/ShopifyCatalogModel');
 const { requirePermission } = require('../middlewares/auth');
@@ -6,23 +11,22 @@ const { HttpError } = require('../utils/errors');
 const asyncHandler = require('../utils/asyncHandler');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus } = require('../services/shopifyAuthService');
-const { normalizeCatalogInput, getCatalogAvailability } = require('../services/shopifyCatalogService');
+const { normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock } = require('../services/shopifyCatalogService');
 const { syncCatalogDraft } = require('../services/shopifyCatalogDraftService');
-const config = require('../config');
 
 const router = express.Router();
 const read = requirePermission('items.read');
 const write = requirePermission('items.write');
 const syncing = new Set();
 const idPattern = /^[a-f\d]{24}$/i;
-const itemFields = 'code sku description attributes images pDecimal deletedAt shopify.productId';
+const itemFields = 'code sku description attributes images pDecimal unitsPerBox stock deletedAt shopify.productId';
 
 function isLinked(item) {
   const productId = item?.shopify?.productId;
   return Boolean(productId && !productId.startsWith('local-'));
 }
 
-function serializeItem(item) {
+function serializeItem(item, locations) {
   return {
     id: String(item._id),
     code: item.code,
@@ -30,6 +34,7 @@ function serializeItem(item) {
     description: item.description,
     attributes: item.attributes || {},
     images: item.images || [],
+    boxStock: getExistingBoxStock(item, locations),
     price: item.pDecimal,
     linked: isLinked(item),
     deleted: Boolean(item.deletedAt)
@@ -56,7 +61,7 @@ function validateItems(variants, items) {
   }
 }
 
-function serializeModel(model, items) {
+function serializeModel(model, items, locations) {
   const availability = getCatalogAvailability(model);
   return {
     id: String(model._id),
@@ -72,7 +77,7 @@ function serializeModel(model, items) {
     galleries: model.galleries,
     variants: model.variants.map(variant => ({
       ...variant,
-      item: items.has(String(variant.itemId)) ? serializeItem(items.get(String(variant.itemId))) : null,
+      item: items.has(String(variant.itemId)) ? serializeItem(items.get(String(variant.itemId)), locations) : null,
       available: availability.get(String(variant.itemId))
     }))
   };
@@ -84,6 +89,39 @@ async function findModel(id) {
   if (!model) throw new HttpError(404, 'No se encontró el modelo.');
   return model;
 }
+
+async function loadLocationNames(items) {
+  const ids = new Set();
+  for (const item of items) {
+    for (const id of Object.keys(item.stock || {})) {
+      if (idPattern.test(id)) ids.add(id);
+    }
+  }
+  if (!ids.size) return new Map();
+  const locations = await Location.find({ _id: { $in: [...ids] } }).select('name').lean();
+  return new Map(locations.map(location => [String(location._id), location.name]));
+}
+
+async function sendModel(res, model, items, status = 200) {
+  res.status(status).json(serializeModel(model, items, await loadLocationNames(items.values())));
+}
+
+router.post('/images', write, asyncHandler(async (req, res) => {
+  const dataUrl = sanitizeDataUrl(req.body?.image);
+  if (!dataUrl) throw new HttpError(400, 'Seleccioná una foto JPG, PNG, WebP o GIF de hasta 5 MB.');
+  const meta = getDataUrlMeta(dataUrl);
+  const content = Buffer.from(dataUrl.slice(meta.normalized.length), 'base64');
+  if (!content.length) throw new HttpError(400, 'La foto está vacía.');
+  const name = createHash('sha256').update(content).digest('hex') + '.' + meta.extension;
+  const directory = path.join(__dirname, '..', '..', 'uploads', 'shopify-catalog');
+  await mkdir(directory, { recursive: true });
+  try {
+    await writeFile(path.join(directory, name), content, { flag: 'wx' });
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+  }
+  res.json({ path: 'uploads/shopify-catalog/' + name });
+}));
 
 router.get('/items', read, asyncHandler(async (req, res) => {
   const search = String(req.query.search || '').trim().slice(0, 100);
@@ -98,7 +136,8 @@ router.get('/items', read, asyncHandler(async (req, res) => {
     return res.json([]);
   }
   const items = await Item.find(filter).select(itemFields).sort({ code: 1 }).limit(20).lean();
-  res.json(items.map(serializeItem));
+  const locations = await loadLocationNames(items);
+  res.json(items.map(item => serializeItem(item, locations)));
 }));
 
 router.get('/models', read, asyncHandler(async (req, res) => {
@@ -106,11 +145,12 @@ router.get('/models', read, asyncHandler(async (req, res) => {
   const filter = idPattern.test(itemId) ? { 'variants.itemId': itemId } : {};
   const models = await ShopifyCatalogModel.find(filter).sort({ title: 1 }).lean();
   const items = await loadItems(models.flatMap(model => model.variants));
-  res.json(models.map(model => serializeModel(model, items)));
+  const locations = await loadLocationNames(items.values());
+  res.json(models.map(model => serializeModel(model, items, locations)));
 }));
 
 async function saveModel(req, res) {
-  const input = normalizeCatalogInput(req.body, config.shopify.publicBackendUrl);
+  const input = normalizeCatalogInput(req.body);
   const items = await loadItems(input.variants);
   validateItems(input.variants, items);
   const updatedBy = req.user?.username || 'Desconocido';
@@ -147,7 +187,7 @@ async function saveModel(req, res) {
     user: updatedBy,
     details: { modelId: saved._id, revision: saved.revision, previousBoxes: before?.boxes || [], boxes: saved.boxes }
   });
-  res.status(before ? 200 : 201).json(serializeModel(saved, items));
+  await sendModel(res, saved, items, before ? 200 : 201);
 }
 
 router.post('/models', write, asyncHandler(saveModel));
@@ -171,7 +211,7 @@ router.post('/models/:id/sync-draft', write, asyncHandler(async (req, res) => {
       { $set: { productId, syncedRevision: model.revision, syncedAt: new Date(), syncError: null } },
       { new: true }
     ).lean();
-    res.json(serializeModel(saved, await loadItems(saved.variants)));
+    await sendModel(res, saved, await loadItems(saved.variants));
   } catch (error) {
     await ShopifyCatalogModel.findByIdAndUpdate(id, { $set: { syncError: error.message.slice(0, 500) } });
     throw error;
@@ -188,7 +228,7 @@ router.post('/models/:id/test-orders', write, asyncHandler(async (req, res) => {
   }
   const orders = model.testOrders || [];
   if (orders.some(order => order.key === key)) {
-    return res.json(serializeModel(model, await loadItems(model.variants)));
+    return sendModel(res, model, await loadItems(model.variants));
   }
   if (orders.length >= 200) throw new HttpError(409, 'El modelo alcanzó el máximo de pedidos de prueba.');
   const variant = model.variants.find(row => String(row.itemId) === itemId);
@@ -206,7 +246,7 @@ router.post('/models/:id/test-orders', write, asyncHandler(async (req, res) => {
     { new: true }
   ).lean();
   if (!saved) throw new HttpError(409, 'El modelo cambió. Recargalo y volvé a intentar.');
-  res.status(201).json(serializeModel(saved, items));
+  await sendModel(res, saved, items, 201);
 }));
 
 router.post('/models/:id/test-orders/:key/resolve', write, asyncHandler(async (req, res) => {
@@ -216,7 +256,7 @@ router.post('/models/:id/test-orders/:key/resolve', write, asyncHandler(async (r
   const order = model.testOrders?.find(row => row.key === req.params.key);
   if (!order) throw new HttpError(404, 'No se encontró el pedido de prueba.');
   const items = await loadItems(model.variants);
-  if (order.status === status) return res.json(serializeModel(model, items));
+  if (order.status === status) return sendModel(res, model, items);
   if (order.status !== 'reserved') throw new HttpError(409, 'El pedido de prueba ya se resolvió.');
 
   let boxes = model.boxes;
@@ -245,7 +285,7 @@ router.post('/models/:id/test-orders/:key/resolve', write, asyncHandler(async (r
     { new: true }
   ).lean();
   if (!saved) throw new HttpError(409, 'El modelo cambió. Recargalo y volvé a intentar.');
-  res.json(serializeModel(saved, items));
+  await sendModel(res, saved, items);
 }));
 
 module.exports = router;

@@ -536,6 +536,21 @@ th {
   width: 100%;
 }
 
+.catalog-color-photo {
+  width: min(100%, 230px);
+}
+
+.catalog-color-photo label,
+.catalog-color-photo input,
+.catalog-color-photo select {
+  width: 100%;
+  min-width: 0;
+}
+
+.catalog-color-photo img {
+  cursor: default;
+}
+
 .shopify-image-summary {
   display: flex;
   flex-direction: column;

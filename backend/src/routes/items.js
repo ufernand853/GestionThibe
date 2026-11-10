@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { Types } = require('mongoose');
 const asyncHandler = require('../utils/asyncHandler');
 const { HttpError } = require('../utils/errors');
+const { sanitizeDataUrl, getDataUrlMeta } = require('../utils/imageDataUrl');
 const { requirePermission, requireQuantityModification, requireItemEditing } = require('../middlewares/auth');
 const Item = require('../models/Item');
 const Group = require('../models/Group');
@@ -26,14 +27,6 @@ const uploadsRoot = path.join(projectRoot, 'uploads');
 const itemUploadsDir = path.join(uploadsRoot, 'items');
 fs.mkdirSync(itemUploadsDir, { recursive: true });
 
-const ALLOWED_DATA_URL_PREFIXES = [
-  { match: 'data:image/jpeg;base64,', normalized: 'data:image/jpeg;base64,', mimeType: 'image/jpeg', extension: 'jpg' },
-  { match: 'data:image/jpg;base64,', normalized: 'data:image/jpeg;base64,', mimeType: 'image/jpeg', extension: 'jpg' },
-  { match: 'data:image/png;base64,', normalized: 'data:image/png;base64,', mimeType: 'image/png', extension: 'png' },
-  { match: 'data:image/webp;base64,', normalized: 'data:image/webp;base64,', mimeType: 'image/webp', extension: 'webp' },
-  { match: 'data:image/gif;base64,', normalized: 'data:image/gif;base64,', mimeType: 'image/gif', extension: 'gif' }
-];
-
 function sanitizeImagePath(value) {
   if (typeof value !== 'string') {
     return null;
@@ -47,42 +40,6 @@ function sanitizeImagePath(value) {
     return null;
   }
   return normalized;
-}
-
-function sanitizeDataUrl(value) {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-  const lower = trimmed.toLowerCase();
-  const prefixEntry = ALLOWED_DATA_URL_PREFIXES.find(entry => lower.startsWith(entry.match));
-  if (!prefixEntry) {
-    return null;
-  }
-  const base64Part = trimmed.slice(prefixEntry.match.length).replace(/\s+/g, '');
-  if (!base64Part) {
-    return null;
-  }
-  if (!/^[0-9a-z+/]+=*$/i.test(base64Part)) {
-    return null;
-  }
-  const paddingMatch = base64Part.match(/=+$/);
-  const padding = paddingMatch ? paddingMatch[0].length : 0;
-  if (padding > 2) {
-    return null;
-  }
-  const sizeInBytes = Math.floor((base64Part.length * 3) / 4) - padding;
-  if (sizeInBytes > MAX_FILE_SIZE) {
-    return null;
-  }
-  return `${prefixEntry.normalized}${base64Part}`;
-}
-
-function getDataUrlMeta(dataUrl) {
-  return ALLOWED_DATA_URL_PREFIXES.find(entry => dataUrl.startsWith(entry.normalized)) || null;
 }
 
 async function persistDataUrl(dataUrl) {

@@ -1,7 +1,9 @@
 const { HttpError } = require('../utils/errors');
+const { coerceQuantity } = require('../utils/quantity');
 
 const MAX_VARIANTS = 50;
 const MAX_BOXES = 100;
+const MAX_BOX_UNITS = 1000000;
 const MAX_PHOTOS = 50;
 const normalizeLabel = value => value.normalize('NFC').trim().toLocaleLowerCase('es');
 
@@ -28,23 +30,40 @@ function itemId(value) {
   return value.toLowerCase();
 }
 
-function imageSource(value, publicBackendUrl) {
-  const source = label(value, 'una URL de foto', 2048);
-  const isUpload = /^\/?uploads\/items\/[^/?#]+$/i.test(source);
+function imageSource(value) {
+  const source = label(value, 'una foto', 2048);
+  if (/^\/?uploads\/(?:items|shopify-catalog)\/[\w-]+\.[a-z0-9]+$/i.test(source)) {
+    return source.replace(/^\/+/, '');
+  }
   let url;
   try {
-    url = isUpload && publicBackendUrl
-      ? new URL(source.replace(/^\/+/, ''), `${publicBackendUrl}/`)
-      : new URL(source);
+    url = new URL(source);
   } catch {
-    invalid('Usá una URL HTTPS o una foto de GestionThibe con URL pública configurada.');
+    invalid('Seleccioná una foto de GestionThibe o usá una URL HTTPS.');
   }
   if (url.protocol !== 'https:' || url.username || url.password) invalid('La foto debe usar una URL HTTPS pública.');
   url.hash = '';
   return url.href;
 }
 
-function normalizeCatalogInput(input, publicBackendUrl) {
+function resolveCatalogPhotoUrl(value, publicBackendUrl) {
+  const source = imageSource(value);
+  if (source.startsWith('https:')) return source;
+  if (!publicBackendUrl) invalid('Configurá la URL pública del servidor para enviar las fotos a Shopify.');
+  return imageSource(new URL(source, publicBackendUrl + '/').href);
+}
+
+function getExistingBoxStock(item, locations = new Map()) {
+  const unitsPerBox = Number.isSafeInteger(item.unitsPerBox) && item.unitsPerBox > 0 ? item.unitsPerBox : null;
+  const stock = item.stock instanceof Map ? item.stock.entries() : Object.entries(item.stock || {});
+  return [...stock].flatMap(([locationId, quantity]) => {
+    const { boxes } = coerceQuantity(quantity);
+    if (!boxes || !/^[a-f\d]{24}$/i.test(locationId)) return [];
+    return [{ locationId, locationName: locations.get(locationId) || 'Ubicación ' + locationId, boxes, unitsPerBox }];
+  });
+}
+
+function normalizeCatalogInput(input) {
   const code = label(input?.code, 'el código del modelo', 60).toUpperCase();
   const title = label(input?.title, 'el nombre del modelo', 150);
   const items = new Set();
@@ -68,22 +87,38 @@ function normalizeCatalogInput(input, publicBackendUrl) {
   });
 
   const boxLabels = new Set();
+  const boxSources = new Set();
   const boxes = list(input.boxes, 'cajas', MAX_BOXES).map(box => {
     const name = label(box?.label, 'el identificador de la caja');
     const key = normalizeLabel(name);
     if (boxLabels.has(key)) invalid(`La caja ${name} está repetida.`);
     boxLabels.add(key);
+    const source = box.sourceKey;
+    const sourceItemId = typeof source === 'string' ? source.split(':')[0] : null;
+    if (source != null) {
+      if (typeof source !== 'string' || !/^[a-f\d]{24}:[a-f\d]{24}$/.test(source) ||
+          !items.has(sourceItemId) || boxSources.has(source) ||
+          !Number.isSafeInteger(box.sourceBoxes) || box.sourceBoxes < 1) {
+        invalid('Revisá las cajas importadas para cada SKU y ubicación.');
+      }
+      boxSources.add(source);
+    }
     const counted = new Set();
     const quantities = list(box.quantities, 'cantidades de la caja', MAX_VARIANTS).map(row => {
       const id = itemId(row?.itemId);
-      if (!items.has(id) || counted.has(id)) invalid(`Revisá las variantes de la caja ${name}.`);
-      if (!Number.isSafeInteger(row.units) || row.units < 0 || row.units > 10000) {
-        invalid(`Ingresá cantidades enteras entre 0 y 10000 para la caja ${name}.`);
+      if (!items.has(id) || counted.has(id) || (sourceItemId && id !== sourceItemId)) invalid(`Revisá las variantes de la caja ${name}.`);
+      if (!Number.isSafeInteger(row.units) || row.units < 0 || row.units > MAX_BOX_UNITS) {
+        invalid(`Ingresá cantidades enteras entre 0 y ${MAX_BOX_UNITS} para la caja ${name}.`);
       }
       counted.add(id);
       return { itemId: id, units: row.units };
     });
-    return { label: name, opened: box.opened === true, quantities: quantities.filter(row => row.units > 0) };
+    return {
+      label: name,
+      opened: box.opened === true,
+      ...(source ? { sourceKey: source, sourceBoxes: box.sourceBoxes } : {}),
+      quantities: quantities.filter(row => row.units > 0)
+    };
   });
 
   const galleryColors = new Set();
@@ -92,7 +127,7 @@ function normalizeCatalogInput(input, publicBackendUrl) {
     const key = normalizeLabel(label(gallery?.color, 'el color de la galería'));
     if (!colors.has(key) || galleryColors.has(key)) invalid('Debe haber una sola galería por color del modelo.');
     galleryColors.add(key);
-    const images = [...new Set(list(gallery.images, 'fotos', MAX_PHOTOS).map(source => imageSource(source, publicBackendUrl)))];
+    const images = [...new Set(list(gallery.images, 'fotos', MAX_PHOTOS).map(imageSource))];
     photoCount += images.length;
     return { color: colors.get(key), images };
   });
@@ -115,4 +150,4 @@ function getCatalogAvailability(model) {
   return totals;
 }
 
-module.exports = { MAX_VARIANTS, normalizeCatalogInput, getCatalogAvailability };
+module.exports = { MAX_VARIANTS, normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, resolveCatalogPhotoUrl };

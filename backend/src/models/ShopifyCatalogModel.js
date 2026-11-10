@@ -9,6 +9,8 @@ const variantSchema = new Schema({
 const boxSchema = new Schema({
   label: { type: String, required: true },
   opened: { type: Boolean, default: false },
+  sourceKey: String,
+  sourceBoxes: Number,
   quantities: [{ _id: false, itemId: Schema.Types.ObjectId, units: Number }]
 }, { _id: false });
 

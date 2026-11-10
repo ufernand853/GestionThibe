@@ -3,16 +3,21 @@ import { Link, useSearchParams } from 'react-router-dom';
 import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { API_ROOT_URL } from '../../utils/apiConfig.js';
+import { fileToDataUrl } from '../../utils/fileToDataUrl.js';
 
 const endpoint = '/shopify/catalog';
 const emptyModel = { code: '', title: '', variants: [], galleries: [], boxes: [] };
 const colorKey = color => color.normalize('NFC').trim().toLocaleLowerCase('es');
-const splitOptions = value => [...new Set(String(value || '').split(/\s*[/\-]\s*/).map(value => value.trim()).filter(Boolean))];
+const splitOptions = value => [...new Map(
+  String(value || '').split(/[/\-–—]/).map(value => value.trim()).filter(Boolean).map(value => [colorKey(value), value])
+).values()];
+const photoUrl = source => /^(?:data:image\/|https:\/\/)/i.test(source) ? source : API_ROOT_URL + '/' + source.replace(/^\/+/, '');
 const modelStatus = model => model.syncError ? 'Error de sincronización' : model.pending ? 'Pendiente de enviar' : 'Borrador sincronizado';
 
 function itemVariant(item) {
-  const colors = splitOptions(item.attributes.color);
-  const sizes = splitOptions(item.attributes.size);
+  const colors = splitOptions(item.attributes?.color);
+  const sizes = splitOptions(item.attributes?.size);
   return {
     itemId: item.id,
     item,
@@ -22,7 +27,7 @@ function itemVariant(item) {
 }
 
 function OptionField({ variant, field, onChange }) {
-  const suggestions = splitOptions(variant.item?.attributes[field]);
+  const suggestions = splitOptions(variant.item?.attributes?.[field]);
   const listId = `${variant.itemId}-${field}`;
   return (
     <>
@@ -70,7 +75,9 @@ function VariantEditor({ model, update, disabled }) {
     update(current => ({
       ...current,
       variants: current.variants.filter(row => row.itemId !== itemId),
-      boxes: current.boxes.map(box => ({ ...box, quantities: box.quantities.filter(row => row.itemId !== itemId) }))
+      boxes: current.boxes
+        .filter(box => !box.sourceKey?.startsWith(itemId + ':'))
+        .map(box => ({ ...box, quantities: box.quantities.filter(row => row.itemId !== itemId) }))
     }));
   }
 
@@ -135,41 +142,144 @@ function colorsFor(variants) {
   return colors;
 }
 
-function GalleryEditor({ model, update }) {
-  function setImages(color, images) {
+function GalleryEditor({ model, update, onReading }) {
+  const [error, setError] = useState('');
+  const confirmed = colorsFor(model.variants);
+  const suggested = new Map(confirmed);
+  for (const variant of model.variants) {
+    for (const color of splitOptions(variant.item?.attributes?.color)) {
+      if (!suggested.has(colorKey(color))) suggested.set(colorKey(color), color);
+    }
+  }
+
+  function setPhoto(color, image) {
     update(current => ({
       ...current,
-      galleries: [...current.galleries.filter(gallery => colorKey(gallery.color) !== colorKey(color)), { color, images }]
+      galleries: [
+        ...current.galleries.filter(gallery => colorKey(gallery.color) !== colorKey(color)),
+        ...(image ? [{ color, images: [image] }] : [])
+      ]
     }));
+  }
+
+  async function selectPhoto(color, event) {
+    const [file] = event.target.files || [];
+    event.target.value = '';
+    if (!file) return;
+    setError('');
+    if (file.size > 5 * 1024 * 1024 || !/^image\/(?:jpeg|png|webp|gif)$/i.test(file.type)) {
+      setError('Seleccioná una foto JPG, PNG, WebP o GIF de hasta 5 MB.');
+      return;
+    }
+    onReading(true);
+    try {
+      setPhoto(color, await fileToDataUrl(file));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      onReading(false);
+    }
   }
 
   return (
     <section>
       <h3>Fotos por color</h3>
-      <p className="muted-text">Ingresá una URL HTTPS por línea o usá las fotos de los artículos de ese color. La primera foto se usa como imagen principal para sus talles.</p>
-      {[...colorsFor(model.variants)].map(([key, color]) => {
-        const gallery = model.galleries.find(row => colorKey(row.color) === key);
-        const photos = [...new Set(model.variants.filter(row => colorKey(row.color) === key).flatMap(row => row.item?.images || []))]
-          .filter(photo => /^https:\/\//i.test(photo) || /^\/?uploads\/items\//i.test(photo));
-        return (
-          <div key={key} className="form-field">
-            <label>
-              {color}
-              <textarea
-                rows={3}
-                value={gallery?.images.join('\n') || ''}
-                onChange={event => setImages(color, event.target.value.split('\n'))}
-              />
-            </label>
-            {photos.length > 0 && (
-              <button type="button" className="secondary-button" onClick={() => setImages(color, photos)}>
-                Usar fotos de los artículos
-              </button>
-            )}
-          </div>
-        );
-      })}
+      <p className="muted-text">Seleccioná una foto por color. Todos los talles de ese color usan la misma imagen.</p>
+      {error && <ErrorMessage error={error} />}
+      <div className="image-preview-grid">
+        {[...suggested].map(([key, color]) => {
+          const photo = model.galleries.find(row => colorKey(row.color) === key)?.images[0];
+          const choices = [...new Set(model.variants
+            .filter(row => colorKey(row.color) === key)
+            .flatMap(row => row.item?.images || []))]
+            .filter(image => /^https:\/\//i.test(image) || /^\/?uploads\/items\//i.test(image));
+          return (
+            <div key={key} className="image-preview-item catalog-color-photo">
+              <strong>{color}</strong>
+              {photo ? <img src={photoUrl(photo)} alt={`Foto del color ${color}`} /> : <span>Sin foto</span>}
+              {confirmed.has(key) ? (
+                <>
+                  <label>
+                    Seleccionar foto
+                    <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={event => selectPhoto(color, event)} />
+                  </label>
+                  {choices.length > 0 && (
+                    <label>
+                      Fotos del artículo
+                      <select value="" onChange={event => setPhoto(color, event.target.value)}>
+                        <option value="">Elegir foto existente</option>
+                        {choices.map((image, index) => <option key={image} value={image}>Foto {index + 1}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {photo && <button type="button" className="secondary-button" onClick={() => setPhoto(color, null)}>Quitar foto</button>}
+                </>
+              ) : <span className="muted-text">Confirmá este color en una variante para cargar su foto.</span>}
+            </div>
+          );
+        })}
+      </div>
     </section>
+  );
+}
+
+const maxBoxUnits = 1000000;
+
+function ExistingBoxes({ model, update }) {
+  const rows = model.variants.flatMap(variant => (variant.item?.boxStock || []).map(stock => {
+    const sourceKey = variant.itemId + ':' + stock.locationId;
+    const attributes = variant.item.attributes;
+    const hasMixedAttributes = [attributes?.size, attributes?.color].some(value => splitOptions(value).length > 1);
+    const estimate = stock.boxes * stock.unitsPerBox;
+    const units = !hasMixedAttributes && stock.unitsPerBox && estimate <= maxBoxUnits ? estimate : null;
+    return { variant, stock, sourceKey, units };
+  }));
+
+  function importBoxes({ variant, stock, sourceKey, units }) {
+    update(current => {
+      if (current.boxes.some(box => box.sourceKey === sourceKey)) return current;
+      return {
+        ...current,
+        boxes: [...current.boxes, {
+          label: (variant.item.sku + ' · ' + stock.locationName).slice(0, 100),
+          opened: false,
+          sourceKey,
+          sourceBoxes: stock.boxes,
+          quantities: units === null ? [] : [{ itemId: variant.itemId, units }]
+        }]
+      };
+    });
+  }
+
+  if (!rows.length) return <p className="muted-text">Los SKU vinculados no tienen cajas registradas.</p>;
+  return (
+    <div className="table-responsive">
+      <table className="data-table">
+        <thead><tr><th>SKU</th><th>Ubicación</th><th>Cajas cargadas</th><th>Unidades por caja</th><th>Acción</th></tr></thead>
+        <tbody>
+          {rows.map(row => {
+            const imported = model.boxes.some(box => box.sourceKey === row.sourceKey);
+            const hasManualCount = model.boxes.some(box => !box.sourceKey &&
+              box.quantities.some(quantity => quantity.itemId === row.variant.itemId && quantity.units > 0));
+            return (
+              <tr key={row.sourceKey}>
+                <td>{row.variant.item.sku}</td>
+                <td>{row.stock.locationName}</td>
+                <td>{row.stock.boxes}</td>
+                <td>{row.stock.unitsPerBox ?? 'Sin dato'}</td>
+                <td>
+                  {imported ? 'Traídas al modelo' : hasManualCount ? 'Revisá el conteo manual de este SKU antes de traer las cajas' : (
+                    <button type="button" className="secondary-button" onClick={() => importBoxes(row)}>
+                      {row.units === null ? 'Traer para confirmar unidades' : 'Traer cajas'}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -186,23 +296,24 @@ function BoxEditor({ model, update }) {
   return (
     <section>
       <h3>Cajas que respaldan el stock web</h3>
-      <p className="muted-text">Cargá solo cantidades confirmadas. Si una caja viene surtida, registrá el contenido cuando se cuente. Los retiros y reposiciones se anotan actualizando su saldo.</p>
+      <p className="muted-text">Podés traer las cajas registradas por SKU y ubicación. Revisá el saldo del piloto al hacer retiros o reposiciones. Si la caja es surtida, confirmá las unidades al contarla.</p>
+      <ExistingBoxes model={model} update={update} />
       {model.boxes.map((box, index) => (
         <fieldset key={index}>
-          <legend>Caja {index + 1}</legend>
+          <legend>{box.sourceKey ? `${box.sourceBoxes} caja(s) traídas` : `Caja ${index + 1}`}</legend>
           <div className="inline-actions">
             <label>Identificador <input required value={box.label} onChange={event => changeBox(index, { label: event.target.value })} /></label>
             <label><input type="checkbox" checked={box.opened} onChange={event => changeBox(index, { opened: event.target.checked })} /> Abierta o incompleta</label>
-            <button type="button" className="secondary-button" onClick={() => addBox(box.quantities)}>Copiar composición</button>
+            {!box.sourceKey && <button type="button" className="secondary-button" onClick={() => addBox(box.quantities)}>Copiar composición</button>}
             <button type="button" className="secondary-button" onClick={() => update(current => ({ ...current, boxes: current.boxes.filter((_, position) => position !== index) }))}>Quitar caja</button>
           </div>
-          {model.variants.map(row => (
+          {model.variants.filter(row => !box.sourceKey || box.sourceKey.startsWith(row.itemId + ':')).map(row => (
             <label key={row.itemId} className="form-field">
               {row.item?.sku} · {row.color || 'Color pendiente'} · {row.size || 'Talle pendiente'}
               <input
                 type="number"
                 min="0"
-                max="10000"
+                max={maxBoxUnits}
                 step="1"
                 value={box.quantities.find(quantity => quantity.itemId === row.itemId)?.units ?? ''}
                 onChange={event => changeBox(index, {
@@ -309,6 +420,7 @@ export default function ShopifyCatalogPage() {
   const canWrite = user?.permissions?.includes('items.write');
   const [models, setModels] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [readingPhoto, setReadingPhoto] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -352,18 +464,28 @@ export default function ShopifyCatalogPage() {
 
   async function save(event) {
     event.preventDefault();
+    if (readingPhoto) return;
     setBusy(true);
     setError('');
     setMessage('');
     try {
       const colors = colorsFor(editing.variants);
+      const galleries = [];
+      for (const gallery of editing.galleries) {
+        if (!colors.has(colorKey(gallery.color))) continue;
+        const images = [];
+        for (const image of gallery.images) {
+          const stored = image.startsWith('data:image/')
+            ? (await api.post(`${endpoint}/images`, { image })).path
+            : image;
+          images.push(stored);
+        }
+        galleries.push({ color: gallery.color, images });
+      }
       const payload = {
         ...editing,
         variants: editing.variants.map(({ itemId, color, size }) => ({ itemId, color, size })),
-        galleries: editing.galleries.filter(gallery => colors.has(colorKey(gallery.color))).map(gallery => ({
-          ...gallery,
-          images: gallery.images.map(image => image.trim()).filter(Boolean)
-        }))
+        galleries
       };
       const model = editing.id
         ? await api.put(`${endpoint}/models/${editing.id}`, payload)
@@ -445,14 +567,14 @@ export default function ShopifyCatalogPage() {
           {canWrite && !editing && <button type="button" onClick={() => setEditing(emptyModel)} disabled={busy}>Nuevo modelo</button>}
           {editing && canWrite && (
             <form onSubmit={save}>
-              <fieldset disabled={busy}>
+              <fieldset disabled={busy || readingPhoto}>
                 <legend>{editing.id ? 'Editar modelo' : 'Nuevo modelo'}</legend>
                 <div className="inline-actions">
                   <label>Código del modelo <input required maxLength={60} value={editing.code} onChange={event => setEditing({ ...editing, code: event.target.value })} /></label>
                   <label>Nombre <input required maxLength={150} value={editing.title} onChange={event => setEditing({ ...editing, title: event.target.value })} /></label>
                 </div>
                 <VariantEditor model={editing} update={setEditing} disabled={busy} />
-                <GalleryEditor model={editing} update={setEditing} />
+                <GalleryEditor model={editing} update={setEditing} onReading={setReadingPhoto} />
                 <BoxEditor model={editing} update={setEditing} />
                 <div className="inline-actions">
                   <button type="submit" disabled={!editing.variants.length}>Guardar modelo</button>
