@@ -45,7 +45,7 @@ PUBLIC_BACKEND_URL=https://tu-dominio-o-ip
 | `SHOPIFY_ADMIN_ACCESS_TOKEN` | Alternativo | Token privado de Admin API si ya se obtuvo. No debe ir al frontend. |
 | `SHOPIFY_API_VERSION` | No | Versión de Admin API. Por defecto: `2026-07`. |
 | `SHOPIFY_DRY_RUN` | No | Si está en `true`, el sistema prepara payloads y registra estado local sin llamar a Shopify. |
-| `SHOPIFY_DEFAULT_LOCATION_ID` | No | ID de ubicación Shopify para sincronizar inventario cuando se defina el mapeo. |
+| `SHOPIFY_DEFAULT_LOCATION_ID` | No | ID explícito de la ubicación Shopify para los borradores. Si está vacío, se usa el mapeo de un único depósito activo llamado Thibe, Depósito Thibe o Sobrestock Thibe. |
 | `SHOPIFY_INVENTORY_WEBHOOK_SYNC_ENABLED` | No | Habilita la aplicación automática de webhooks `inventory_levels/update` sobre el stock local. Por defecto queda en `true`; usar `false` solo si se quiere recibir webhooks sin modificar stock local. |
 | `PUBLIC_BACKEND_URL` / `BACKEND_PUBLIC_URL` | Requerido para enviar imágenes locales | URL pública HTTPS desde donde Shopify puede descargar imágenes guardadas en `uploads/items`. Debe apuntar al backend y ser accesible desde internet. Las imágenes en formato `data:image/...` o servidas por `http://` quedan visibles en Thibe, pero no se envían a Shopify porque Shopify necesita una URL pública HTTPS estable. Si Shopify informa errores de procesamiento multimedia, validar que la app tenga `write_files`, que la URL abra desde internet sin login y que el archivo no sea demasiado pesado. |
 
@@ -130,7 +130,8 @@ del momento al piloto. Los ajustes posteriores del piloto se registran en
 Catálogo online.
 
 Para enviar una ficha de prueba, configurá las credenciales, la URL pública
-si se usan fotos de GestionThibe, y `SHOPIFY_DEFAULT_LOCATION_ID`. El botón
+si se usan fotos de GestionThibe, y el mapeo del depósito de Thibe o
+`SHOPIFY_DEFAULT_LOCATION_ID`. El botón
 **Enviar borrador a Shopify** sincroniza las variantes, sus fotos y el saldo
 de las cajas, incluidos los ceros. Si Shopify sigue procesando una foto,
 volvé a enviar el borrador cuando esté lista.

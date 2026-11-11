@@ -1,16 +1,36 @@
 const config = require('../config');
+const Location = require('../models/Location');
 const { HttpError } = require('../utils/errors');
 const { shopifyGraphql } = require('./shopifyProductService');
 const { getOrCreateImage, getProductImages } = require('./shopifyMediaService');
 const { getLinkedProductId } = require('./shopifyCatalogLinkService');
 const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl, normalizeLabel, splitColors, getVariantSku } = require('./shopifyCatalogService');
 
-async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { beforeAdopt } = {}) {
-  const location = config.shopify.defaultLocationId.trim();
+async function resolveDraftLocationId() {
+  const configured = config.shopify.defaultLocationId.trim();
+  let location = configured;
+  if (!location) {
+    const matches = await Location.find({
+      name: /^(?:Thibe|Depósito Thibe|Sobrestock Thibe)$/i,
+      type: 'warehouse',
+      status: 'active',
+      shopifyLocationId: { $exists: true, $nin: [null, ''] }
+    }).select('shopifyLocationId').limit(2).lean();
+    if (matches.length !== 1) {
+      throw new HttpError(400, 'Vinculá un único depósito activo de Thibe con Shopify o configurá SHOPIFY_DEFAULT_LOCATION_ID.');
+    }
+    location = matches[0].shopifyLocationId.trim();
+  }
   const locationId = /^\d+$/.test(location) ? `gid://shopify/Location/${location}` : location;
   if (!/^gid:\/\/shopify\/Location\/\d+$/.test(locationId)) {
-    throw new HttpError(400, 'Configurá SHOPIFY_DEFAULT_LOCATION_ID para el stock del borrador.');
+    const source = configured ? 'SHOPIFY_DEFAULT_LOCATION_ID' : 'la ubicación Thibe';
+    throw new HttpError(400, `El ID de Shopify en ${source} debe ser un número o un GID de ubicación.`);
   }
+  return locationId;
+}
+
+async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { beforeAdopt } = {}) {
+  const locationId = await resolveDraftLocationId();
   const available = getCatalogAvailability(model);
   const handle = `gestionthibe-modelo-${model._id}`;
   const principal = items.get(String(model.principalItemId));
