@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const config = require('../src/config');
+const Location = require('../src/models/Location');
 const { getCatalogAvailability, normalizeCatalogInput, getExistingBoxStock, resolveCatalogPhotoUrl, suggestOpening, validateOpeningStock, getVariantSku, validateSingleProduct } = require('../src/services/shopifyCatalogService');
 const { syncCatalogDraft } = require('../src/services/shopifyCatalogDraftService');
 
@@ -96,6 +97,21 @@ test('sincroniza un borrador con SKU intactos, cero explícito y fotos compartid
   const active = t.mock.fn(async () => ({ productByIdentifier: { id: productId, status: 'ACTIVE' } }));
   await assert.rejects(syncCatalogDraft(model, items, active), /solo sincroniza borradores/);
   assert.equal(active.mock.callCount(), 1);
+
+  config.shopify.defaultLocationId = '';
+  let locations = [{ shopifyLocationId: '1234' }];
+  const find = t.mock.method(Location, 'find', () => ({
+    select: () => ({ limit: () => ({ lean: async () => locations }) })
+  }));
+  assert.equal(await syncCatalogDraft(model, items, graphql), productId);
+  assert.match('Sobrestock Thibe', find.mock.calls[0].arguments[0].name);
+  const [, variables] = graphql.mock.calls.findLast(call => call.arguments[0].includes('productSet')).arguments;
+  assert.equal(variables.input.variants[0].inventoryQuantities[0].locationId, 'gid://shopify/Location/1234');
+
+  locations = [{ shopifyLocationId: '1234' }, { shopifyLocationId: '5678' }];
+  const callsBefore = graphql.mock.callCount();
+  await assert.rejects(syncCatalogDraft(model, items, graphql), /único depósito activo/);
+  assert.equal(graphql.mock.callCount(), callsBefore);
 });
 
 
