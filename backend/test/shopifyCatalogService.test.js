@@ -72,7 +72,7 @@ test('sincroniza un borrador con SKU intactos, cero explícito y fotos compartid
     if (query.includes('FindThibeImage')) return { files: { nodes: [{ id: mediaId, fileStatus: 'READY' }] } };
     if (query.includes('productSet')) {
       assert.deepEqual(vars.identifier, { id: productId });
-      assert.equal(vars.input.status, 'DRAFT');
+      assert.equal(vars.input.status, undefined);
       assert.deepEqual(vars.input.files, [{ id: mediaId }]);
       assert.deepEqual(vars.input.variants.map(variant => ({
         id: variant.id,
@@ -94,9 +94,21 @@ test('sincroniza un borrador con SKU intactos, cero explícito y fotos compartid
   assert.equal(await syncCatalogDraft(model, items, graphql), productId);
   assert.equal(graphql.mock.callCount(), 4);
 
-  const active = t.mock.fn(async () => ({ productByIdentifier: { id: productId, status: 'ACTIVE' } }));
-  await assert.rejects(syncCatalogDraft(model, items, active), /solo sincroniza borradores/);
-  assert.equal(active.mock.callCount(), 1);
+  const activeModel = { ...model, productId, galleries: [] };
+  let activeVariants = variants;
+  const active = t.mock.fn(async (query, vars) => {
+    if (query.includes('productByIdentifier')) {
+      return { productByIdentifier: { id: productId, status: 'ACTIVE', variants: { nodes: activeVariants, pageInfo: { hasNextPage: false } } } };
+    }
+    assert.equal(vars.input.status, undefined);
+    assert.equal(vars.input.files, undefined);
+    assert.deepEqual(vars.input.variants.map(variant => variant.id), ['v1', 'v2']);
+    return { productSet: { product: { id: productId, variants: { nodes: variants } }, userErrors: [] } };
+  });
+  assert.equal(await syncCatalogDraft(activeModel, items, active), productId);
+  activeVariants = [...variants, { id: 'v3', sku: 'EXISTENTE' }];
+  await assert.rejects(syncCatalogDraft(activeModel, items, active), /variantes que faltan/);
+  assert.equal(active.mock.callCount(), 3);
 
   config.shopify.defaultLocationId = '';
   let locations = [{ shopifyLocationId: '1234' }];
@@ -279,8 +291,8 @@ test('edita la ficha individual en borrador y registra su gestión antes de envi
   assert.equal(await syncCatalogDraft(model, items, graphql, { beforeAdopt }), productId);
   assert.equal(graphql.mock.callCount(), 2);
 
-  const active = t.mock.fn(async () => ({ productByIdentifier: { id: productId, status: 'ACTIVE' } }));
-  await assert.rejects(syncCatalogDraft(model, items, active, { beforeAdopt }), /solo sincroniza borradores/);
+  const archived = t.mock.fn(async () => ({ productByIdentifier: { id: productId, status: 'ARCHIVED' } }));
+  await assert.rejects(syncCatalogDraft(model, items, archived, { beforeAdopt }), /activa o en borrador/);
   assert.equal(beforeAdopt.mock.callCount(), 1);
-  assert.equal(active.mock.callCount(), 1);
+  assert.equal(archived.mock.callCount(), 1);
 });

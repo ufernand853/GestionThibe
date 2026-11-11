@@ -76,8 +76,9 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
     }
   `, { identifier, limit: MAX_VARIANTS });
   const product = found.productByIdentifier;
-  if (product && product.status !== 'DRAFT') {
-    throw new HttpError(409, 'El piloto solo sincroniza borradores. Podés seguir editando en GestionThibe. Para enviar los cambios, la ficha de Shopify tiene que estar en borrador.');
+  const active = product?.status === 'ACTIVE';
+  if (product && !active && product.status !== 'DRAFT') {
+    throw new HttpError(409, 'La ficha de Shopify debe estar activa o en borrador para sincronizar.');
   }
   if (product?.variants.pageInfo.hasNextPage) {
     throw new HttpError(409, 'El borrador tiene más variantes de las que admite el piloto.');
@@ -86,7 +87,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
   if (adopted && !product) {
     throw new HttpError(409, 'Shopify no encontró la ficha vinculada. El modelo quedó guardado en GestionThibe.');
   }
-  if (adopting && (product.variants.nodes.length !== 1 ||
+  if (adopting && !active && (product.variants.nodes.length !== 1 ||
       product.variants.nodes[0].sku !== (principal.sku || principal.code))) {
     throw new HttpError(409, 'La ficha vinculada contiene variantes que requieren revisión en Shopify.');
   }
@@ -112,7 +113,14 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
       ]
     };
   });
+  if (active) {
+    const retained = new Set(variants.map(variant => variant.id));
+    if (product.variants.nodes.some(variant => !retained.has(variant.id))) {
+      throw new HttpError(409, 'La ficha activa tiene variantes que faltan en GestionThibe. Revisá los SKU antes de sincronizar.');
+    }
+  }
 
+  const keepExistingMedia = adopted || active;
   const filesBySource = new Map();
   const filesByColor = new Map();
   for (const gallery of model.galleries) {
@@ -148,14 +156,14 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
   }));
   const input = {
     title: model.title,
-    ...(adopted ? {} : { vendor: 'GestionThibe' }),
-    status: 'DRAFT',
+    ...(keepExistingMedia ? {} : { vendor: 'GestionThibe' }),
+    ...(product ? {} : { status: 'DRAFT' }),
     ...(product ? {} : { handle }),
     productOptions,
-    ...(adopted ? {} : { files: [...filesBySource.values()].map(id => ({ id })) }),
+    ...(keepExistingMedia ? {} : { files: [...filesBySource.values()].map(id => ({ id })) }),
     variants: variants.map((variant, index) => {
       const photo = variantPhotos[index][0];
-      return photo && !adopted ? { ...variant, file: { id: photo } } : variant;
+      return photo && !keepExistingMedia ? { ...variant, file: { id: photo } } : variant;
     })
   };
   if (beforeSend) await beforeSend(locationId);
@@ -180,7 +188,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
     throw new HttpError(502, errors.map(error => error.message).join(' · ') || 'Shopify no devolvió el borrador.');
   }
 
-  if (adopted && filesBySource.size) {
+  if (keepExistingMedia && filesBySource.size) {
     const existing = new Set((await getProductImages(graphql, synced.id)).map(image => image.id));
     const files = [...filesBySource.values()].filter(id => !existing.has(id))
       .map(id => ({ id, referencesToAdd: [synced.id] }));
@@ -216,7 +224,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
     const desired = variantPhotos[index];
     const current = variant.media.nodes.map(node => node.id);
     const added = desired.filter(id => !current.includes(id));
-    const removed = adopted && !desired.length ? [] : current.filter(id => !desired.includes(id));
+    const removed = active || (adopted && !desired.length) ? [] : current.filter(id => !desired.includes(id));
     if (added.length) append.push({ variantId: variant.id, mediaIds: added });
     if (removed.length) detach.push({ variantId: variant.id, mediaIds: removed });
   }

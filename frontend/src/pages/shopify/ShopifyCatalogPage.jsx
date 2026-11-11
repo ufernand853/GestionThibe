@@ -542,7 +542,9 @@ function DraftLocation({ model, locations, busy, onSend }) {
         </select>
       </label>
       {!locations.length && <span>Vinculá un depósito activo con Shopify en Ubicaciones.</span>}
-      <button type="button" onClick={() => onSend(model, locationId)} disabled={busy || !locationId}>Enviar borrador a Shopify</button>
+      <button type="button" onClick={() => onSend(model, locationId)} disabled={busy || !locationId}>
+        {model.productId || model.principal?.linked ? 'Sincronizar con Shopify' : 'Enviar borrador a Shopify'}
+      </button>
     </>
   );
 }
@@ -654,7 +656,7 @@ export default function ShopifyCatalogPage() {
     setMessage('');
     try {
       replaceModel(await api.post(`${endpoint}/models/${model.id}/sync-draft`, { locationId }));
-      setMessage('Borrador sincronizado en Shopify.');
+      setMessage('Ficha sincronizada en Shopify.');
     } catch (err) {
       setError(err.message);
       replaceModel({ ...model, pending: true, syncError: err.message });
@@ -744,7 +746,7 @@ export default function ShopifyCatalogPage() {
                   </div>
                 )}
                 {editing.principal?.linked && (
-                  <p className="muted-text">Este SKU ya tiene una ficha en Shopify. Podés editarlo acá. Al enviar los cambios, se usa esa misma ficha si está en borrador.</p>
+                  <p className="muted-text">Este SKU ya tiene una ficha en Shopify. Los cambios se sincronizan en esa misma ficha.</p>
                 )}
                 <VariantEditor model={editing} models={models} update={setEditing} disabled={busy} />
                 {(editing.principal || editing.id) && <GalleryEditor model={editing} update={setEditing} onReading={setReadingPhoto} />}
