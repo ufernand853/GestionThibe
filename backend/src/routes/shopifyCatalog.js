@@ -18,7 +18,7 @@ const { getLinkedProductId } = require('../services/shopifyCatalogLinkService');
 const router = express.Router();
 const read = requirePermission('items.read');
 const write = requirePermission('items.write');
-const syncing = new Set();
+const draftOperations = new Set();
 const idPattern = /^[a-f\d]{24}$/i;
 const itemFields = 'code sku description attributes images pDecimal unitsPerBox stock deletedAt shopify.productId';
 
@@ -220,16 +220,47 @@ async function saveModel(req, res) {
 router.post('/models', write, asyncHandler(saveModel));
 router.put('/models/:id', write, asyncHandler(saveModel));
 
+router.delete('/models/:id', write, asyncHandler(async (req, res) => {
+  const id = req.params.id.toLowerCase();
+  if (!idPattern.test(id)) throw new HttpError(400, 'Modelo inválido.');
+  const revision = Number(req.query.revision);
+  if (!req.query.revision || !Number.isSafeInteger(revision) || revision < 0) {
+    throw new HttpError(400, 'Revisión inválida.');
+  }
+  if (draftOperations.has(id)) throw new HttpError(409, 'Hay una operación en curso para este borrador.');
+  draftOperations.add(id);
+  try {
+    const model = await findModel(id);
+    if (model.productId || model.syncedAt || model.syncError) {
+      throw new HttpError(409, 'Solo se pueden eliminar borradores pendientes que aún no se enviaron a Shopify.');
+    }
+    const { deletedCount } = await ShopifyCatalogModel.deleteOne({
+      _id: id, revision, productId: null, syncedAt: null, syncError: null
+    });
+    if (!deletedCount) throw new HttpError(409, 'El modelo cambió. Volvé a cargarlo antes de eliminarlo.');
+    await recordAuditEvent({
+      action: 'Shopify',
+      request: `Borrador eliminado del catálogo online: ${model.code}`,
+      user: req.user?.username || 'Desconocido',
+      details: { modelId: model._id, revision }
+    });
+    res.status(204).end();
+  } finally {
+    draftOperations.delete(id);
+  }
+}));
+
 router.post('/models/:id/sync-draft', write, asyncHandler(async (req, res) => {
   const settings = getShopifyAuthStatus();
   if (settings.dryRun || !settings.configured) {
     throw new HttpError(409, 'Para enviar el borrador, configurá Shopify y desactivá el modo de simulación.');
   }
-  const model = await findModel(req.params.id);
-  const id = String(model._id);
-  if (syncing.has(id)) throw new HttpError(409, 'Este modelo ya se está sincronizando.');
-  syncing.add(id);
+  const id = req.params.id.toLowerCase();
+  if (!idPattern.test(id)) throw new HttpError(400, 'Modelo inválido.');
+  if (draftOperations.has(id)) throw new HttpError(409, 'Hay una operación en curso para este borrador.');
+  draftOperations.add(id);
   try {
+    const model = await findModel(id);
     const items = await loadItems(model.variants, [model.principalItemId]);
     validateItems(model.variants, items, model.principalItemId);
     validateOpeningStock(model, items);
@@ -257,7 +288,7 @@ router.post('/models/:id/sync-draft', write, asyncHandler(async (req, res) => {
     await ShopifyCatalogModel.findByIdAndUpdate(id, { $set: { syncError: error.message.slice(0, 500) } });
     throw error;
   } finally {
-    syncing.delete(id);
+    draftOperations.delete(id);
   }
 }));
 

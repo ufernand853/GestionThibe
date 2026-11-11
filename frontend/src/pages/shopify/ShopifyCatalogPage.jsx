@@ -636,6 +636,23 @@ export default function ShopifyCatalogPage() {
     }
   }
 
+  async function deleteDraft(model) {
+    if (!window.confirm(`¿Eliminar el borrador de «${model.title}» del catálogo online de GestionThibe? Esta acción no se puede deshacer.`)) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await api.delete(`${endpoint}/models/${model.id}?revision=${model.revision}`);
+      setModels(current => current.filter(row => row.id !== model.id));
+      setExpandedModelId(null);
+      setMessage('Borrador eliminado del catálogo online.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitTestOrder(path, payload) {
     setBusy(true);
     setError('');
@@ -737,6 +754,9 @@ export default function ShopifyCatalogPage() {
                 <div className="inline-actions">
                   <button type="button" className="secondary-button" onClick={() => setEditing(model)} disabled={busy}>Editar</button>
                   <button type="button" onClick={() => syncDraft(model)} disabled={busy || Boolean(editing)}>Enviar borrador a Shopify</button>
+                  {model.pending && !model.productId && !model.syncedAt && !model.syncError && (
+                    <button type="button" className="danger-button" onClick={() => deleteDraft(model)} disabled={busy}>Eliminar borrador</button>
+                  )}
                 </div>
               )}
             </details>
