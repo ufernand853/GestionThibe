@@ -129,9 +129,11 @@ colores o talles, confirmá el saldo con un conteo. Traer cajas copia los datos
 del momento al piloto. Los ajustes posteriores del piloto se registran en
 Catálogo online.
 
-Para enviar una ficha de prueba, configurá las credenciales, la URL pública
-si se usan fotos de GestionThibe, y el mapeo del depósito de Thibe o
-`SHOPIFY_DEFAULT_LOCATION_ID`. El botón
+Para enviar una ficha de prueba, configurá las credenciales y la URL pública
+si se usan fotos de GestionThibe. Elegí una ubicación de inventario entre los
+depósitos activos con ID de Shopify guardado en Ubicaciones. Si todas las cajas
+se importaron desde un mismo depósito vinculado, el catálogo lo preselecciona.
+El destino queda asignado al borrador al enviarlo. El botón
 **Enviar borrador a Shopify** sincroniza las variantes, sus fotos y el saldo
 de las cajas, incluidos los ceros. Si Shopify sigue procesando una foto,
 volvé a enviar el borrador cuando esté lista.

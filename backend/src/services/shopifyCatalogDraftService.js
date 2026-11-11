@@ -6,7 +6,35 @@ const { getOrCreateImage, getProductImages } = require('./shopifyMediaService');
 const { getLinkedProductId } = require('./shopifyCatalogLinkService');
 const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl, normalizeLabel, splitColors, getVariantSku } = require('./shopifyCatalogService');
 
-async function resolveDraftLocationId() {
+function normalizeLocationId(value) {
+  const location = typeof value === 'string' ? value.trim() : '';
+  if (/^\d+$/.test(location)) return `gid://shopify/Location/${location}`;
+  return /^gid:\/\/shopify\/Location\/\d+$/.test(location) ? location : null;
+}
+
+async function listDraftLocations() {
+  const locations = await Location.find({
+    type: 'warehouse',
+    status: 'active',
+    shopifyLocationId: { $exists: true, $nin: [null, ''] }
+  }).select('name shopifyLocationId').sort({ name: 1 }).lean();
+  return locations.flatMap(location => {
+    const shopifyId = normalizeLocationId(location.shopifyLocationId);
+    return shopifyId ? [{ id: String(location._id), name: location.name, shopifyId }] : [];
+  });
+}
+
+async function resolveDraftLocationId(model, locationId) {
+  if (locationId !== undefined) {
+    const locations = await listDraftLocations();
+    const selected = locations.find(location => location.id === locationId);
+    if (!selected) throw new HttpError(400, 'Elegí una ubicación activa vinculada a Shopify.');
+    if (model.draftShopifyLocationId && selected.shopifyId !== model.draftShopifyLocationId) {
+      throw new HttpError(409, 'Este borrador ya tiene una ubicación de inventario asignada en Shopify.');
+    }
+    return selected.shopifyId;
+  }
+  if (model.draftShopifyLocationId) return model.draftShopifyLocationId;
   const configured = config.shopify.defaultLocationId.trim();
   let location = configured;
   if (!location) {
@@ -21,16 +49,16 @@ async function resolveDraftLocationId() {
     }
     location = matches[0].shopifyLocationId.trim();
   }
-  const locationId = /^\d+$/.test(location) ? `gid://shopify/Location/${location}` : location;
-  if (!/^gid:\/\/shopify\/Location\/\d+$/.test(locationId)) {
+  const shopifyId = normalizeLocationId(location);
+  if (!shopifyId) {
     const source = configured ? 'SHOPIFY_DEFAULT_LOCATION_ID' : 'la ubicación Thibe';
     throw new HttpError(400, `El ID de Shopify en ${source} debe ser un número o un GID de ubicación.`);
   }
-  return locationId;
+  return shopifyId;
 }
 
-async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { beforeAdopt } = {}) {
-  const locationId = await resolveDraftLocationId();
+async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { beforeAdopt, beforeSend, selectedLocationId } = {}) {
+  const locationId = await resolveDraftLocationId(model, selectedLocationId);
   const available = getCatalogAvailability(model);
   const handle = `gestionthibe-modelo-${model._id}`;
   const principal = items.get(String(model.principalItemId));
@@ -130,6 +158,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
       return photo && !adopted ? { ...variant, file: { id: photo } } : variant;
     })
   };
+  if (beforeSend) await beforeSend(locationId);
   if (adopting) {
     if (!beforeAdopt) throw new HttpError(409, 'No se pudo vincular el borrador al catálogo online.');
     await beforeAdopt(product.id);
@@ -209,4 +238,4 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
   return synced.id;
 }
 
-module.exports = { syncCatalogDraft };
+module.exports = { listDraftLocations, syncCatalogDraft };

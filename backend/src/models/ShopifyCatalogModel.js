@@ -37,6 +37,7 @@ const catalogSchema = new Schema({
   revision: { type: Number, default: 0 },
   updatedBy: String,
   productId: String,
+  draftShopifyLocationId: String,
   adoptedProductId: { type: String, unique: true, sparse: true },
   syncedRevision: Number,
   syncedAt: Date,

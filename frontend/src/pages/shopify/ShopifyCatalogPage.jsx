@@ -525,6 +525,28 @@ function PilotOrders({ models, canWrite, busy, submit }) {
   );
 }
 
+function DraftLocation({ model, locations, busy, onSend }) {
+  const [selection, setSelection] = useState(null);
+  const origins = new Set(model.boxes.map(box => box.sourceKey?.split(':')[1]));
+  const inferred = origins.size === 1 ? locations.find(location => origins.has(location.id)) : null;
+  const assigned = locations.find(location => location.shopifyId === model.draftShopifyLocationId);
+  const locationId = model.draftShopifyLocationId ? assigned?.id || '' : selection ?? inferred?.id ?? '';
+
+  return (
+    <>
+      <label>
+        Ubicación de stock en Shopify
+        <select value={locationId} onChange={event => setSelection(event.target.value)} disabled={busy || Boolean(model.draftShopifyLocationId)}>
+          <option value="">{model.draftShopifyLocationId ? 'La ubicación asignada ya no está vinculada' : 'Elegí una ubicación'}</option>
+          {locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+        </select>
+      </label>
+      {!locations.length && <span>Vinculá un depósito activo con Shopify en Ubicaciones.</span>}
+      <button type="button" onClick={() => onSend(model, locationId)} disabled={busy || !locationId}>Enviar borrador a Shopify</button>
+    </>
+  );
+}
+
 export default function ShopifyCatalogPage() {
   const api = useApi();
   const { user } = useAuth();
@@ -533,6 +555,7 @@ export default function ShopifyCatalogPage() {
   const tab = params.get('vista') || 'catalogo';
   const canWrite = user?.permissions?.includes('items.write');
   const [models, setModels] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [editing, setEditing] = useState(null);
   const [expandedModelId, setExpandedModelId] = useState(null);
   const [readingPhoto, setReadingPhoto] = useState(false);
@@ -546,9 +569,13 @@ export default function ShopifyCatalogPage() {
       setBusy(true);
       setError('');
       try {
-        const saved = await api.get(`${endpoint}/models`);
+        const [saved, destinations] = await Promise.all([
+          api.get(`${endpoint}/models`),
+          canWrite ? api.get(`${endpoint}/locations`) : []
+        ]);
         if (!current) return;
         setModels(saved);
+        setLocations(destinations);
         if (!itemId || !canWrite) return;
         const existing = saved.find(model => model.principal?.id === itemId || model.variants.some(row => row.itemId === itemId));
         if (existing) {
@@ -621,12 +648,12 @@ export default function ShopifyCatalogPage() {
     }
   }
 
-  async function syncDraft(model) {
+  async function syncDraft(model, locationId) {
     setBusy(true);
     setError('');
     setMessage('');
     try {
-      replaceModel(await api.post(`${endpoint}/models/${model.id}/sync-draft`, {}));
+      replaceModel(await api.post(`${endpoint}/models/${model.id}/sync-draft`, { locationId }));
       setMessage('Borrador sincronizado en Shopify.');
     } catch (err) {
       setError(err.message);
@@ -753,7 +780,7 @@ export default function ShopifyCatalogPage() {
               {canWrite && (
                 <div className="inline-actions">
                   <button type="button" className="secondary-button" onClick={() => setEditing(model)} disabled={busy}>Editar</button>
-                  <button type="button" onClick={() => syncDraft(model)} disabled={busy || Boolean(editing)}>Enviar borrador a Shopify</button>
+                  <DraftLocation model={model} locations={locations} busy={busy} onSend={syncDraft} />
                   {model.pending && !model.productId && !model.syncedAt && !model.syncError && (
                     <button type="button" className="danger-button" onClick={() => deleteDraft(model)} disabled={busy}>Eliminar borrador</button>
                   )}

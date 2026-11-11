@@ -12,7 +12,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const { recordAuditEvent } = require('../services/auditService');
 const { getShopifyAuthStatus } = require('../services/shopifyAuthService');
 const { normalizeCatalogInput, getCatalogAvailability, getExistingBoxStock, getVariantSku, suggestOpening, validateOpeningStock, validateSingleProduct } = require('../services/shopifyCatalogService');
-const { syncCatalogDraft } = require('../services/shopifyCatalogDraftService');
+const { listDraftLocations, syncCatalogDraft } = require('../services/shopifyCatalogDraftService');
 const { getLinkedProductId } = require('../services/shopifyCatalogLinkService');
 
 const router = express.Router();
@@ -68,6 +68,7 @@ function serializeModel(model, items, locations) {
     principal: items.has(String(model.principalItemId)) ? serializeItem(items.get(String(model.principalItemId)), locations) : null,
     revision: model.revision,
     productId: model.productId,
+    draftShopifyLocationId: model.draftShopifyLocationId,
     syncedAt: model.syncedAt,
     syncError: model.syncError,
     pending: model.revision !== model.syncedRevision || Boolean(model.syncError),
@@ -124,6 +125,10 @@ router.post('/images', write, asyncHandler(async (req, res) => {
     if (error.code !== 'EEXIST') throw error;
   }
   res.json({ path: 'uploads/shopify-catalog/' + name });
+}));
+
+router.get('/locations', write, asyncHandler(async (req, res) => {
+  res.json(await listDraftLocations());
 }));
 
 router.get('/items', read, asyncHandler(async (req, res) => {
@@ -265,6 +270,14 @@ router.post('/models/:id/sync-draft', write, asyncHandler(async (req, res) => {
     validateItems(model.variants, items, model.principalItemId);
     validateOpeningStock(model, items);
     const productId = await syncCatalogDraft(model, items, undefined, {
+      selectedLocationId: req.body?.locationId,
+      async beforeSend(locationId) {
+        const result = await ShopifyCatalogModel.updateOne(
+          { _id: id, revision: model.revision, draftShopifyLocationId: { $in: [null, locationId] } },
+          { $set: { draftShopifyLocationId: locationId } }
+        );
+        if (!result.matchedCount) throw new HttpError(409, 'El modelo cambió. Volvé a cargarlo antes de enviar el borrador.');
+      },
       async beforeAdopt(adoptedProductId) {
         try {
           const claimed = await ShopifyCatalogModel.findOneAndUpdate(

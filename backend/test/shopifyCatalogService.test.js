@@ -112,6 +112,27 @@ test('sincroniza un borrador con SKU intactos, cero explícito y fotos compartid
   const callsBefore = graphql.mock.callCount();
   await assert.rejects(syncCatalogDraft(model, items, graphql), /único depósito activo/);
   assert.equal(graphql.mock.callCount(), callsBefore);
+
+  const chosenId = 'cccccccccccccccccccccccc';
+  const otherId = 'dddddddddddddddddddddddd';
+  locations = [
+    { _id: chosenId, name: 'Casa Azul (Thibe)', shopifyLocationId: '5678' },
+    { _id: otherId, name: 'Thibe Kids', shopifyLocationId: '9012' }
+  ];
+  find.mock.mockImplementation(() => ({
+    select: () => ({ sort: () => ({ lean: async () => locations }) })
+  }));
+  config.shopify.defaultLocationId = '1234';
+  const beforeSend = t.mock.fn();
+  await syncCatalogDraft(model, items, graphql, { selectedLocationId: chosenId, beforeSend });
+  const selectedGid = 'gid://shopify/Location/5678';
+  assert.deepEqual(beforeSend.mock.calls[0].arguments, [selectedGid]);
+  const [, selectedVariables] = graphql.mock.calls.findLast(call => call.arguments[0].includes('productSet')).arguments;
+  assert.equal(selectedVariables.input.variants[0].inventoryQuantities[0].locationId, selectedGid);
+  await assert.rejects(
+    syncCatalogDraft({ ...model, draftShopifyLocationId: selectedGid }, items, graphql, { selectedLocationId: otherId }),
+    /ya tiene una ubicación/
+  );
 });
 
 
