@@ -39,7 +39,6 @@ function OptionField({ variant, field, onChange }) {
       value={variant[field]}
       readOnly={Boolean(variant.sourceItemId)}
       onChange={event => onChange(event.target.value)}
-      required
     />
   );
 }
@@ -126,6 +125,22 @@ function VariantEditor({ model, models, update, disabled }) {
     }));
   }
 
+  function useSingleSku() {
+    if (model.boxes.some(box => box.quantities.some(quantity => quantity.units))) {
+      setError('Antes de usar un solo SKU, dejá en 0 las unidades asignadas a las variantes.');
+      return;
+    }
+    setError('');
+    update(current => ({
+      ...current,
+      variants: [{ itemId: current.principal.id, sku: current.principal.sku, item: current.principal, color: '', size: '' }],
+      boxes: current.boxes.map(box => ({ ...box, quantities: [] })),
+      galleries: current.galleries.length
+        ? [{ color: '', images: [...new Set(current.galleries.flatMap(gallery => gallery.images))] }]
+        : []
+    }));
+  }
+
   return (
     <section>
       <h3 id="catalogo-variantes">{choosingProduct ? 'Elegí un producto' : 'Variantes del producto'}</h3>
@@ -163,7 +178,12 @@ function VariantEditor({ model, models, update, disabled }) {
           )}
         </>
       ) : (
-        <p className="muted-text">Revisá los colores y talles de este producto. Si falta un dato, completalo acá. Quitá las combinaciones que no existen.</p>
+        <>
+          <p className="muted-text">Completá solo las opciones que puede elegir el cliente. Para un producto simple o surtido, dejá color y talle vacíos.</p>
+          {model.principal && model.variants.length > 0 && model.variants.every(row => row.sourceItemId) && (
+            <button type="button" className="secondary-button" onClick={useSingleSku}>Usar solo el SKU original</button>
+          )}
+        </>
       )}
       {!choosingProduct && <div className="table-wrapper">
         <table>
@@ -178,7 +198,7 @@ function VariantEditor({ model, models, update, disabled }) {
                 <td>
                   <div className="inline-actions">
                     {row.item && !row.sourceItemId && (model.principal?.id === row.itemId || (!model.principal && model.variants.length === 1)) &&
-                      row.color.trim() && row.size.trim() && [row.color, row.size].some(value => splitOptions(value).length > 1) && (
+                      [row.color, row.size].some(value => splitOptions(value).length > 1) && (
                         <button type="button" className="secondary-button" onClick={() => expandRow(row)} disabled={searching}>Generar variantes</button>
                     )}
                     <button type="button" className="secondary-button" onClick={() => removeVariant(row.itemId)}>Quitar</button>
@@ -200,6 +220,7 @@ function colorsFor(variants) {
       if (!colors.has(colorKey(part))) colors.set(colorKey(part), part);
     }
   }
+  if (variants.length && variants.every(row => !row.color.trim())) colors.set('', '');
   return colors;
 }
 
@@ -236,20 +257,19 @@ function GalleryEditor({ model, update, onReading }) {
 
   return (
     <section>
-      <h3>Fotos por color</h3>
-      <p className="muted-text">Si un artículo dice Blanco/Negro o Blanco-Negro, vas a ver una tarjeta para Blanco y otra para Negro. Elegí una foto en cada tarjeta. Los talles del mismo color comparten esa foto.</p>
+      <h3>{colorsFor(model.variants).has('') ? 'Fotos del producto' : 'Fotos por color'}</h3>
       {error && <ErrorMessage error={error} />}
       <div className="image-preview-grid">
         {[...colorsFor(model.variants)].map(([key, color]) => {
           const photo = model.galleries.find(row => colorKey(row.color) === key)?.images[0];
           const choices = [...new Set(model.variants
-            .filter(row => splitOptions(row.color).some(part => colorKey(part) === key))
+            .filter(row => !key || splitOptions(row.color).some(part => colorKey(part) === key))
             .flatMap(row => row.item?.images || []))]
             .filter(image => /^https:\/\//i.test(image) || /^\/?uploads\/items\//i.test(image));
           return (
             <div key={key} className="image-preview-item catalog-color-photo">
-              <strong>{color}</strong>
-              {photo ? <img src={photoUrl(photo)} alt={`Foto del color ${color}`} /> : <span>Sin foto</span>}
+              <strong>{color || 'Foto principal'}</strong>
+              {photo ? <img src={photoUrl(photo)} alt={color ? `Foto del color ${color}` : 'Foto del producto'} /> : <span>Sin foto</span>}
               <label>
                 Seleccionar foto
                 <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={event => selectPhoto(color, event)} />
@@ -278,8 +298,7 @@ function ExistingBoxes({ model, update }) {
   const stockSources = new Map(model.variants.map(variant => [variant.sourceItemId || variant.itemId, variant]));
   const rows = [...stockSources.entries()].flatMap(([sourceId, variant]) => (variant.item?.boxStock || []).map(stock => {
     const sourceKey = sourceId + ':' + stock.locationId;
-    const attributes = variant.item.attributes;
-    const hasMixedAttributes = [variant.size, variant.color, attributes?.size, attributes?.color].some(value => splitOptions(value).length > 1);
+    const hasMixedAttributes = [variant.size, variant.color].some(value => splitOptions(value).length > 1);
     const estimate = stock.boxes * stock.unitsPerBox;
     const units = !variant.sourceItemId && !hasMixedAttributes && stock.unitsPerBox && estimate <= maxBoxUnits ? estimate : null;
     return { variant, stock, sourceId, sourceKey, units };
@@ -385,7 +404,9 @@ function BoxScale({ box, variants, onApply }) {
 }
 
 function BoxEditor({ model, update }) {
-  const missingOptions = model.variants.some(row => !row.color.trim() || !row.size.trim());
+  const missingOptions = ['color', 'size'].some(field =>
+    model.variants.some(row => row[field].trim()) && model.variants.some(row => !row[field].trim())
+  );
   const assigned = model.boxes.reduce((total, box) => total + box.quantities.reduce((sum, row) => sum + row.units, 0), 0);
   const hasSourceBoxes = model.variants.some(row => row.item?.boxStock?.length);
   const hasManualCount = model.boxes.some(box => !box.sourceKey);
@@ -418,7 +439,7 @@ function BoxEditor({ model, update }) {
       <h3>Stock para la tienda online</h3>
       <p><strong>Solo cambia el saldo online.</strong> El stock de Artículos y de las sucursales queda igual.</p>
       {missingOptions ? (
-        <p><a href="#catalogo-variantes">Completá el color o el talle que falta arriba</a> para poder guardar el modelo.</p>
+        <p><a href="#catalogo-variantes">Revisá las opciones de las variantes</a>. Si usás color o talle, completalo en todas las filas.</p>
       ) : null}
       {hasSourceBoxes ? (
         <>
@@ -455,8 +476,8 @@ function BoxEditor({ model, update }) {
                   {variants.map(row => (
                     <tr key={row.itemId}>
                       <td>{row.sku}</td>
-                      <td>{row.color || 'Falta completar'}</td>
-                      <td>{row.size || 'Falta completar'}</td>
+                      <td>{row.color || '—'}</td>
+                      <td>{row.size || '—'}</td>
                       <td>
                         <input
                           type="number"

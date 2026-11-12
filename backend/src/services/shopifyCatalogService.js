@@ -20,6 +20,10 @@ function label(value, field, max = 100) {
   return value.trim().normalize('NFC');
 }
 
+function optionalLabel(value, field) {
+  return value == null || (typeof value === 'string' && !value.trim()) ? '' : label(value, field);
+}
+
 function list(value, field, max, min = 0) {
   if (!Array.isArray(value) || value.length < min || value.length > max) {
     invalid(`La lista de ${field} debe tener entre ${min} y ${max} entradas.`);
@@ -47,13 +51,13 @@ function getVariantSku(row, item) {
 
 function suggestOpening(item, overrides) {
   const sourceItemId = String(item._id);
-  const color = overrides ? label(overrides.color, 'un color') : item.attributes?.color || '';
-  const size = overrides ? label(overrides.size, 'un talle') : item.attributes?.size || '';
-  const options = value => [...new Map(splitColors(value).map(part => [normalizeLabel(part), part])).values()];
+  const color = optionalLabel(overrides?.color ?? item.attributes?.color, 'un color');
+  const size = optionalLabel(overrides?.size ?? item.attributes?.size, 'un talle');
+  const options = value => value ? [...new Map(splitColors(value).map(part => [normalizeLabel(part), part])).values()] : [''];
   const colors = options(color);
   const sizes = options(size);
   if (colors.length * sizes.length > MAX_VARIANTS) invalid('El artículo supera las 50 combinaciones del piloto.');
-  const variants = colors.length && sizes.length && (colors.length > 1 || sizes.length > 1)
+  const variants = colors.length > 1 || sizes.length > 1
     ? colors.flatMap(color => sizes.map(size => ({ itemId: variantId(sourceItemId, color, size), sourceItemId, color, size })))
     : [{ itemId: sourceItemId, color, size }];
   return variants.map(row => ({ ...row, sku: getVariantSku(row, item) }));
@@ -138,8 +142,8 @@ function normalizeCatalogInput(input) {
   const sizes = new Map();
   const variants = list(input.variants, 'variantes', MAX_VARIANTS, 1).map(row => {
     const id = itemId(row?.itemId);
-    const color = label(row?.color, 'un color');
-    const size = label(row?.size, 'un talle');
+    const color = optionalLabel(row?.color, 'un color');
+    const size = optionalLabel(row?.size, 'un talle');
     const sourceItemId = row.sourceItemId == null ? null : itemId(row.sourceItemId);
     if (sourceItemId && (sourceItemId !== principalItemId || variantId(sourceItemId, color, size) !== id)) {
       invalid('La variante generada no corresponde al SKU principal.');
@@ -155,6 +159,8 @@ function normalizeCatalogInput(input) {
     if (!sizes.has(sizeKey)) sizes.set(sizeKey, size);
     return { itemId: id, ...(sourceItemId ? { sourceItemId } : {}), color: colors.get(colorKey), size: sizes.get(sizeKey) };
   });
+  if (colors.size > 1 && colors.has('')) invalid('Completá el color en todas las variantes o dejalo vacío en todas.');
+  if (sizes.size > 1 && sizes.has('')) invalid('Completá el talle en todas las variantes o dejalo vacío en todas.');
 
   const sourcesByVariant = new Map(variants.map(row => [row.itemId, row.sourceItemId || row.itemId]));
   if (variants.some(row => row.sourceItemId) && items.has(principalItemId)) {
@@ -205,7 +211,7 @@ function normalizeCatalogInput(input) {
   const galleryColors = new Set();
   let photoCount = 0;
   const galleries = list(input.galleries, 'galerías', MAX_VARIANTS).map(gallery => {
-    const key = normalizeLabel(label(gallery?.color, 'el color de la galería'));
+    const key = normalizeLabel(optionalLabel(gallery?.color, 'el color de la galería'));
     if (!availableColors.has(key) || galleryColors.has(key)) invalid('Debe haber una sola galería por color del modelo.');
     galleryColors.add(key);
     const images = [...new Set(list(gallery.images, 'fotos', MAX_PHOTOS).map(imageSource))];

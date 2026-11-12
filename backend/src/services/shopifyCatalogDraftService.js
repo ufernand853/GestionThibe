@@ -73,7 +73,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, {
   const found = await graphql(`
     query ThibeCatalogDraft($identifier: ProductIdentifierInput!, $limit: Int!, $after: String) {
       productByIdentifier(identifier: $identifier) {
-        id status
+        id status hasOnlyDefaultVariant
         options { name values }
         variants(first: $limit, after: $after) {
           nodes { ${variantFields} }
@@ -99,7 +99,8 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, {
     }
   }
 
-  if (active || (adopted && product.options?.some(option => normalizeLabel(option.name) !== 'title'))) {
+  const simple = model.variants.length === 1 && !model.variants[0].color && !model.variants[0].size;
+  if (active || (adopted && (simple || product.options?.some(option => normalizeLabel(option.name) !== 'title')))) {
     let pageInfo = product.variants.pageInfo;
     while (pageInfo.hasNextPage) {
       const page = await graphql(`
@@ -128,6 +129,11 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, {
     throw new HttpError(409, 'La ficha vinculada contiene variantes que requieren revisión en Shopify.');
   }
 
+  const axes = [['Color', 'color'], ['Talle', 'size']].filter(([, key]) => model.variants.some(row => row[key]));
+  const productOptions = axes.length ? axes.map(([name, key]) => ({
+    name,
+    values: [...new Set(model.variants.map(row => row[key]))].map(value => ({ name: value }))
+  })) : [{ name: 'Title', values: [{ name: 'Default Title' }] }];
   const variants = model.variants.map(row => {
     const id = String(row.itemId);
     const item = items.get(String(row.sourceItemId || id));
@@ -135,7 +141,9 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, {
     if (!Number.isFinite(item.pDecimal) || item.pDecimal < 0) {
       throw new HttpError(400, `Cargá un precio para el SKU ${sku} antes de sincronizar.`);
     }
-    const existing = product?.variants.nodes.find(variant => variant.sku === sku);
+    const existing = simple && product?.hasOnlyDefaultVariant
+      ? product.variants.nodes[0]
+      : product?.variants.nodes.find(variant => variant.sku === sku);
     return {
       ...(existing ? { id: existing.id } : {}),
       sku,
@@ -143,10 +151,8 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, {
       inventoryItem: { tracked: true },
       inventoryPolicy: 'DENY',
       inventoryQuantities: [{ locationId, name: 'available', quantity: available.get(id) }],
-      optionValues: [
-        { optionName: 'Color', name: row.color },
-        { optionName: 'Talle', name: row.size }
-      ]
+      optionValues: axes.length ? axes.map(([optionName, key]) => ({ optionName, name: row[key] }))
+        : [{ optionName: 'Title', name: 'Default Title' }]
     };
   });
   const keepExistingMedia = adopted;
@@ -179,10 +185,6 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, {
     return ids.length ? [...new Set(ids)] : filesByColor.get(normalizeLabel(color)) || [];
   });
 
-  const productOptions = [['Color', 'color'], ['Talle', 'size']].map(([name, key]) => ({
-    name,
-    values: [...new Set(model.variants.map(row => row[key]))].map(value => ({ name: value }))
-  }));
   const input = {
     title: model.title,
     ...(keepExistingMedia ? {} : { vendor: 'GestionThibe' }),

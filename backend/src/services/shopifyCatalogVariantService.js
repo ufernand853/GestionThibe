@@ -15,6 +15,7 @@ function matchesOptions(variant, row) {
   const options = variant.selectedOptions || [];
   return ['color', 'size'].every(key => {
     const matching = options.filter(option => optionKey(option.name) === key);
+    if (!row[key]) return matching.length === 0;
     return matching.length === 1 && normalizeLabel(matching[0].value) === normalizeLabel(row[key]);
   });
 }
@@ -31,7 +32,10 @@ async function syncExistingCatalogVariants({
     const saved = link?.color === row.color && link.size === row.size
       ? variants.find(variant => variant.id === link.variantId)
       : null;
-    const matches = saved ? [saved] : variants.filter(variant => matchesOptions(variant, row));
+    const simple = !row.color && !row.size;
+    const matches = saved ? [saved] : simple
+      ? (product.hasOnlyDefaultVariant ? variants : [])
+      : variants.filter(variant => matchesOptions(variant, row));
     if (matches.length > 1) {
       throw new HttpError(409, `Hay varias variantes de Shopify para ${label}. Revisá las opciones de esa ficha.`);
     }
@@ -50,9 +54,10 @@ async function syncExistingCatalogVariants({
   let newVariants = [];
   if (missing.length) {
     const options = product.options || [];
-    if (options.length !== 2 || new Set(options.map(option => optionKey(option.name))).size !== 2 ||
-        options.some(option => !optionKey(option.name))) {
-      throw new HttpError(409, 'Para agregar variantes, la ficha de Shopify debe tener opciones de color y talle.');
+    const keys = ['color', 'size'].filter(key => missing[0].row[key]);
+    if (!keys.length || options.length !== keys.length ||
+        !keys.every(key => options.filter(option => optionKey(option.name) === key).length === 1)) {
+      throw new HttpError(409, 'Para agregar variantes, las opciones de la ficha en Shopify deben coincidir con las del modelo.');
     }
     if (!Array.isArray(confirmedVariantIds) || confirmedVariantIds.length !== missing.length ||
         !missing.every(entry => confirmedVariantIds.includes(entry.itemId))) {

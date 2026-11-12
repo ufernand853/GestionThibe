@@ -3,8 +3,8 @@ const { Schema, model } = require('mongoose');
 const variantSchema = new Schema({
   itemId: { type: Schema.Types.ObjectId, required: true },
   sourceItemId: Schema.Types.ObjectId,
-  color: { type: String, required: true },
-  size: { type: String, required: true }
+  color: { type: String, default: '' },
+  size: { type: String, default: '' }
 }, { _id: false });
 
 const boxSchema = new Schema({

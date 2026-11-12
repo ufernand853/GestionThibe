@@ -267,14 +267,77 @@ test('una combinación que ya tiene SKU conserva su código', () => {
 });
 
 
-test('abre las variantes cuando el operador completa el talle faltante en el catálogo', () => {
+test('abre variantes por color o talle sin requerir la otra opción', () => {
   const item = { _id: mediumId, sku: '000531', attributes: { color: 'Beige/Negro' } };
-  assert.equal(suggestOpening(item).length, 1);
+  assert.deepEqual(suggestOpening(item).map(row => [row.color, row.size]), [['Beige', ''], ['Negro', '']]);
   assert.deepEqual(suggestOpening(item, { color: 'Beige/Negro', size: 'M' }).map(row => [row.color, row.size]), [
     ['Beige', 'M'], ['Negro', 'M']
   ]);
   assert.equal(item.attributes.size, undefined);
-  assert.throws(() => suggestOpening(item, { color: 'Beige/Negro', size: '' }), /talle/);
+  assert.deepEqual(suggestOpening(item, { color: '', size: 'S/M' }).map(row => [row.color, row.size]), [['', 'S'], ['', 'M']]);
+  assert.deepEqual(suggestOpening(item, { color: '', size: '' }), [
+    { itemId: mediumId, color: '', size: '', sku: '000531' }
+  ]);
+  assert.throws(() => normalizeCatalogInput({
+    ...modelInput(), variants: [{ itemId: mediumId, color: 'Negro', size: 'S' }, { itemId: largeId, color: '', size: 'M' }]
+  }), /color en todas/);
+});
+
+test('envía solo las opciones del producto y conserva el SKU original si es simple', async t => {
+  const previousLocation = config.shopify.defaultLocationId;
+  config.shopify.defaultLocationId = '1234';
+  t.after(() => { config.shopify.defaultLocationId = previousLocation; });
+  const item = { _id: mediumId, sku: '000531', pDecimal: 99 };
+  const items = new Map([[mediumId, item]]);
+  for (const [attributes, expectedOptions] of [
+    [{}, ['Title']],
+    [{ color: 'Rojo/Azul' }, ['Color']],
+    [{ size: 'S/M' }, ['Talle']],
+    [{ color: 'Rojo/Azul', size: 'S/M' }, ['Color', 'Talle']]
+  ]) {
+    const model = normalizeCatalogInput({
+      code: item.sku, title: 'Producto', principalItemId: mediumId, boxes: [], galleries: [],
+      variants: suggestOpening({ ...item, attributes })
+    });
+    const graphql = async (query, variables) => {
+      if (query.includes('productByIdentifier')) return { productByIdentifier: null };
+      const { input } = variables;
+      assert.deepEqual(input.productOptions.map(option => option.name), expectedOptions);
+      for (const variant of input.variants) {
+        assert.deepEqual(variant.optionValues.map(option => option.optionName), expectedOptions);
+      }
+      if (expectedOptions[0] === 'Title') {
+        assert.equal(input.variants[0].sku, item.sku);
+        assert.equal(input.variants[0].optionValues[0].name, 'Default Title');
+      }
+      return { productSet: { product: { id: 'product', variants: { nodes: [] } }, userErrors: [] } };
+    };
+    assert.equal(await syncCatalogDraft({ ...model, _id: 'catalog' }, items, graphql), 'product');
+
+    const simple = expectedOptions[0] === 'Title';
+    const active = t.mock.fn(async query => {
+      if (query.includes('productByIdentifier')) {
+        return { productByIdentifier: {
+          id: 'product', status: 'ACTIVE', hasOnlyDefaultVariant: simple,
+          variants: {
+            nodes: model.variants.map((row, index) => ({
+              id: `variant-${index}`, sku: `SKU-DE-SHOPIFY-${index}`,
+              inventoryItem: { id: `inventory-${index}`, tracked: true },
+              selectedOptions: [
+                ...(row.color ? [{ name: 'Colour', value: row.color }] : []),
+                ...(row.size ? [{ name: 'Size', value: row.size }] : [])
+              ]
+            })),
+            pageInfo: { hasNextPage: false }
+          }
+        } };
+      }
+      assert.match(query, /InventoryLevelAvailable/);
+      return { inventoryItem: { inventoryLevel: { quantities: [{ name: 'available', quantity: 0 }] } } };
+    });
+    assert.equal(await syncCatalogDraft({ ...model, _id: 'catalog', productId: 'product' }, items, active), 'product');
+    assert.equal(active.mock.callCount(), 1 + model.variants.length);
+  }
 });
 
 
