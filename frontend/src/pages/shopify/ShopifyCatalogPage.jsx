@@ -333,6 +333,57 @@ function ExistingBoxes({ model, update }) {
   );
 }
 
+function BoxScale({ box, variants, onApply }) {
+  const [closedBoxes, setClosedBoxes] = useState('');
+  const [scale, setScale] = useState({});
+  const unitsPerBox = variants[0]?.item?.unitsPerBox;
+  if (!Number.isSafeInteger(unitsPerBox) || unitsPerBox < 1 || variants.length < 2) return null;
+
+  const distribution = variants.map(row => ({ itemId: row.itemId, units: Number(scale[row.itemId] ?? 0) }));
+  const total = distribution.reduce((sum, row) => sum + row.units, 0);
+  const count = Number(closedBoxes);
+  const valid = Number.isSafeInteger(count) && count >= 1 && count <= box.sourceBoxes &&
+    total === unitsPerBox && distribution.every(row =>
+      Number.isSafeInteger(row.units) && row.units >= 0 && row.units * count <= maxBoxUnits
+    );
+
+  return (
+    <details>
+      <summary>Calcular por escala de caja</summary>
+      <label>
+        Cajas cerradas con esta escala
+        <input type="number" step="any" value={closedBoxes}
+          onChange={event => setClosedBoxes(event.target.value)} />
+      </label>
+      <table className="data-table">
+        <thead><tr><th>Color</th><th>Talle</th><th>Unidades por caja</th></tr></thead>
+        <tbody>
+          {variants.map(row => (
+            <tr key={row.itemId}>
+              <td>{row.color}</td>
+              <td>{row.size}</td>
+              <td>
+                <input type="number" className="quantity-input" step="any"
+                  aria-label={`Unidades por caja de ${row.color}, talle ${row.size}`}
+                  value={scale[row.itemId] ?? ''}
+                  onChange={event => {
+                    const value = event.target.value;
+                    setScale(current => ({ ...current, [row.itemId]: value }));
+                  }} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p>Unidades por caja asignadas {total} de {unitsPerBox}</p>
+      <button type="button" className="secondary-button" disabled={!valid} onClick={() => {
+        onApply(distribution.map(row => ({ ...row, units: row.units * count })));
+      }}>Aplicar al saldo online</button>
+      <p className="muted-text">Reemplaza las cantidades de este grupo de cajas. Después podés ajustar el saldo para incluir las unidades sueltas contadas.</p>
+    </details>
+  );
+}
+
 function BoxEditor({ model, update }) {
   const missingOptions = model.variants.some(row => !row.color.trim() || !row.size.trim());
   const assigned = model.boxes.reduce((total, box) => total + box.quantities.reduce((sum, row) => sum + row.units, 0), 0);
@@ -391,6 +442,12 @@ function BoxEditor({ model, update }) {
         return (
           <fieldset key={box.sourceKey || index}>
             <legend>{box.label}{box.sourceKey ? ` · ${box.sourceBoxes} caja(s) registradas` : ''}</legend>
+            {box.sourceKey && !missingOptions && <BoxScale box={box} variants={variants} onApply={quantities => {
+              update(current => ({
+                ...current,
+                boxes: current.boxes.map((entry, position) => position === index ? { ...entry, quantities } : entry)
+              }));
+            }} />}
             <div className="table-responsive">
               <table className="data-table">
                 <thead><tr><th>SKU</th><th>Color</th><th>Talle</th><th>Unidades para la web</th></tr></thead>
