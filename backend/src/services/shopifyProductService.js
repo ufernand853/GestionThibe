@@ -163,7 +163,7 @@ function getMappedInventoryQuantities(inventoryItemId, payload) {
   return quantities;
 }
 
-async function getCurrentAvailableQuantity(inventoryItemId, locationId) {
+async function getCurrentAvailableQuantity(inventoryItemId, locationId, graphql) {
   const query = `
     query InventoryLevelAvailable($inventoryItemId: ID!, $locationId: ID!) {
       inventoryItem(id: $inventoryItemId) {
@@ -176,7 +176,7 @@ async function getCurrentAvailableQuantity(inventoryItemId, locationId) {
       }
     }
   `;
-  const data = await shopifyGraphql(query, { inventoryItemId, locationId });
+  const data = await graphql(query, { inventoryItemId, locationId });
   if (!data.inventoryItem) throw new HttpError(404, 'Shopify no encontró el inventario vinculado.');
   const level = data.inventoryItem.inventoryLevel;
   if (!level) return null;
@@ -185,7 +185,7 @@ async function getCurrentAvailableQuantity(inventoryItemId, locationId) {
   return available.quantity;
 }
 
-async function activateInventoryLocation(quantity) {
+async function activateInventoryLocation(quantity, graphql) {
   const query = `
     mutation ActivateInventoryItem(
       $inventoryItemId: ID!,
@@ -200,7 +200,7 @@ async function activateInventoryLocation(quantity) {
       }
     }
   `;
-  const data = await shopifyGraphql(query, {
+  const data = await graphql(query, {
     inventoryItemId: quantity.inventoryItemId,
     locationId: quantity.locationId,
     available: quantity.quantity,
@@ -209,7 +209,7 @@ async function activateInventoryLocation(quantity) {
   assertNoUserErrors('la activación de inventario por ubicación', data.inventoryActivate?.userErrors);
 }
 
-async function setInventoryQuantities(quantities, referenceDocumentUri) {
+async function setInventoryQuantities(quantities, referenceDocumentUri, graphql) {
   const query = `
     mutation InventorySet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
       inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
@@ -218,7 +218,7 @@ async function setInventoryQuantities(quantities, referenceDocumentUri) {
       }
     }
   `;
-  const data = await shopifyGraphql(query, {
+  const data = await graphql(query, {
     input: {
       name: 'available',
       reason: 'correction',
@@ -230,21 +230,21 @@ async function setInventoryQuantities(quantities, referenceDocumentUri) {
   assertNoUserErrors('la actualización de inventario por ubicación', data.inventorySetQuantities?.userErrors);
 }
 
-async function syncAvailableQuantities(quantities, referenceDocumentUri) {
+async function syncAvailableQuantities(quantities, referenceDocumentUri, graphql = shopifyGraphql) {
   const updates = [];
   let activated = 0;
   for (const quantity of quantities) {
-    const current = await getCurrentAvailableQuantity(quantity.inventoryItemId, quantity.locationId);
+    const current = await getCurrentAvailableQuantity(quantity.inventoryItemId, quantity.locationId, graphql);
     if (current === null) {
       if (quantity.quantity > 0) {
-        await activateInventoryLocation(quantity);
+        await activateInventoryLocation(quantity, graphql);
         activated++;
       }
     } else if (quantity.quantity !== current) {
       updates.push({ ...quantity, changeFromQuantity: current });
     }
   }
-  if (updates.length > 0) await setInventoryQuantities(updates, referenceDocumentUri);
+  if (updates.length > 0) await setInventoryQuantities(updates, referenceDocumentUri, graphql);
   return { updated: activated + updates.length, skipped: quantities.length === 0 };
 }
 
@@ -504,6 +504,7 @@ async function archiveShopifyProduct(productId) {
 
 module.exports = {
   shopifyGraphql,
+  syncAvailableQuantities,
   SHOPIFY_CATEGORY_MAP,
   syncShopifyProduct,
   archiveShopifyProduct,

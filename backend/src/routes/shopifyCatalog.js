@@ -61,6 +61,7 @@ function validateItems(variants, items, principalItemId) {
 
 function serializeModel(model, items, locations) {
   const availability = getCatalogAvailability(model);
+  const links = new Map((model.shopifyVariantLinks || []).map(link => [String(link.itemId), link]));
   return {
     id: String(model._id),
     code: model.code,
@@ -77,10 +78,12 @@ function serializeModel(model, items, locations) {
     galleries: model.galleries,
     variants: model.variants.map(variant => {
       const item = items.get(String(variant.sourceItemId || variant.itemId));
+      const link = links.get(String(variant.itemId));
       return {
         ...variant,
         item: item ? serializeItem(item, locations) : null,
         sku: item ? getVariantSku(variant, item) : null,
+        shopifySku: link?.color === variant.color && link.size === variant.size ? link.sku : undefined,
         available: availability.get(String(variant.itemId))
       };
     })
@@ -266,11 +269,22 @@ router.post('/models/:id/sync-draft', write, asyncHandler(async (req, res) => {
   draftOperations.add(id);
   try {
     const model = await findModel(id);
+    if (req.body?.revision !== undefined && req.body.revision !== model.revision) {
+      throw new HttpError(409, 'El modelo cambió. Volvé a cargarlo antes de sincronizar.');
+    }
     const items = await loadItems(model.variants, [model.principalItemId]);
     validateItems(model.variants, items, model.principalItemId);
     validateOpeningStock(model, items);
     const productId = await syncCatalogDraft(model, items, undefined, {
       selectedLocationId: req.body?.locationId,
+      confirmedVariantIds: req.body?.confirmedVariantIds,
+      async saveLinks(links) {
+        const result = await ShopifyCatalogModel.updateOne(
+          { _id: id, revision: model.revision },
+          { $set: { shopifyVariantLinks: links } }
+        );
+        if (!result.matchedCount) throw new HttpError(409, 'El modelo cambió. Volvé a cargarlo antes de sincronizar.');
+      },
       async beforeSend(locationId) {
         const result = await ShopifyCatalogModel.updateOne(
           { _id: id, revision: model.revision, draftShopifyLocationId: { $in: [null, locationId] } },
@@ -298,7 +312,9 @@ router.post('/models/:id/sync-draft', write, asyncHandler(async (req, res) => {
     ).lean();
     await sendModel(res, saved, await loadItems(saved.variants, [saved.principalItemId]));
   } catch (error) {
-    await ShopifyCatalogModel.findByIdAndUpdate(id, { $set: { syncError: error.message.slice(0, 500) } });
+    if (!error.details?.missingVariants) {
+      await ShopifyCatalogModel.findByIdAndUpdate(id, { $set: { syncError: error.message.slice(0, 500) } });
+    }
     throw error;
   } finally {
     draftOperations.delete(id);

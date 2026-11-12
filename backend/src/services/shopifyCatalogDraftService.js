@@ -4,6 +4,7 @@ const { HttpError } = require('../utils/errors');
 const { shopifyGraphql } = require('./shopifyProductService');
 const { getOrCreateImage, getProductImages } = require('./shopifyMediaService');
 const { getLinkedProductId } = require('./shopifyCatalogLinkService');
+const { syncExistingCatalogVariants, variantFields } = require('./shopifyCatalogVariantService');
 const { getCatalogAvailability, MAX_VARIANTS, resolveCatalogPhotoUrl, normalizeLabel, splitColors, getVariantSku } = require('./shopifyCatalogService');
 
 function normalizeLocationId(value) {
@@ -57,7 +58,9 @@ async function resolveDraftLocationId(model, locationId) {
   return shopifyId;
 }
 
-async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { beforeAdopt, beforeSend, selectedLocationId } = {}) {
+async function syncCatalogDraft(model, items, graphql = shopifyGraphql, {
+  beforeAdopt, beforeSend, selectedLocationId, confirmedVariantIds, saveLinks
+} = {}) {
   const locationId = await resolveDraftLocationId(model, selectedLocationId);
   const available = getCatalogAvailability(model);
   const handle = `gestionthibe-modelo-${model._id}`;
@@ -68,10 +71,14 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
   const productId = model.productId || linkedProductId;
   const identifier = productId ? { id: productId } : { handle };
   const found = await graphql(`
-    query ThibeCatalogDraft($identifier: ProductIdentifierInput!, $limit: Int!) {
+    query ThibeCatalogDraft($identifier: ProductIdentifierInput!, $limit: Int!, $after: String) {
       productByIdentifier(identifier: $identifier) {
         id status
-        variants(first: $limit) { nodes { id sku } pageInfo { hasNextPage } }
+        options { name values }
+        variants(first: $limit, after: $after) {
+          nodes { ${variantFields} }
+          pageInfo { hasNextPage endCursor }
+        }
       }
     }
   `, { identifier, limit: MAX_VARIANTS });
@@ -80,14 +87,43 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
   if (product && !active && product.status !== 'DRAFT') {
     throw new HttpError(409, 'La ficha de Shopify debe estar activa o en borrador para sincronizar.');
   }
+  if (productId && !product) {
+    throw new HttpError(409, 'Shopify no encontró la ficha vinculada. El modelo quedó guardado en GestionThibe.');
+  }
+
+  async function prepare() {
+    if (beforeSend) await beforeSend(locationId);
+    if (adopting) {
+      if (!beforeAdopt) throw new HttpError(409, 'No se pudo vincular la ficha al catálogo online.');
+      await beforeAdopt(product.id);
+    }
+  }
+
+  if (active || (adopted && product.options?.some(option => normalizeLabel(option.name) !== 'title'))) {
+    let pageInfo = product.variants.pageInfo;
+    while (pageInfo.hasNextPage) {
+      const page = await graphql(`
+        query ThibeCatalogVariantPage($id: ID!, $after: String!) {
+          product(id: $id) {
+            variants(first: 100, after: $after) {
+              nodes { ${variantFields} }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }
+      `, { id: product.id, after: pageInfo.endCursor });
+      if (!page.product) throw new HttpError(409, 'Shopify ya no encuentra la ficha vinculada.');
+      product.variants.nodes.push(...page.product.variants.nodes);
+      pageInfo = page.product.variants.pageInfo;
+    }
+    return syncExistingCatalogVariants({
+      model, product, items, available, locationId, graphql, confirmedVariantIds, prepare, saveLinks
+    });
+  }
   if (product?.variants.pageInfo.hasNextPage) {
     throw new HttpError(409, 'El borrador tiene más variantes de las que admite el piloto.');
   }
-
-  if (adopted && !product) {
-    throw new HttpError(409, 'Shopify no encontró la ficha vinculada. El modelo quedó guardado en GestionThibe.');
-  }
-  if (adopting && !active && (product.variants.nodes.length !== 1 ||
+  if (adopting && (product.variants.nodes.length !== 1 ||
       product.variants.nodes[0].sku !== (principal.sku || principal.code))) {
     throw new HttpError(409, 'La ficha vinculada contiene variantes que requieren revisión en Shopify.');
   }
@@ -113,14 +149,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
       ]
     };
   });
-  if (active) {
-    const retained = new Set(variants.map(variant => variant.id));
-    if (product.variants.nodes.some(variant => !retained.has(variant.id))) {
-      throw new HttpError(409, 'La ficha activa tiene variantes que faltan en GestionThibe. Revisá los SKU antes de sincronizar.');
-    }
-  }
-
-  const keepExistingMedia = adopted || active;
+  const keepExistingMedia = adopted;
   const filesBySource = new Map();
   const filesByColor = new Map();
   for (const gallery of model.galleries) {
@@ -166,11 +195,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
       return photo && !keepExistingMedia ? { ...variant, file: { id: photo } } : variant;
     })
   };
-  if (beforeSend) await beforeSend(locationId);
-  if (adopting) {
-    if (!beforeAdopt) throw new HttpError(409, 'No se pudo vincular el borrador al catálogo online.');
-    await beforeAdopt(product.id);
-  }
+  await prepare();
   const result = await graphql(`
     mutation ThibeSetCatalogDraft($identifier: ProductSetIdentifiers, $input: ProductSetInput!, $limit: Int!) {
       productSet(identifier: $identifier, input: $input, synchronous: true) {
@@ -224,7 +249,7 @@ async function syncCatalogDraft(model, items, graphql = shopifyGraphql, { before
     const desired = variantPhotos[index];
     const current = variant.media.nodes.map(node => node.id);
     const added = desired.filter(id => !current.includes(id));
-    const removed = active || (adopted && !desired.length) ? [] : current.filter(id => !desired.includes(id));
+    const removed = adopted && !desired.length ? [] : current.filter(id => !desired.includes(id));
     if (added.length) append.push({ variantId: variant.id, mediaIds: added });
     if (removed.length) detach.push({ variantId: variant.id, mediaIds: removed });
   }

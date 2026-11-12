@@ -655,7 +655,19 @@ export default function ShopifyCatalogPage() {
     setError('');
     setMessage('');
     try {
-      replaceModel(await api.post(`${endpoint}/models/${model.id}/sync-draft`, { locationId }));
+      const path = `${endpoint}/models/${model.id}/sync-draft`;
+      const payload = { locationId, revision: model.revision };
+      let saved;
+      try {
+        saved = await api.post(path, payload);
+      } catch (err) {
+        const missing = err.details?.details?.missingVariants;
+        if (!missing?.length) throw err;
+        const labels = missing.map(row => row.label).join('\n');
+        if (!window.confirm(`¿Crear estas variantes en la ficha de Shopify?\n\n${labels}`)) return;
+        saved = await api.post(path, { ...payload, confirmedVariantIds: missing.map(row => row.itemId) });
+      }
+      replaceModel(saved);
       setMessage('Ficha sincronizada en Shopify.');
     } catch (err) {
       setError(err.message);
@@ -774,7 +786,7 @@ export default function ShopifyCatalogPage() {
                   <thead><tr><th>SKU</th><th>Color</th><th>Talle</th><th>Disponibles para la web</th></tr></thead>
                   <tbody>
                     {model.variants.map(row => (
-                      <tr key={row.itemId}><td>{row.sku || 'Artículo inexistente'}{row.sourceItemId ? ' (generado)' : ''}</td><td>{row.color}</td><td>{row.size}</td><td>{row.available || 'Agotado'}</td></tr>
+                      <tr key={row.itemId}><td>{row.shopifySku || row.sku || 'Artículo inexistente'}{row.sourceItemId && !row.shopifySku ? ' (generado)' : ''}</td><td>{row.color}</td><td>{row.size}</td><td>{row.available || 'Agotado'}</td></tr>
                     ))}
                   </tbody>
                 </table>

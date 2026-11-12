@@ -94,21 +94,49 @@ test('sincroniza un borrador con SKU intactos, cero explícito y fotos compartid
   assert.equal(await syncCatalogDraft(model, items, graphql), productId);
   assert.equal(graphql.mock.callCount(), 4);
 
-  const activeModel = { ...model, productId, galleries: [] };
-  let activeVariants = variants;
+  const activeModel = { ...model, productId };
+  const existing = (id, sku, size) => ({
+    id, sku, inventoryItem: { id: `inventory-${id}`, tracked: true },
+    selectedOptions: [{ name: 'Colour', value: 'NEGRO' }, { name: 'Size', value: size }]
+  });
+  const medium = existing('v1', 'SKU-SHOPIFY-M', 'M');
+  const large = existing('v2', 'SKU-SHOPIFY-L', 'L');
+  const extra = existing('v3', 'EXISTENTE', 'XL');
+  const options = [{ name: 'Colour', values: ['NEGRO'] }, { name: 'Size', values: ['M', 'L', 'XL'] }];
+  let activeVariants = [medium, large, extra];
   const active = t.mock.fn(async (query, vars) => {
     if (query.includes('productByIdentifier')) {
-      return { productByIdentifier: { id: productId, status: 'ACTIVE', variants: { nodes: activeVariants, pageInfo: { hasNextPage: false } } } };
+      return { productByIdentifier: { id: productId, status: 'ACTIVE', options, variants: { nodes: activeVariants, pageInfo: { hasNextPage: false } } } };
     }
-    assert.equal(vars.input.status, undefined);
-    assert.equal(vars.input.files, undefined);
-    assert.deepEqual(vars.input.variants.map(variant => variant.id), ['v1', 'v2']);
-    return { productSet: { product: { id: productId, variants: { nodes: variants } }, userErrors: [] } };
+    if (query.includes('InventoryLevelAvailable')) {
+      return { inventoryItem: { inventoryLevel: { quantities: [{ name: 'available', quantity: 5 }] } } };
+    }
+    if (query.includes('inventorySetQuantities')) {
+      assert.deepEqual(vars.input.quantities.map(row => [row.inventoryItemId, row.quantity]), [['inventory-v1', 3], ['inventory-v2', 0]]);
+      return { inventorySetQuantities: { userErrors: [] } };
+    }
+    if (query.includes('productVariantsBulkCreate')) {
+      assert.equal(vars.variants[0].inventoryItem.sku, '00043');
+      assert.deepEqual(vars.variants[0].optionValues, [{ optionName: 'Colour', name: 'NEGRO' }, { optionName: 'Size', name: 'L' }]);
+      return { productVariantsBulkCreate: { productVariants: [large], userErrors: [] } };
+    }
+    assert.fail('Una ficha activa solo debe recibir cambios de inventario y altas confirmadas');
   });
-  assert.equal(await syncCatalogDraft(activeModel, items, active), productId);
-  activeVariants = [...variants, { id: 'v3', sku: 'EXISTENTE' }];
-  await assert.rejects(syncCatalogDraft(activeModel, items, active), /variantes que faltan/);
-  assert.equal(active.mock.callCount(), 3);
+  const saveLinks = t.mock.fn();
+  assert.equal(await syncCatalogDraft(activeModel, items, active, { saveLinks }), productId);
+  const [savedLinks] = saveLinks.mock.calls[0].arguments;
+  assert.deepEqual(savedLinks.map(link => link.variantId), ['v1', 'v2']);
+  activeVariants = [{ ...medium, selectedOptions: [] }, large, extra];
+  assert.equal(await syncCatalogDraft({ ...activeModel, shopifyVariantLinks: savedLinks }, items, active), productId);
+  activeVariants = [medium, extra];
+  const beforeConfirmation = active.mock.callCount();
+  await assert.rejects(syncCatalogDraft(activeModel, items, active), {
+    details: { missingVariants: [{ itemId: largeId, label: 'Negro · L' }] }
+  });
+  assert.equal(active.mock.callCount(), beforeConfirmation + 1);
+  assert.equal(await syncCatalogDraft(activeModel, items, active, { confirmedVariantIds: [largeId] }), productId);
+  activeVariants = [medium, large, existing('duplicate', 'OTRO', 'M')];
+  await assert.rejects(syncCatalogDraft(activeModel, items, active), /varias variantes de Shopify/);
 
   config.shopify.defaultLocationId = '';
   let locations = [{ shopifyLocationId: '1234' }];

@@ -38,6 +38,14 @@ const catalogSchema = new Schema({
   updatedBy: String,
   productId: String,
   draftShopifyLocationId: String,
+  shopifyVariantLinks: [{
+    _id: false,
+    itemId: Schema.Types.ObjectId,
+    color: String,
+    size: String,
+    variantId: String,
+    sku: String
+  }],
   adoptedProductId: { type: String, unique: true, sparse: true },
   syncedRevision: Number,
   syncedAt: Date,
