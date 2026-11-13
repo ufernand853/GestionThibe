@@ -1,3 +1,4 @@
+import { formatDateTimeWithSeparator } from '../../utils/dateTime.js';
 import { useEffect, useMemo, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -116,7 +117,7 @@ const formatPrimitive = (key, value) => {
   if (typeof value === 'string' && /At$/.test(key)) {
     const date = new Date(value);
     if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleString('es-AR');
+      return formatDateTimeWithSeparator(new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'medium' }), date);
     }
   }
   return String(value);
@@ -372,7 +373,7 @@ export default function AuditLogsPage() {
           <LoadingIndicator message="Obteniendo registros de auditoría..." />
         ) : (
           <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-            <table>
+            <table className="mobile-cards mobile-cards--audit-logs">
               <thead>
                 <tr>
                   <th>Fecha</th>
@@ -385,15 +386,15 @@ export default function AuditLogsPage() {
               <tbody>
                 {logs.map(log => (
                   <tr key={log.id}>
-                    <td>{new Date(log.timestamp).toLocaleString('es-AR')}</td>
-                    <td>{getActionLabel(log.action)}</td>
-                    <td>{sanitizeAuditText(log.request) || '-'}</td>
-                    <td><AuditDetails details={log.details} fallback={log.request} /></td>
-                    <td>{log.user || '-'}</td>
+                    <td data-label="Fecha">{formatDateTimeWithSeparator(new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'medium' }), new Date(log.timestamp))}</td>
+                    <td data-label="Acción">{getActionLabel(log.action)}</td>
+                    <td data-label="Detalle">{sanitizeAuditText(log.request) || '-'}</td>
+                    <td data-label="Datos registrados"><AuditDetails details={log.details} fallback={log.request} /></td>
+                    <td data-label="Usuario">{log.user || '-'}</td>
                   </tr>
                 ))}
                 {logs.length === 0 && (
-                  <tr>
+                  <tr className="mobile-cards__empty">
                     <td colSpan={5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron registros.
                     </td>

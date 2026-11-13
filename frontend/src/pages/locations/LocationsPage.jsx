@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
+import scrollIntoViewOnMobile from '../../utils/scrollIntoViewOnMobile.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
@@ -121,6 +122,7 @@ export default function LocationsPage() {
   };
 
   const handleEdit = location => {
+    scrollIntoViewOnMobile(() => document.getElementById('location-edit-form'));
     setEditingId(location.id);
     setFormValues({
       name: location.name,
@@ -210,7 +212,7 @@ export default function LocationsPage() {
   }
 
   return (
-    <div>
+    <div className="locations-page">
       <h2>Ubicaciones</h2>
       <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
         Administre depósitos internos y destinos externos desde un único catálogo. La columna Local (S/N) define qué
@@ -236,7 +238,10 @@ export default function LocationsPage() {
               <option value="externalOrigin">Orígenes externos</option>
             </select>
             {canWrite && (
-              <button type="button" className="secondary-button" onClick={handleCreateNew}>
+              <button type="button" className="secondary-button" onClick={() => {
+                handleCreateNew();
+                scrollIntoViewOnMobile(() => document.getElementById('location-edit-form'));
+              }}>
                 Nueva ubicación
               </button>
             )}
@@ -244,7 +249,7 @@ export default function LocationsPage() {
           </div>
         </div>
         <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-          <table>
+          <table className="mobile-cards mobile-cards--locations">
             <thead>
               <tr>
                 <th>Nombre</th>
@@ -260,21 +265,21 @@ export default function LocationsPage() {
             <tbody>
               {filteredLocations.map(location => (
                 <tr key={location.id}>
-                  <td>{location.name}</td>
-                  <td>
-                    <span className="badge neutral">{TYPE_LABELS[location.type] || location.type}</span>
+                  <td data-label="Nombre">{location.name}</td>
+                  <td data-label="Tipo">
+                    <span className={`badge neutral location-type-${location.type}`}>{TYPE_LABELS[location.type] || location.type}</span>
                   </td>
-                  <td>{location.description || '-'}</td>
-                  <td>{location.contactInfo || '-'}</td>
-                  <td>
+                  <td data-label="Descripción">{location.description || '-'}</td>
+                  <td data-label="Contacto">{location.contactInfo || '-'}</td>
+                  <td data-label="Estado">
                     <span className={`badge ${location.status === 'active' ? 'approved' : 'rejected'}`}>
                       {location.status}
                     </span>
                   </td>
-                  <td>{location.isLocal ? 'S' : 'N'}</td>
-                  <td>{location.shopifyLocationId || '-'}</td>
+                  <td data-label="Local">{location.isLocal ? 'S' : 'N'}</td>
+                  <td data-label="Shopify">{location.shopifyLocationId || '-'}</td>
                   {canWrite && (
-                    <td>
+                    <td data-label="Acciones">
                       <div className="inline-actions">
                         <button type="button" className="secondary-button" onClick={() => handleEdit(location)}>
                           Editar
@@ -293,7 +298,7 @@ export default function LocationsPage() {
                 </tr>
               ))}
               {filteredLocations.length === 0 && (
-                <tr>
+                <tr className="mobile-cards__empty">
                   <td colSpan={locationsTableColSpan} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay ubicaciones registradas con el filtro seleccionado.
                   </td>
@@ -305,7 +310,7 @@ export default function LocationsPage() {
       </div>
 
       {canWrite && (
-        <div className="section-card">
+        <div id="location-edit-form" className="section-card mobile-scroll-target">
           <div className="flex-between" style={{ alignItems: 'center', gap: '1rem' }}>
             <h3>{editingId ? 'Editar ubicación' : 'Nueva ubicación'}</h3>
             {editingId && (

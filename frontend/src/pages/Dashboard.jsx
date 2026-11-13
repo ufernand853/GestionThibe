@@ -574,7 +574,7 @@ export default function DashboardPage() {
       {visibleSummaryCards.length > 0 && (
         <div className="metrics-grid">
           {visibleSummaryCards.map(card => (
-            <div key={card.key} className="metric-card">
+            <div key={card.key} className={card.key === 'total' ? 'metric-card metric-card--total' : 'metric-card'}>
               <h3>{card.title}</h3>
               <p>{card.value}</p>
               {card.helper && (
@@ -670,7 +670,7 @@ export default function DashboardPage() {
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Detalle consolidado por ubicación</span>
           </div>
           <div className="table-wrapper">
-            <table>
+            <table className="mobile-cards mobile-cards--dashboard">
               <thead>
                 <tr>
                   <th>Ubicación</th>
@@ -681,15 +681,15 @@ export default function DashboardPage() {
               <tbody>
                 {stockByLocation.map(entry => (
                   <tr key={entry.id}>
-                    <td>{entry.name || 'Ubicación'}</td>
-                    <td>
+                    <td data-label="Ubicación">{entry.name || 'Ubicación'}</td>
+                    <td data-label="Tipo">
                       {entry.type === 'external'
                         ? 'Destino externo'
                         : entry.type === 'externalOrigin'
                         ? 'Origen externo'
                         : 'Depósito interno'}
                     </td>
-                    <td>{formatQuantity(entry.total)}</td>
+                    <td data-label="Total">{formatQuantity(entry.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -707,7 +707,7 @@ export default function DashboardPage() {
             </span>
           </div>
           <div className="inline-actions" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
-            <label htmlFor="topStartDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
+            <div className="mobile-date-field"><label htmlFor="topStartDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
               Desde
             </label>
             <input
@@ -722,8 +722,8 @@ export default function DashboardPage() {
                   setTopEndDate(value);
                 }
               }}
-            />
-            <label htmlFor="topEndDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
+            /></div>
+            <div className="mobile-date-field"><label htmlFor="topEndDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
               Hasta
             </label>
             <input
@@ -738,7 +738,7 @@ export default function DashboardPage() {
                   setTopStartDate(value);
                 }
               }}
-            />
+            /></div>
           </div>
         </div>
         {topItems.length === 0 ? (
@@ -747,7 +747,7 @@ export default function DashboardPage() {
           </p>
         ) : (
           <div className="table-wrapper">
-            <table>
+            <table className="mobile-cards mobile-cards--dashboard">
               <thead>
                 <tr>
                   <th>Código</th>
@@ -760,11 +760,11 @@ export default function DashboardPage() {
               <tbody>
                 {topItems.map(item => (
                   <tr key={item.id}>
-                    <td>{item.code}</td>
-                    <td>{item.description}</td>
-                    <td>{formatQuantity(item.total)}</td>
-                    <td>{item.currentStock ? formatQuantity(item.currentStock) : '-'}</td>
-                    <td>{item.lastWithdrawal ? new Date(item.lastWithdrawal).toLocaleString('es-AR') : '-'}</td>
+                    <td data-label="Código">{item.code}</td>
+                    <td data-label="Descripción">{item.description}</td>
+                    <td data-label="Total retirado">{formatQuantity(item.total)}</td>
+                    <td data-label="Stock disponible">{item.currentStock ? formatQuantity(item.currentStock) : '-'}</td>
+                    <td data-label="Último retiro">{item.lastWithdrawal ? new Date(item.lastWithdrawal).toLocaleString('es-AR') : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -780,7 +780,7 @@ export default function DashboardPage() {
             <span style={{ color: '#64748b', fontSize: '0.85rem' }}>{attentionHelperText}</span>
           </div>
           <div className="inline-actions" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
-            <label htmlFor="attentionStartDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
+            <div className="mobile-date-field"><label htmlFor="attentionStartDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
               Desde
             </label>
             <input
@@ -795,8 +795,8 @@ export default function DashboardPage() {
                   setAttentionEndDate(value);
                 }
               }}
-            />
-            <label htmlFor="attentionEndDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
+            /></div>
+            <div className="mobile-date-field"><label htmlFor="attentionEndDate" style={{ color: '#475569', fontSize: '0.85rem' }}>
               Hasta
             </label>
             <input
@@ -811,7 +811,7 @@ export default function DashboardPage() {
                   setAttentionStartDate(value);
                 }
               }}
-            />
+            /></div>
           </div>
         </div>
         <div className="attention-selection">
@@ -917,7 +917,7 @@ export default function DashboardPage() {
           </p>
         ) : (
           <div className="table-wrapper">
-            <table>
+            <table className="mobile-cards mobile-cards--dashboard">
               <thead>
                 <tr>
                   <th>Código</th>
@@ -930,11 +930,11 @@ export default function DashboardPage() {
               <tbody>
                 {manualAttentionItems.map(item => (
                   <tr key={item.id}>
-                    <td>{item.code}</td>
-                    <td>{item.description}</td>
-                    <td>{formatQuantity(item.total)}</td>
-                    <td>{item.currentStock ? formatQuantity(item.currentStock) : '-'}</td>
-                    <td>{item.lastWithdrawal ? new Date(item.lastWithdrawal).toLocaleString('es-AR') : '-'}</td>
+                    <td data-label="Código">{item.code}</td>
+                    <td data-label="Descripción">{item.description}</td>
+                    <td data-label="Total retirado">{formatQuantity(item.total)}</td>
+                    <td data-label="Stock disponible">{item.currentStock ? formatQuantity(item.currentStock) : '-'}</td>
+                    <td data-label="Último retiro">{item.lastWithdrawal ? new Date(item.lastWithdrawal).toLocaleString('es-AR') : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -952,7 +952,7 @@ export default function DashboardPage() {
             </span>
           </div>
           <div className="table-wrapper">
-            <table>
+            <table className="mobile-cards mobile-cards--dashboard">
               <thead>
                 <tr>
                   <th>Código</th>
@@ -966,12 +966,12 @@ export default function DashboardPage() {
               <tbody>
                 {pendingRequests.slice(0, 5).map(request => (
                   <tr key={request.id}>
-                    <td>{request.item?.code || request.itemId}</td>
-                    <td>{request.fromLocation?.name || '-'}</td>
-                    <td>{request.toLocation?.name || '-'}</td>
-                    <td>{formatQuantity(request.quantity)}</td>
-                    <td>{request.requestedBy?.username || 'N/D'}</td>
-                    <td>{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
+                    <td data-label="Código">{request.item?.code || request.itemId}</td>
+                    <td data-label="Origen"><span className="location-pill">{request.fromLocation?.name || '-'}</span></td>
+                    <td data-label="Destino"><span className="location-pill">{request.toLocation?.name || '-'}</span></td>
+                    <td data-label="Cantidad">{formatQuantity(request.quantity)}</td>
+                    <td data-label="Solicitado por">{request.requestedBy?.username || 'N/D'}</td>
+                    <td data-label="Fecha">{new Date(request.requestedAt).toLocaleString('es-AR')}</td>
                   </tr>
                 ))}
               </tbody>

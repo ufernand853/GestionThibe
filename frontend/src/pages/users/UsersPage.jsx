@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
+import scrollIntoViewOnMobile from '../../utils/scrollIntoViewOnMobile.js';
+import { formatDateTimeWithSeparator } from '../../utils/dateTime.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
@@ -74,6 +76,7 @@ export default function UsersPage() {
   };
 
   const handleEdit = userToEdit => {
+    scrollIntoViewOnMobile(() => document.getElementById('user-edit-form'));
     setSelectedUser(userToEdit);
     setFormValues({
       username: userToEdit.username,
@@ -177,8 +180,12 @@ export default function UsersPage() {
   }
 
   return (
-    <div>
+    <div className="users-page">
       <h2>Administración de usuarios</h2>
+      {canWrite && <button type="button" className="mobile-only" onClick={() => {
+        resetForm();
+        scrollIntoViewOnMobile(() => document.getElementById('user-edit-form'));
+      }}>+ Nuevo usuario</button>}
       <p style={{ color: '#475569', marginTop: '-0.4rem' }}>
         Gestione cuentas, roles y estados de acceso al sistema.
       </p>
@@ -188,7 +195,7 @@ export default function UsersPage() {
 
       <div className="section-card">
         <div className="table-wrapper">
-          <table>
+          <table className="mobile-cards mobile-cards--users">
             <thead>
               <tr>
                 <th>Usuario</th>
@@ -206,10 +213,10 @@ export default function UsersPage() {
             <tbody>
               {users.map(current => (
                 <tr key={current.id}>
-                  <td>{current.username}</td>
-                  <td>{current.email}</td>
-                  <td>{current.role || '-'}</td>
-                  <td>
+                  <td data-label="Usuario">{current.username}</td>
+                  <td data-label="Email">{current.email}</td>
+                  <td data-label="Rol">{current.role || '-'}</td>
+                  <td data-label="Permisos">
                     <div className="chip-list">
                       {current.permissions?.map(permission => (
                         <span key={permission} className="badge">
@@ -218,17 +225,19 @@ export default function UsersPage() {
                       ))}
                     </div>
                   </td>
-                  <td>{current.localSaleEnabled ? current.localSaleAllLocations ? 'Todos los locales' : current.localSaleLocation?.name || 'Habilitado' : '-'}</td>
-                  <td>
+                  <td data-label="Venta local">{current.localSaleEnabled ? current.localSaleAllLocations ? 'Todos los locales' : current.localSaleLocation?.name || 'Habilitado' : '-'}</td>
+                  <td data-label="Estado">
                     <span className={`badge ${current.status === 'active' ? 'approved' : 'rejected'}`}>
                       {current.status}
                     </span>
                   </td>
-                  <td>{current.canEditItems || current.permissions?.includes('items.write') ? 'Sí' : 'No'}</td>
-                  <td>{current.canModifyQuantities === false ? 'No' : 'Sí'}</td>
-                  <td>{current.lastLoginAt ? new Date(current.lastLoginAt).toLocaleString('es-AR') : '-'}</td>
+                  <td data-label="Edita artículos">{current.canEditItems || current.permissions?.includes('items.write') ? 'Sí' : 'No'}</td>
+                  <td data-label="Modifica cantidades">{current.canModifyQuantities === false ? 'No' : 'Sí'}</td>
+                  <td data-label="Último acceso">{current.lastLoginAt ? formatDateTimeWithSeparator(
+                    new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'medium' }), new Date(current.lastLoginAt)
+                  ) : '-'}</td>
                   {canWrite && (
-                    <td>
+                    <td data-label="Acciones">
                       <div className="inline-actions">
                         <button type="button" className="secondary-button" onClick={() => handleEdit(current)}>
                           Editar
@@ -253,7 +262,7 @@ export default function UsersPage() {
                 </tr>
               ))}
               {users.length === 0 && (
-                <tr>
+                <tr className="mobile-cards__empty">
                   <td colSpan={canWrite ? 10 : 9} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay usuarios registrados.
                   </td>
@@ -265,7 +274,7 @@ export default function UsersPage() {
       </div>
 
       {canWrite && (
-        <div className="section-card">
+        <div id="user-edit-form" className="section-card mobile-scroll-target">
           <h3>{selectedUser ? 'Editar usuario' : 'Nuevo usuario'}</h3>
           <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }} onSubmit={handleSubmit}>
             <div className="input-group">

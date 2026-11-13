@@ -168,21 +168,21 @@ export default function OverstockPage() {
 
         {loading ? <LoadingIndicator message="Cargando artículos en sobrestock..." /> : (
           <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-            <table>
+            <table className="mobile-cards mobile-cards--overstock">
               <thead><tr><th>Código</th><th>Descripción</th><th>Grupo</th><th>Precio</th><th>Atributos</th><th>Imágenes</th><th>Ubicaciones</th><th>Total</th>{canWrite && <th>Acciones</th>}</tr></thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
-                    <td>{item.code}</td><td>{item.description}</td><td>{item.group?.name || 'Sin grupo'}</td>
-                    <td><div className="price-display"><span>{formatPrice(item.precio ?? item.pDecimal)}</span>
+                    <td data-label="Código">{item.code}</td><td data-label="Descripción">{item.description}</td><td data-label="Grupo">{item.group?.name || 'Sin grupo'}</td>
+                    <td data-label="Precio"><div className="price-display"><span>{formatPrice(item.precio ?? item.pDecimal)}</span>
                       {Array.isArray(item.priceTiers) && item.priceTiers.length > 0 && <div className="chip-list">{item.priceTiers.map(tier => <span className="badge" key={tier.minQuantity}>x{tier.minQuantity} · {formatPrice(tier.price)}</span>)}</div>}
                     </div></td>
-                    <td><div className="chip-list">{Object.entries(item.attributes || {}).map(([key, value]) => <span className="badge" key={key}>{key}: {value}</span>)}{Object.keys(item.attributes || {}).length === 0 && <span>-</span>}</div></td>
-                    <td>{Array.isArray(item.images) && item.images.length > 0 ? <button type="button" className="secondary-button" onClick={() => openImages(item)}>Ver imágenes ({item.images.length})</button> : '-'}</td>
-                    <td><div className="chip-list">{Object.entries(item.stockByLocation || {}).map(([locationId, quantity]) => <span className="badge" key={locationId}>{quantity.locationName} · {formatQuantity(quantity, { compact: true })}</span>)}</div></td>
-                    <td>{formatQuantity(item.stockTotal)}</td>
+                    <td data-label="Atributos"><div className="chip-list">{Object.entries(item.attributes || {}).map(([key, value]) => <span className="badge" key={key}>{key}: {value}</span>)}{Object.keys(item.attributes || {}).length === 0 && <span>-</span>}</div></td>
+                    <td data-label="Imágenes">{Array.isArray(item.images) && item.images.length > 0 ? <button type="button" className="secondary-button" onClick={() => openImages(item)}>Ver imágenes ({item.images.length})</button> : '-'}</td>
+                    <td data-label="Ubicaciones"><div className="chip-list">{Object.entries(item.stockByLocation || {}).map(([locationId, quantity]) => <span className="badge" key={locationId}>{quantity.locationName} · {formatQuantity(quantity, { compact: true })}</span>)}</div></td>
+                    <td data-label="Total">{formatQuantity(item.stockTotal)}</td>
                     {canWrite && (
-                      <td>
+                      <td data-label="Acciones">
                         <div className="inline-actions">
                           <button type="button" className="secondary-button" onClick={() => handleEdit(item)}>Editar</button>
                           <button
@@ -198,7 +198,7 @@ export default function OverstockPage() {
                     )}
                   </tr>
                 ))}
-                {items.length === 0 && <tr><td colSpan={canWrite ? 9 : 8} style={{ textAlign: 'center', padding: '1.5rem 0' }}>No hay artículos con stock positivo en los grupos de sobrestock seleccionados.</td></tr>}
+                {items.length === 0 && <tr className="mobile-cards__empty"><td colSpan={canWrite ? 9 : 8} style={{ textAlign: 'center', padding: '1.5rem 0' }}>No hay artículos con stock positivo en los grupos de sobrestock seleccionados.</td></tr>}
               </tbody>
             </table>
           </div>

@@ -486,8 +486,8 @@ export default function BarcodeReceptionPage() {
             <label htmlFor="reason">Motivo</label>
             <textarea id="reason" value={reason} onChange={event => setReason(event.target.value)} rows={2} placeholder="Opcional" />
           </div>
-          <div className="inline-actions" style={{ gridColumn: '1 / -1' }}>
-            <button type="button" disabled={lines.length === 0 || saving} onClick={handleConfirm}>
+          <div className="inline-actions mobile-actions" style={{ gridColumn: '1 / -1' }}>
+            <button type="button" className="mobile-action-primary" disabled={lines.length === 0 || saving} onClick={handleConfirm}>
               {saving ? 'Confirmando…' : 'Registrar solicitudes'}
             </button>
             <button type="button" className="secondary-button" disabled={lines.length === 0 || saving} onClick={() => setLines([])}>
@@ -533,7 +533,7 @@ export default function BarcodeReceptionPage() {
           <p style={{ color: '#64748b' }}>No hay lecturas registradas con el filtro seleccionado.</p>
         ) : (
           <div className="table-wrapper">
-            <table>
+            <table className="mobile-cards mobile-cards--barcode-reception">
               <thead>
                 <tr>
                   <th>Código</th>
@@ -548,9 +548,9 @@ export default function BarcodeReceptionPage() {
               <tbody>
                 {visibleLines.map(line => (
                   <tr key={line.itemId}>
-                    <td>{line.code}</td>
-                    <td>{line.description}</td>
-                    <td>
+                    <td data-label="Código">{line.code}</td>
+                    <td data-label="Artículo">{line.description}</td>
+                    <td data-label="Cajas">
                       <input
                         type="number"
                         min="0"
@@ -559,7 +559,7 @@ export default function BarcodeReceptionPage() {
                         style={{ maxWidth: '90px' }}
                       />
                     </td>
-                    <td>
+                    <td data-label="Unidades">
                       <input
                         type="number"
                         min="0"
@@ -568,8 +568,8 @@ export default function BarcodeReceptionPage() {
                         style={{ maxWidth: '90px' }}
                       />
                     </td>
-                    <td>{line.scans}</td>
-                    <td>
+                    <td data-label="Lecturas">{line.scans}</td>
+                    <td data-label="Stock disponible">
                       {getWarehouseStockEntries(line, locations).length > 0 ? (
                         <ul className="stock-summary-list stock-summary-list--compact">
                           {getWarehouseStockEntries(line, locations).map(entry => (
@@ -586,7 +586,7 @@ export default function BarcodeReceptionPage() {
                         <span style={{ color: '#94a3b8' }}>Sin stock registrado</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Acciones">
                       <div className="inline-actions">
                         <span className="badge">{quantityLabel(line.quantity)}</span>
                         <button type="button" className="danger-button" onClick={() => handleRemoveLine(line.itemId)}>Quitar</button>

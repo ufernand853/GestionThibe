@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
+import { formatDateTimeWithSeparator } from '../../utils/dateTime.js';
 
 const formatDateTime = value => value
-  ? new Intl.DateTimeFormat('es-AR', {
+  ? formatDateTimeWithSeparator(new Intl.DateTimeFormat('es-AR', {
       dateStyle: 'short', timeStyle: 'short', hour12: false
-    }).format(new Date(value))
+    }), new Date(value))
   : '-';
 
 export default function ItemsTrashPage() {
@@ -76,20 +77,20 @@ export default function ItemsTrashPage() {
       {loading ? <LoadingIndicator message="Cargando papelera..." /> : (
         <div className="section-card">
           <div className="table-wrapper">
-            <table>
+            <table className="mobile-cards mobile-cards--items-trash">
               <thead><tr><th>Código</th><th>Descripción</th><th>Eliminado por</th><th>Fecha</th><th>Eliminación definitiva</th><th>Acciones</th></tr></thead>
               <tbody>
                 {items.map(item => (
                   <tr key={item.id}>
-                    <td>{item.code}</td><td>{item.description}</td><td>{item.deletedBy || '-'}</td>
-                    <td>{formatDateTime(item.deletedAt)}</td><td>{formatDateTime(item.scheduledDeletionAt)}</td>
-                    <td><div className="inline-actions">
-                      <button type="button" onClick={() => restore(item)} disabled={workingId === item.id}>Restaurar</button>
+                    <td data-label="Código">{item.code}</td><td data-label="Descripción">{item.description}</td><td data-label="Eliminado por">{item.deletedBy || '-'}</td>
+                    <td data-label="Fecha">{formatDateTime(item.deletedAt)}</td><td data-label="Eliminación definitiva">{formatDateTime(item.scheduledDeletionAt)}</td>
+                    <td data-label="Acciones"><div className="inline-actions mobile-actions">
+                      <button type="button" className="mobile-action-primary" onClick={() => restore(item)} disabled={workingId === item.id}>Restaurar</button>
                       <button type="button" className="danger-button" onClick={() => removePermanently(item)} disabled={workingId === item.id}>Eliminar definitivamente</button>
                     </div></td>
                   </tr>
                 ))}
-                {items.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center' }}>La papelera está vacía.</td></tr>}
+                {items.length === 0 && <tr className="mobile-cards__empty"><td colSpan="6" style={{ textAlign: 'center' }}>La papelera está vacía.</td></tr>}
               </tbody>
             </table>
           </div>

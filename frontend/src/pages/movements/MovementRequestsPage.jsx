@@ -836,7 +836,7 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
         ) : (
           <>
           <div className="table-wrapper table-wrapper--compact" style={{ marginTop: '1rem' }}>
-            <table>
+            <table className="mobile-cards mobile-cards--movement-requests">
               <thead>
                 <tr>
                   <th>Artículo</th>
@@ -866,19 +866,19 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
                   const movementLabel = MOVEMENT_TYPE_LABELS[movementType] || MOVEMENT_TYPE_LABELS.transfer;
                   return (
                     <tr key={request.id}>
-                      <td>{request.item?.code || request.itemId}</td>
-                      <td>{request.fromLocation?.name || '-'}</td>
-                      <td>{request.toLocation?.name || '-'}</td>
-                      <td>
+                      <td data-label="Artículo">{request.item?.code || request.itemId}</td>
+                      <td data-label="Origen"><span className="location-pill">{request.fromLocation?.name || '-'}</span></td>
+                      <td data-label="Destino"><span className="location-pill">{request.toLocation?.name || '-'}</span></td>
+                      <td data-label="Cantidad">
                         <div className="quantity-with-flag">
                           <span>{formatQuantity(request.quantity)}</span>
                           <span className={`badge ${movementBadgeClass}`}>{movementLabel}</span>
                         </div>
                       </td>
-                      <td title={request.reason || 'Sin motivo'} style={{ maxWidth: '220px' }}>
+                      <td data-label="Motivo" title={request.reason || 'Sin motivo'} style={{ maxWidth: '220px' }}>
                         {request.reason ? request.reason : <span style={{ color: '#94a3b8' }}>Sin motivo</span>}
                       </td>
-                      <td>
+                      <td data-label="Disponibilidad">
                         {stockStatus ? (
                           <div className="stock-status-cell">
                             <StockStatusBadge status={stockStatus} />
@@ -894,10 +894,10 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
                           '-'
                         )}
                       </td>
-                      <td>
+                      <td data-label="Estado">
                         <span className={`badge ${request.status}`}>{request.status}</span>
                       </td>
-                      <td>
+                      <td data-label="Solicitado por">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                           <span>{request.requestedBy?.username || 'N/D'}</span>
                           {request.requestedBy?.role && (
@@ -907,9 +907,9 @@ export default function MovementRequestsPage({ localSalesOnly = false }) {
                           )}
                         </div>
                       </td>
-                      <td>{formatDateTime24(request.requestedAt)}</td>
+                      <td data-label="Fecha">{formatDateTime24(request.requestedAt)}</td>
                       {!localSalesOnly && (
-                        <td>
+                        <td data-label="Acciones">
                           {request.status === 'rejected' && (
                           <button
                             type="button"

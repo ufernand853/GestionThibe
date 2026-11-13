@@ -165,8 +165,9 @@ export default function ShopifyPage() {
               </p>
             )}
           </div>
-          <div className="shopify-actions">
-            <button type="button" onClick={() => runBulkAction('sync')} disabled={!canWrite || saving || selectedIds.length === 0}>Enviar a Shopify</button>
+          <div className="shopify-actions mobile-bottom-bar mobile-actions">
+            <span className="mobile-only mobile-bottom-count">{selectedIds.length} seleccionado(s)</span>
+            <button type="button" className="mobile-action-primary" onClick={() => runBulkAction('sync')} disabled={!canWrite || saving || selectedIds.length === 0}>Enviar a Shopify</button>
             <button type="button" className="secondary-button" onClick={() => runBulkAction('sync', 'draft')} disabled={!canWrite || saving || selectedIds.length === 0}>Guardar como borrador</button>
             <button type="button" className="danger-button" onClick={() => runBulkAction('archive')} disabled={!canWrite || saving || selectedIds.length === 0}>Dar de baja</button>
           </div>
@@ -187,7 +188,7 @@ export default function ShopifyPage() {
             </button>
           </div>
           <div className="table-responsive">
-            <table className="data-table">
+            <table className="mobile-cards mobile-cards--shopify data-table">
               <thead>
                 <tr>
                   <th><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisible} /></th>
@@ -208,18 +209,18 @@ export default function ShopifyPage() {
                   const imageSummary = getShopifyImageSummary(item);
                   return (
                     <tr key={item.id}>
-                      <td>
+                      <td data-label="Acciones">
                         <input checked={selectedSet.has(item.id)} type="checkbox" onChange={() => toggleItem(item.id)} />
                       </td>
-                      <td>
+                      <td data-label="Artículo">
                         <strong>{item.code}</strong><br />
                         <span className="muted-text">{item.description}</span><br />
                         <small>SKU: {item.sku || '-'}</small>
                       </td>
-                      <td>{item.group?.name || '-'}</td>
-                      <td>{formatMoney(item.precio)}</td>
-                      <td>{item.payload.inventory.boxes} caja(s), {item.payload.inventory.units} unidad(es)</td>
-                      <td>
+                      <td data-label="Grupo">{item.group?.name || '-'}</td>
+                      <td data-label="Precio">{formatMoney(item.precio)}</td>
+                      <td data-label="Stock">{item.payload.inventory.boxes} caja(s), {item.payload.inventory.units} unidad(es)</td>
+                      <td data-label="Ubicación actual">
                         {currentLocations.length > 0
                           ? currentLocations.map(location => (
                               <small key={location.locationId} className="muted-text" style={{ display: 'block' }}>
@@ -228,7 +229,7 @@ export default function ShopifyPage() {
                             ))
                           : '-'}
                       </td>
-                      <td>
+                      <td data-label="Imágenes">
                         {imageSummary.images.length > 0 ? (
                           <div className="shopify-image-summary">
                             <div className="shopify-image-thumbnails">
@@ -247,13 +248,13 @@ export default function ShopifyPage() {
                           </div>
                         ) : '-'}
                       </td>
-                      <td>
+                      <td data-label="Estado">
                         <span className={`status-pill status-pill--${item.shopify.status}`}>
                           {STATUS_LABELS[item.shopify.status] || item.shopify.status}
                         </span>
                       </td>
-                      <td>{formatDate(item.shopify.lastSyncedAt)}</td>
-                      <td>
+                      <td data-label="Última sync">{formatDate(item.shopify.lastSyncedAt)}</td>
+                      <td data-label="Payload Shopify">
                         <small>
                           {item.payload.title} · {item.payload.productType} · {imageSummary.media.length} imagen(es) para Shopify
                           {item.payload.options?.length > 0 && <div>{item.payload.options.map(option => `${option.name}: ${option.value}`).join(' · ')}</div>}
@@ -262,7 +263,7 @@ export default function ShopifyPage() {
                     </tr>
                   );
                 })}
-                {items.length === 0 && <tr><td colSpan="10">No hay artículos con stock en locales para mostrar.</td></tr>}
+                {items.length === 0 && <tr className="mobile-cards__empty"><td colSpan="10">No hay artículos con stock en locales para mostrar.</td></tr>}
               </tbody>
             </table>
           </div>
