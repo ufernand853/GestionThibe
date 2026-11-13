@@ -138,9 +138,9 @@ export default function LocalSalePage() {
         <button disabled={busy}>Agregar</button>
       </form>
     </div>
-    <div className="section-card"><h3>Artículos de la venta</h3><div className="table-wrapper"><table className="mobile-cards mobile-cards--local-sale"><thead><tr><th>Código</th><th>Artículo</th><th>Disponible</th><th>Cantidad</th><th></th></tr></thead><tbody>
-      {lines.map(line => <tr key={line.itemId}><td data-label="Código">{line.code}</td><td data-label="Artículo">{line.description}</td><td data-label="Disponible">{line.availableUnits}</td><td data-label="Cantidad"><input className="quantity-input" type="number" min="1" max={line.availableUnits} step="1" required value={line.quantity} placeholder="Cantidad" onChange={event => { const nextQuantity = event.target.value; setLines(current => current.map(value => value.itemId === line.itemId ? { ...value, quantity: nextQuantity === '' ? '' : Number(nextQuantity) } : value)); }} /></td><td data-label="Acciones"><button className="danger-button" onClick={() => setLines(current => current.filter(value => value.itemId !== line.itemId))}>Quitar</button></td></tr>)}
-      {!lines.length && <tr className="mobile-cards__empty"><td colSpan="5" style={{ textAlign: 'center' }}>Todavía no agregaste artículos.</td></tr>}
+    <div className="section-card"><h3>Artículos de la venta</h3><div className="table-wrapper"><table><thead><tr><th>Código</th><th>Artículo</th><th>Disponible</th><th>Cantidad</th><th></th></tr></thead><tbody>
+      {lines.map(line => <tr key={line.itemId}><td>{line.code}</td><td>{line.description}</td><td>{line.availableUnits}</td><td><input className="quantity-input" type="number" min="1" max={line.availableUnits} step="1" required value={line.quantity} placeholder="Cantidad" onChange={event => { const nextQuantity = event.target.value; setLines(current => current.map(value => value.itemId === line.itemId ? { ...value, quantity: nextQuantity === '' ? '' : Number(nextQuantity) } : value)); }} /></td><td><button className="danger-button" onClick={() => setLines(current => current.filter(value => value.itemId !== line.itemId))}>Quitar</button></td></tr>)}
+      {!lines.length && <tr><td colSpan="5" style={{ textAlign: 'center' }}>Todavía no agregaste artículos.</td></tr>}
     </tbody></table></div><div className="local-sale-confirm"><button disabled={busy || !lines.length || hasInvalidQuantities} onClick={confirmSale}>{busy ? 'Procesando...' : 'Confirmar venta'}</button></div></div>
   </div>;
 }

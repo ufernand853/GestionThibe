@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import useApi from '../../hooks/useApi.js';
-import scrollIntoViewOnMobile from '../../utils/scrollIntoViewOnMobile.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import LoadingIndicator from '../../components/LoadingIndicator.jsx';
 import ErrorMessage from '../../components/ErrorMessage.jsx';
@@ -105,7 +104,6 @@ export default function ReportsPage() {
       total: ensureQuantity(group.total)
     };
     setGroupDetailState(selected);
-    scrollIntoViewOnMobile(() => document.getElementById('report-group-detail'));
     setGroupDetailError(null);
     setGroupDetailLoading(true);
     try {
@@ -129,7 +127,6 @@ export default function ReportsPage() {
   };
 
   const handleCloseGroupDetail = () => {
-    scrollIntoViewOnMobile(() => document.getElementById(`report-group-${groupDetailState.groupKey}`));
     setGroupDetailState({
       groupKey: null,
       groupName: '',
@@ -152,7 +149,6 @@ export default function ReportsPage() {
     });
     setDepositDetailError(null);
     setDepositDetailLoading(true);
-    scrollIntoViewOnMobile(() => document.getElementById('report-deposit-detail'));
     try {
       const queryParam = encodeURIComponent(deposit.queryKey);
       const detailResponse = await api.get(
@@ -175,7 +171,6 @@ export default function ReportsPage() {
   };
 
   const handleCloseDepositDetail = () => {
-    scrollIntoViewOnMobile(() => document.getElementById(`report-deposit-${depositDetailState.locationKey}`));
     setDepositDetailState({
       locationKey: null,
       locationName: '',
@@ -206,7 +201,7 @@ export default function ReportsPage() {
       <div className="section-card">
         <h3>Stock consolidado por grupo</h3>
         <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-          <table className="mobile-cards mobile-cards--reports">
+          <table>
             <thead>
               <tr>
                 <th>Grupo</th>
@@ -216,10 +211,10 @@ export default function ReportsPage() {
             </thead>
             <tbody>
               {consolidatedGroups.map(group => (
-                <tr key={group.key} id={`report-group-${group.queryKey}`} className={`mobile-scroll-target${groupDetailState.groupKey === group.queryKey ? ' is-selected' : ''}`}>
-                  <td data-label="Grupo">{group.name}</td>
-                  <td data-label="Total">{formatQuantity(group.total)}</td>
-                  <td data-label="Acciones" style={{ textAlign: 'right' }}>
+                <tr key={group.key}>
+                  <td>{group.name}</td>
+                  <td>{formatQuantity(group.total)}</td>
+                  <td style={{ textAlign: 'right' }}>
                     <button
                       type="button"
                       onClick={() => handleViewGroupDetail(group)}
@@ -231,7 +226,7 @@ export default function ReportsPage() {
                 </tr>
               ))}
               {consolidatedGroups.length === 0 && (
-                <tr className="mobile-cards__empty">
+                <tr>
                   <td colSpan={3} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay información consolidada por grupo disponible.
                   </td>
@@ -243,7 +238,7 @@ export default function ReportsPage() {
       </div>
 
       {(groupDetailState.groupKey || groupDetailLoading || groupDetailError) && (
-        <div id="report-group-detail" className="section-card mobile-scroll-target report-detail">
+        <div className="section-card">
           <div
             style={{
               display: 'flex',
@@ -280,7 +275,7 @@ export default function ReportsPage() {
                 Stock total del grupo: {formatQuantity(groupDetailState.total)}
               </p>
               <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-                <table className="mobile-cards mobile-cards--reports">
+                <table>
                   <thead>
                     <tr>
                       <th>Código</th>
@@ -298,9 +293,9 @@ export default function ReportsPage() {
                       );
                       return (
                         <tr key={item.id}>
-                          <td data-label="Código">{item.code}</td>
-                          <td data-label="Descripción">{item.description}</td>
-                          <td data-label="Depósitos">
+                          <td>{item.code}</td>
+                          <td>{item.description}</td>
+                          <td>
                             <div className="chip-list">
                               {locations.map(location => (
                                 <span key={location.locationId || location.location?.id || Math.random()} className="badge">
@@ -309,12 +304,12 @@ export default function ReportsPage() {
                               ))}
                             </div>
                           </td>
-                          <td data-label="Total">{formatQuantity(total)}</td>
+                          <td>{formatQuantity(total)}</td>
                         </tr>
                       );
                     })}
                     {groupDetailState.items.length === 0 && (
-                      <tr className="mobile-cards__empty">
+                      <tr>
                         <td colSpan={4} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                           No hay productos asociados al grupo seleccionado.
                         </td>
@@ -331,7 +326,7 @@ export default function ReportsPage() {
       <div className="section-card">
         <h3>Stock consolidado por depósito</h3>
         <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-          <table className="mobile-cards mobile-cards--reports">
+          <table>
             <thead>
               <tr>
                 <th>Depósito</th>
@@ -341,10 +336,10 @@ export default function ReportsPage() {
             </thead>
             <tbody>
               {consolidatedDeposits.map(deposit => (
-                <tr key={deposit.key} id={`report-deposit-${deposit.queryKey}`} className={`mobile-scroll-target${depositDetailState.locationKey === deposit.queryKey ? ' is-selected' : ''}`}>
-                  <td data-label="Depósito">{deposit.name}</td>
-                  <td data-label="Total">{formatQuantity(deposit.total)}</td>
-                  <td data-label="Acciones" style={{ textAlign: 'right' }}>
+                <tr key={deposit.key}>
+                  <td>{deposit.name}</td>
+                  <td>{formatQuantity(deposit.total)}</td>
+                  <td style={{ textAlign: 'right' }}>
                     <button
                       type="button"
                       onClick={() => handleViewDepositDetail(deposit)}
@@ -356,7 +351,7 @@ export default function ReportsPage() {
                 </tr>
               ))}
               {consolidatedDeposits.length === 0 && (
-                <tr className="mobile-cards__empty">
+                <tr>
                   <td colSpan={3} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No hay información consolidada de depósitos disponible.
                   </td>
@@ -368,7 +363,7 @@ export default function ReportsPage() {
       </div>
 
       {(depositDetailState.locationKey || depositDetailLoading || depositDetailError) && (
-        <div id="report-deposit-detail" className="section-card mobile-scroll-target report-detail">
+        <div className="section-card">
           <div
             style={{
               display: 'flex',
@@ -407,7 +402,7 @@ export default function ReportsPage() {
                 Stock total del depósito: {formatQuantity(depositDetailState.total)}
               </p>
               <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-                <table className="mobile-cards mobile-cards--reports">
+                <table>
                   <thead>
                     <tr>
                       <th>Código</th>
@@ -421,9 +416,9 @@ export default function ReportsPage() {
                       const locations = Array.isArray(item.stockByLocation) ? item.stockByLocation : [];
                       return (
                         <tr key={item.id}>
-                          <td data-label="Código">{item.code}</td>
-                          <td data-label="Descripción">{item.description}</td>
-                          <td data-label="Depósitos">
+                          <td>{item.code}</td>
+                          <td>{item.description}</td>
+                          <td>
                             <div className="chip-list">
                               {locations.map(location => (
                                 <span
@@ -436,12 +431,12 @@ export default function ReportsPage() {
                               ))}
                             </div>
                           </td>
-                          <td data-label="Stock en depósito">{formatQuantity(item.total)}</td>
+                          <td>{formatQuantity(item.total)}</td>
                         </tr>
                       );
                     })}
                     {depositDetailState.items.length === 0 && (
-                      <tr className="mobile-cards__empty">
+                      <tr>
                         <td colSpan={4} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                           No hay productos asociados al depósito seleccionado.
                         </td>

@@ -283,7 +283,7 @@ export default function GroupsPage() {
           <p style={{ color: '#94a3b8', margin: 0 }}>Aún no hay grupos configurados.</p>
         ) : (
           <div className="table-wrapper">
-            <table className="mobile-cards mobile-cards--groups">
+            <table>
               <thead>
                 <tr>
                   <th style={{ width: '35%' }}>Nombre</th>
@@ -303,16 +303,16 @@ export default function GroupsPage() {
                   if (!canManageGroups && !isEditing) {
                     return (
                       <tr key={group.id}>
-                        <td data-label="Nombre">{group.name}</td>
-                        <td data-label="Grupo padre">{parentName}</td>
-                        <td data-label="Acciones" style={{ color: '#94a3b8' }}>Sin permisos</td>
+                        <td>{group.name}</td>
+                        <td>{parentName}</td>
+                        <td style={{ color: '#94a3b8' }}>Sin permisos</td>
                       </tr>
                     );
                   }
 
                   return (
-                    <tr key={group.id} className={isEditing ? 'is-editing' : undefined}>
-                      <td data-label="Nombre">
+                    <tr key={group.id}>
+                      <td>
                         {isEditing ? (
                           <input
                             name="name"
@@ -325,7 +325,7 @@ export default function GroupsPage() {
                           group.name
                         )}
                       </td>
-                      <td data-label="Grupo padre">
+                      <td>
                         {isEditing ? (
                           <select
                             name="parentId"
@@ -346,10 +346,10 @@ export default function GroupsPage() {
                           parentName
                         )}
                       </td>
-                      <td data-label="Acciones">
+                      <td>
                         {isEditing ? (
-                          <div className="mobile-actions" style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button type="button" className="mobile-action-primary" onClick={handleUpdateGroup} disabled={isSaving}>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button type="button" onClick={handleUpdateGroup} disabled={isSaving}>
                               {isSaving ? 'Guardando...' : 'Guardar'}
                             </button>
                             <button

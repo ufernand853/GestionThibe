@@ -136,7 +136,7 @@ export default function ApprovalsPage() {
           <p style={{ color: '#64748b' }}>No hay solicitudes pendientes de aprobación.</p>
         ) : (
           <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-            <table className="mobile-cards mobile-cards--approvals">
+            <table>
               <thead>
                 <tr>
                   <th>Artículo</th>
@@ -164,16 +164,16 @@ export default function ApprovalsPage() {
                   const movementLabel = MOVEMENT_TYPE_LABELS[movementType] || MOVEMENT_TYPE_LABELS.transfer;
                   return (
                     <tr key={request.id}>
-                      <td data-label="Artículo">{request.item?.code || request.itemId}</td>
-                      <td data-label="Origen"><span className="location-pill">{request.fromLocation?.name || '-'}</span></td>
-                      <td data-label="Destino"><span className="location-pill">{request.toLocation?.name || '-'}</span></td>
-                      <td data-label="Cantidad">
+                      <td>{request.item?.code || request.itemId}</td>
+                      <td>{request.fromLocation?.name || '-'}</td>
+                      <td>{request.toLocation?.name || '-'}</td>
+                      <td>
                         <div className="quantity-with-flag">
                           <span>{formatQuantity(request.quantity)}</span>
                           <span className={`badge ${movementBadgeClass}`}>{movementLabel}</span>
                         </div>
                       </td>
-                      <td data-label="Disponibilidad">
+                      <td>
                         {stockStatus ? (
                           <div className="stock-status-cell">
                             <StockStatusBadge status={stockStatus} />
@@ -189,11 +189,11 @@ export default function ApprovalsPage() {
                           '-'
                         )}
                       </td>
-                      <td data-label="Solicitado por">{request.requestedBy?.username || 'N/D'}</td>
-                      <td data-label="Fecha">{formatDateTime24(request.requestedAt)}</td>
-                      <td data-label="Acciones">
-                        <div className="inline-actions mobile-actions">
-                          <button type="button" className="mobile-action-primary" onClick={() => handleApprove(request.id)}>
+                      <td>{request.requestedBy?.username || 'N/D'}</td>
+                      <td>{formatDateTime24(request.requestedAt)}</td>
+                      <td>
+                        <div className="inline-actions">
+                          <button type="button" onClick={() => handleApprove(request.id)}>
                             Aprobar
                           </button>
                           <button type="button" className="secondary-button" onClick={() => handleReject(request.id)}>

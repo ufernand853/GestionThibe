@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
-export const NAV_ITEMS = [
+const NAV_ITEMS = [
   { to: '/', label: 'Resumen' },
   { to: '/items', label: 'Artículos', permission: 'items.read', hiddenForRoles: ['Operador'] },
   { to: '/items/local', label: 'Artículos Locales', permission: 'items.read', hiddenForRoles: ['Operador'] },
@@ -21,14 +21,19 @@ export const NAV_ITEMS = [
   { to: '/users', label: 'Usuarios', permission: 'users.read', hiddenForRoles: ['Operador'] }
 ];
 
-export function visibleNavItems(user) {
+export default function Sidebar() {
+  const { user } = useAuth();
   const permissions = user?.permissions || [];
   const role = user?.role || null;
   const visibleItems = role === 'Vendedor'
     ? NAV_ITEMS.filter(item => item.to === '/venta-local')
     : NAV_ITEMS;
 
-  return visibleItems.filter(item => {
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-header">Stock</div>
+      <nav className="sidebar-nav">
+        {visibleItems.filter(item => {
           if (item.hiddenForRoles && role && item.hiddenForRoles.includes(role)) {
             return false;
           }
@@ -42,27 +47,12 @@ export function visibleNavItems(user) {
             return false;
           }
           return true;
-  });
-}
-
-export function Navigation({ user, onNavigate }) {
-  return (
-    <nav className="sidebar-nav">
-        {visibleNavItems(user).map(item => (
-          <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={onNavigate}>
+        }).map(item => (
+          <NavLink key={item.to} to={item.to} end={item.to === '/'}>
             {item.label}
           </NavLink>
         ))}
-    </nav>
-  );
-}
-
-export default function Sidebar() {
-  const { user } = useAuth();
-  return (
-    <aside className="sidebar">
-      <div className="sidebar-header">Stock</div>
-      <Navigation user={user} />
+      </nav>
       <div className="sidebar-footer">v1.0.0</div>
     </aside>
   );

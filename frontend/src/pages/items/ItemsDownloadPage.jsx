@@ -744,8 +744,6 @@ export default function ItemsDownloadPage() {
               />
               Mostrar SKU en PDF
             </label>
-            <div className="download-bar mobile-bottom-bar">
-            <span className="mobile-only mobile-bottom-count">{selectedItemsList.length} seleccionado(s)</span>
             <button
               type="button"
               className="secondary-button"
@@ -764,7 +762,6 @@ export default function ItemsDownloadPage() {
             >
               {printing ? 'Preparando impresión…' : 'Imprimir etiquetas 10 × 10'}
             </button>
-            </div>
           </div>
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
@@ -893,7 +890,7 @@ export default function ItemsDownloadPage() {
           <LoadingIndicator message="Cargando artículos..." />
         ) : (
           <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-            <table className="mobile-cards mobile-cards--items-download">
+            <table>
               <thead>
                 <tr>
                   <th>Seleccionar</th>
@@ -908,7 +905,7 @@ export default function ItemsDownloadPage() {
                 {items.map(item => {
                   return (
                     <tr key={item.id}>
-                      <td data-label="Seleccionar">
+                      <td>
                         <input
                           type="checkbox"
                           checked={isSelectedForPrint(item.id)}
@@ -917,11 +914,11 @@ export default function ItemsDownloadPage() {
                           aria-label={`Seleccionar ${item.code || 'artículo'} para PDF o impresión`}
                         />
                       </td>
-                      <td data-label="EAN13">{buildItemEan13(item.sku, item.unitsPerBox) || '-'}</td>
-                      <td data-label="Artículo">{item.code}</td>
-                      {includeSkuInPdf && <td data-label="SKU">{item.sku || '-'}</td>}
-                      <td data-label="Descripción">{item.description}</td>
-                      <td data-label="Etiqueta">
+                      <td>{buildItemEan13(item.sku, item.unitsPerBox) || '-'}</td>
+                      <td>{item.code}</td>
+                      {includeSkuInPdf && <td>{item.sku || '-'}</td>}
+                      <td>{item.description}</td>
+                      <td>
                         <button type="button" className="secondary-button" onClick={() => handlePrintSingleLabel(item)}>
                           Imprimir etiqueta
                         </button>
@@ -930,7 +927,7 @@ export default function ItemsDownloadPage() {
                   );
                 })}
                 {items.length === 0 && (
-                  <tr className="mobile-cards__empty">
+                  <tr>
                     <td colSpan={includeSkuInPdf ? 6 : 5} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                       No se encontraron artículos para los filtros seleccionados.
                     </td>

@@ -186,16 +186,16 @@ function VariantEditor({ model, models, update, disabled }) {
         </>
       )}
       {!choosingProduct && <div className="table-wrapper">
-        <table className="mobile-cards mobile-cards--shopify-catalog">
+        <table>
           <thead><tr><th>SKU</th><th>Artículo</th><th>Color</th><th>Talle</th><th>Acción</th></tr></thead>
           <tbody>
             {model.variants.map(row => (
               <tr key={row.itemId}>
-                <td data-label="SKU">{row.sku || 'Artículo inexistente'}{row.sourceItemId ? ' (generado)' : ''}</td>
-                <td data-label="Artículo">{row.item?.description}{row.item?.deleted ? ' (eliminado)' : ''}</td>
-                <td data-label="Color"><OptionField variant={row} field="color" onChange={value => changeVariant(row.itemId, 'color', value)} /></td>
-                <td data-label="Talle"><OptionField variant={row} field="size" onChange={value => changeVariant(row.itemId, 'size', value)} /></td>
-                <td data-label="Acción">
+                <td>{row.sku || 'Artículo inexistente'}{row.sourceItemId ? ' (generado)' : ''}</td>
+                <td>{row.item?.description}{row.item?.deleted ? ' (eliminado)' : ''}</td>
+                <td><OptionField variant={row} field="color" onChange={value => changeVariant(row.itemId, 'color', value)} /></td>
+                <td><OptionField variant={row} field="size" onChange={value => changeVariant(row.itemId, 'size', value)} /></td>
+                <td>
                   <div className="inline-actions">
                     {row.item && !row.sourceItemId && (model.principal?.id === row.itemId || (!model.principal && model.variants.length === 1)) &&
                       [row.color, row.size].some(value => splitOptions(value).length > 1) && (
@@ -323,7 +323,7 @@ function ExistingBoxes({ model, update }) {
   if (!rows.length) return <p className="muted-text">Los SKU vinculados no tienen cajas registradas.</p>;
   return (
     <div className="table-responsive">
-      <table className="mobile-cards mobile-cards--shopify-catalog data-table">
+      <table className="data-table">
         <thead><tr><th>SKU</th><th>Ubicación</th><th>Cajas cargadas</th><th>Unidades por caja</th><th>Acción</th></tr></thead>
         <tbody>
           {rows.map(row => {
@@ -332,11 +332,11 @@ function ExistingBoxes({ model, update }) {
               box.quantities.some(quantity => quantity.units > 0 && model.variants.some(variant => variant.itemId === quantity.itemId && (variant.sourceItemId || variant.itemId) === row.sourceId)));
             return (
               <tr key={row.sourceKey}>
-                <td data-label="SKU">{row.variant.item.sku}</td>
-                <td data-label="Ubicación">{row.stock.locationName}</td>
-                <td data-label="Cajas cargadas">{row.stock.boxes}</td>
-                <td data-label="Unidades por caja">{row.stock.unitsPerBox ?? 'Sin dato'}</td>
-                <td data-label="Acción">
+                <td>{row.variant.item.sku}</td>
+                <td>{row.stock.locationName}</td>
+                <td>{row.stock.boxes}</td>
+                <td>{row.stock.unitsPerBox ?? 'Sin dato'}</td>
+                <td>
                   {imported ? 'Traídas al modelo' : hasManualCount ? 'Revisá el conteo manual de este SKU antes de traer las cajas' : (
                     <button type="button" className="secondary-button" onClick={() => importBoxes(row)}>
                       {row.units === null ? 'Traer y repartir unidades' : 'Traer cajas'}
@@ -374,14 +374,14 @@ function BoxScale({ box, variants, onApply }) {
         <input type="number" step="any" value={closedBoxes}
           onChange={event => setClosedBoxes(event.target.value)} />
       </label>
-      <table className="mobile-cards mobile-cards--shopify-catalog data-table">
+      <table className="data-table">
         <thead><tr><th>Color</th><th>Talle</th><th>Unidades por caja</th></tr></thead>
         <tbody>
           {variants.map(row => (
             <tr key={row.itemId}>
-              <td data-label="Color">{row.color}</td>
-              <td data-label="Talle">{row.size}</td>
-              <td data-label="Unidades por caja">
+              <td>{row.color}</td>
+              <td>{row.size}</td>
+              <td>
                 <input type="number" className="quantity-input" step="any"
                   aria-label={`Unidades por caja de ${row.color}, talle ${row.size}`}
                   value={scale[row.itemId] ?? ''}
@@ -470,15 +470,15 @@ function BoxEditor({ model, update }) {
               }));
             }} />}
             <div className="table-responsive">
-              <table className="mobile-cards mobile-cards--shopify-catalog data-table">
+              <table className="data-table">
                 <thead><tr><th>SKU</th><th>Color</th><th>Talle</th><th>Unidades para la web</th></tr></thead>
                 <tbody>
                   {variants.map(row => (
                     <tr key={row.itemId}>
-                      <td data-label="SKU">{row.sku}</td>
-                      <td data-label="Color">{row.color || '—'}</td>
-                      <td data-label="Talle">{row.size || '—'}</td>
-                      <td data-label="Unidades para la web">
+                      <td>{row.sku}</td>
+                      <td>{row.color || '—'}</td>
+                      <td>{row.size || '—'}</td>
+                      <td>
                         <input
                           type="number"
                           className="quantity-input"
@@ -795,10 +795,10 @@ export default function ShopifyCatalogPage() {
       <header className="page-header">
         <h2>Shopify · Catálogo online</h2>
         <p className="muted-text">Prepará un producto por vez. Revisá sus variantes, fotos y unidades antes de enviarlo como borrador a Shopify.</p>
-        <nav className="inline-actions catalog-tabs" aria-label="Shopify">
-          <Link to="/shopify/catalogo" className={tab === 'catalogo' ? 'is-current' : undefined}>Catálogo online</Link>
-          <Link to="/shopify/catalogo?vista=pedidos" className={tab === 'pedidos' ? 'is-current' : undefined}>Pedidos online</Link>
-          <Link to="/shopify/catalogo?vista=alertas" className={tab === 'alertas' ? 'is-current' : undefined}>Alertas de stock</Link>
+        <nav className="inline-actions" aria-label="Shopify">
+          <Link to="/shopify/catalogo">Catálogo online</Link>
+          <Link to="/shopify/catalogo?vista=pedidos">Pedidos online</Link>
+          <Link to="/shopify/catalogo?vista=alertas">Alertas de stock</Link>
           <Link to="/shopify">Integración Shopify</Link>
         </nav>
       </header>
@@ -821,9 +821,9 @@ export default function ShopifyCatalogPage() {
         </section>
       ) : (
         <>
-          {canWrite && !editing && <button type="button" className="catalog-new-model" onClick={() => setEditing({ ...emptyModel })} disabled={busy}>Nuevo modelo</button>}
+          {canWrite && !editing && <button type="button" onClick={() => setEditing({ ...emptyModel })} disabled={busy}>Nuevo modelo</button>}
           {editing && canWrite && (
-            <form className="catalog-editor" onSubmit={save}>
+            <form onSubmit={save}>
               <fieldset disabled={busy || readingPhoto}>
                 <legend>{editing.id ? 'Editar modelo' : 'Nuevo modelo'}</legend>
                 {(editing.principal || editing.id) && (
@@ -842,7 +842,7 @@ export default function ShopifyCatalogPage() {
                 {(editing.principal || editing.id) && <GalleryEditor model={editing} update={setEditing} onReading={setReadingPhoto} />}
                 {(editing.principal || editing.id) && <BoxEditor model={editing} update={setEditing} />}
                 {(editing.principal || editing.id) && <p className="muted-text">Guardá el producto para poder enviarlo como borrador a Shopify.</p>}
-                <div className="inline-actions mobile-actions">
+                <div className="inline-actions">
                   <button type="submit" disabled={!editing.variants.length}>Guardar modelo</button>
                   <button type="button" className="secondary-button" onClick={() => setEditing(null)}>Cerrar</button>
                 </div>
@@ -860,11 +860,11 @@ export default function ShopifyCatalogPage() {
               </summary>
               <p>{modelStatus(model)}{model.syncError ? ` · ${model.syncError}` : ''}</p>
               <div className="table-wrapper">
-                <table className="mobile-cards mobile-cards--shopify-catalog">
+                <table>
                   <thead><tr><th>SKU</th><th>Color</th><th>Talle</th><th>Disponibles para la web</th></tr></thead>
                   <tbody>
                     {model.variants.map(row => (
-                      <tr key={row.itemId}><td data-label="SKU">{row.shopifySku || row.sku || 'Artículo inexistente'}{row.sourceItemId && !row.shopifySku ? ' (generado)' : ''}</td><td data-label="Color">{row.color}</td><td data-label="Talle">{row.size}</td><td data-label="Disponibles para la web">{row.available || 'Agotado'}</td></tr>
+                      <tr key={row.itemId}><td>{row.shopifySku || row.sku || 'Artículo inexistente'}{row.sourceItemId && !row.shopifySku ? ' (generado)' : ''}</td><td>{row.color}</td><td>{row.size}</td><td>{row.available || 'Agotado'}</td></tr>
                     ))}
                   </tbody>
                 </table>

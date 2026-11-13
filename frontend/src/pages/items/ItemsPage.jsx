@@ -10,7 +10,6 @@ import { aggregatePendingByItem, computeTotalStockFromMap, deriveStockStatus } f
 import { API_ROOT_URL } from '../../utils/apiConfig.js';
 import { fileToDataUrl } from '../../utils/fileToDataUrl.js';
 import { normalizeSeason } from '../../utils/seasonalWithdrawalAlerts.js';
-import scrollIntoViewOnMobile from '../../utils/scrollIntoViewOnMobile.js';
 
 const ATTRIBUTE_FIELDS = [
   {
@@ -462,11 +461,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const [formOpen, setFormOpen] = useState(false);
-  const itemForm = useRef(null);
-
   const resetForm = () => {
-    setFormOpen(false);
     setFormValues({
       code: '',
       description: '',
@@ -784,8 +779,6 @@ export default function ItemsPage({ localOnly = false } = {}) {
   };
 
   const handleEdit = item => {
-    setFormOpen(true);
-    scrollIntoViewOnMobile(() => itemForm.current);
     clearNewImages();
     setEditingItem(item);
     setExistingImages(Array.isArray(item.images) ? item.images : []);
@@ -974,7 +967,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
       )}
 
       {canWrite ? (
-        <div className={`section-card mobile-item-form mobile-scroll-target${formOpen ? ' is-open' : ''}`} ref={itemForm}>
+        <div className="section-card">
           <form className="item-form" onSubmit={handleSubmit}>
           <section className="form-section">
             <div className="form-section__header">
@@ -1299,11 +1292,6 @@ export default function ItemsPage({ localOnly = false } = {}) {
       <div className="section-card">
         <div className="flex-between">
           <h2>{localOnly ? 'Buscar artículos en locales' : 'Buscar artículos'}</h2>
-          {canWrite && <button type="button" className="mobile-only" onClick={() => {
-            resetForm();
-            setFormOpen(true);
-            scrollIntoViewOnMobile(() => itemForm.current);
-          }}>+ Crear artículo</button>}
         </div>
         <form className="form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
           <div className="input-group">
@@ -1420,7 +1408,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
           <LoadingIndicator message="Cargando artículos..." />
         ) : (
           <div className="table-wrapper" style={{ marginTop: '1rem' }}>
-            <table className="mobile-cards mobile-cards--items">
+            <table>
               <thead>
                 <tr>
                   <th>Código</th>
@@ -1449,10 +1437,10 @@ export default function ItemsPage({ localOnly = false } = {}) {
                         : null;
                   return (
                     <tr key={item.id}>
-                      <td data-label="Código">{item.code}</td>
-                      <td data-label="Descripción">{item.description}</td>
-                      <td data-label="Grupo">{item.group?.name || 'Sin grupo'}</td>
-                      <td data-label="Precio">
+                      <td>{item.code}</td>
+                      <td>{item.description}</td>
+                      <td>{item.group?.name || 'Sin grupo'}</td>
+                      <td>
                         <div className="price-display">
                           <span>
                             {precioBase === null
@@ -1470,7 +1458,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                           )}
                         </div>
                       </td>
-                      <td data-label="Atributos">
+                      <td>
                         <div className="chip-list">
                           {Object.entries(item.attributes || {}).map(([key, value]) => (
                             <span key={key} className="badge">
@@ -1480,15 +1468,15 @@ export default function ItemsPage({ localOnly = false } = {}) {
                           {Object.keys(item.attributes || {}).length === 0 && <span>-</span>}
                         </div>
                       </td>
-                      <td data-label="Unidades por caja">{item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : item.unitsPerBox}</td>
-                      <td data-label="Imágenes">
+                      <td>{item.unitsPerBox === null || item.unitsPerBox === undefined ? '-' : item.unitsPerBox}</td>
+                      <td>
                         {Array.isArray(item.images) && item.images.length > 0 ? (
                           <button type="button" className="secondary-button" onClick={() => handleItemImagesOpen(item)}>
                             Ver imágenes ({item.images.length})
                           </button>
                         ) : '-'}
                       </td>
-                      <td data-label="Ubicaciones">
+                      <td>
                       <div className="chip-list">
                         {(() => {
                           const stockEntries = Object.entries(
@@ -1515,8 +1503,8 @@ export default function ItemsPage({ localOnly = false } = {}) {
                         })()}
                       </div>
                       </td>
-                      <td data-label="Total">{formatCatalogQuantity(totalQuantity)}</td>
-                      <td data-label="Recuento">
+                      <td>{formatCatalogQuantity(totalQuantity)}</td>
+                      <td>
                         {item.needsRecount ? (
                           <span className="badge" style={{ backgroundColor: '#f97316', color: '#fff' }}>
                             Reconteo pendiente
@@ -1525,7 +1513,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                           <span style={{ color: '#64748b', fontSize: '0.85rem' }}>Al día</span>
                         )}
                       </td>
-                      <td data-label="Disponibilidad">
+                      <td>
                         {stockStatus ? (
                           <div className="stock-status-cell">
                             <StockStatusBadge status={stockStatus} />
@@ -1542,7 +1530,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                         )}
                       </td>
                       {canWrite && (
-                        <td data-label="Acciones">
+                        <td>
                           <div className="inline-actions">
                             <button type="button" className="secondary-button" onClick={() => handleEdit(item)}>
                               Editar
@@ -1552,18 +1540,16 @@ export default function ItemsPage({ localOnly = false } = {}) {
                                 Preparar para Shopify
                               </button>
                             )}
-                            {canManageItems && (<>
+                            {canManageItems && (
                               <button
                                 type="button"
-                                className="danger-button desktop-item-delete"
+                                className="danger-button"
                                 onClick={() => handleDelete(item)}
                                 disabled={deletingId === item.id}
                               >
                                 {deletingId === item.id ? 'Eliminando…' : 'Eliminar'}
                               </button>
-                              <button type="button" className="danger-button mobile-only" aria-label={`Eliminar ${item.code}`}
-                                onClick={() => handleDelete(item)} disabled={deletingId === item.id}>🗑</button>
-                            </>)}
+                            )}
                           </div>
                         </td>
                       )}
@@ -1571,7 +1557,7 @@ export default function ItemsPage({ localOnly = false } = {}) {
                 );
               })}
               {items.length === 0 && (
-                <tr className="mobile-cards__empty">
+                <tr>
                   <td colSpan={canWrite ? 12 : 11} style={{ textAlign: 'center', padding: '1.5rem 0' }}>
                     No se encontraron artículos para los filtros seleccionados.
                   </td>
